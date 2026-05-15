@@ -30,14 +30,16 @@ class ExcelDictionaryImportService
             $positions = TeacherPosition::all()->keyBy('name');
 
             foreach ($rows as $index => $row) {
-                if ($index === 0)
-                    continue; // Пропускаем заголовки
+                if ($index === 0) {
+                    continue;
+                } // Пропускаем заголовки
 
                 $lastName = trim((string) ($row[0] ?? ''));
                 $firstName = trim((string) ($row[1] ?? ''));
 
-                if ($lastName === '' || $firstName === '')
+                if ($lastName === '' || $firstName === '') {
                     continue;
+                }
 
                 $middleName = trim((string) ($row[2] ?? ''));
                 $deptStr = trim((string) ($row[3] ?? ''));
@@ -49,16 +51,18 @@ class ExcelDictionaryImportService
                 $dept = $departments->get($deptStr) ?? $departmentsByName->get($deptStr);
                 $pos = $positions->get($posStr);
 
-                if (!$dept) {
+                if (! $dept) {
                     $errors[] = "Строка $index: Кафедра '$deptStr' не найдена.";
+
                     continue;
                 }
-                if (!$pos) {
+                if (! $pos) {
                     $errors[] = "Строка $index: Должность '$posStr' не найдена.";
+
                     continue;
                 }
 
-                $shortName = $lastName . ' ' . mb_substr($firstName, 0, 1) . '.' . ($middleName ? mb_substr($middleName, 0, 1) . '.' : '');
+                $shortName = $lastName.' '.mb_substr($firstName, 0, 1).'.'.($middleName ? mb_substr($middleName, 0, 1).'.' : '');
                 $fullName = trim("$lastName $firstName $middleName");
 
                 Teacher::updateOrCreate(
@@ -101,12 +105,14 @@ class ExcelDictionaryImportService
             $currentYear = AcademicYear::where('is_current', true)->first();
 
             foreach ($rows as $index => $row) {
-                if ($index === 0)
+                if ($index === 0) {
                     continue;
+                }
 
                 $name = trim((string) ($row[0] ?? ''));
-                if ($name === '')
+                if ($name === '') {
                     continue;
+                }
 
                 $specCode = trim((string) ($row[1] ?? ''));
                 $deptStr = trim((string) ($row[2] ?? ''));
@@ -119,15 +125,17 @@ class ExcelDictionaryImportService
                 $dept = $departments->get($deptStr);
                 $year = $academicYears->get($yearStr) ?? $currentYear;
 
-                if (!$spec) {
+                if (! $spec) {
                     $errors[] = "Строка $index: Специальность с кодом '$specCode' не найдена.";
+
                     continue;
                 }
-                if (!$dept) {
+                if (! $dept) {
                     $dept = $spec->department; // Фолбэк на кафедру специальности
                 }
-                if (!$year) {
+                if (! $year) {
                     $errors[] = "Строка $index: Учебный год не определен.";
+
                     continue;
                 }
 
@@ -165,12 +173,14 @@ class ExcelDictionaryImportService
             $levels = EducationLevel::all()->keyBy('name');
 
             foreach ($rows as $index => $row) {
-                if ($index === 0)
+                if ($index === 0) {
                     continue;
+                }
 
                 $code = trim((string) ($row[0] ?? ''));
-                if ($code === '')
+                if ($code === '') {
                     continue;
+                }
 
                 $name = trim((string) ($row[1] ?? ''));
                 $shortName = trim((string) ($row[2] ?? ''));
@@ -183,8 +193,9 @@ class ExcelDictionaryImportService
                 $dept = $departments->get($deptStr);
                 $level = $levels->get($levelStr) ?? $levels->first();
 
-                if (!$dept) {
+                if (! $dept) {
                     $errors[] = "Строка $index: Кафедра '$deptStr' не найдена.";
+
                     continue;
                 }
 

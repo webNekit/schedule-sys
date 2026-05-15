@@ -17,27 +17,41 @@ use Livewire\WithPagination;
 
 class Index extends Component
 {
-    use WithPagination, WithFileUploads;
+    use WithFileUploads, WithPagination;
 
     public string $search = '';
+
     public string $departmentFilter = '';
+
     public string $courseFilter = '';
+
     public string $statusFilter = '';
 
     public bool $showCreateModal = false;
+
     public string $newName = '';
+
     public string $newShortName = '';
+
     public ?int $newSpecialtyId = null;
+
     public ?int $newDepartmentId = null;
+
     public ?int $newAcademicYearId = null;
+
     public int $newCourse = 1;
+
     public int $newStudentsCount = 0;
+
     public int $newShift = 1;
+
     public string $newEnrollmentDate = '';
+
     public string $newStatus = 'active';
 
     // Импорт
     public bool $showImportModal = false;
+
     public $importFile;
 
     public function openCreateModal(): void
@@ -122,11 +136,11 @@ class Index extends Component
             if ($result['imported'] > 0) {
                 session()->flash('message', "Импорт завершен. Добавлено/обновлено: {$result['imported']}.");
             }
-            if (!empty($result['errors'])) {
-                session()->flash('error', "Ошибки импорта: " . implode(' ', array_slice($result['errors'], 0, 3)) . (count($result['errors']) > 3 ? '...' : ''));
+            if (! empty($result['errors'])) {
+                session()->flash('error', 'Ошибки импорта: '.implode(' ', array_slice($result['errors'], 0, 3)).(count($result['errors']) > 3 ? '...' : ''));
             }
         } catch (\Exception $e) {
-            session()->flash('error', "Ошибка при импорте: " . $e->getMessage());
+            session()->flash('error', 'Ошибка при импорте: '.$e->getMessage());
         }
     }
 
@@ -166,8 +180,8 @@ class Index extends Component
 
         if ($this->search) {
             $query->where(function ($q) {
-                $q->where('name', 'like', '%' . $this->search . '%')
-                    ->orWhere('short_name', 'like', '%' . $this->search . '%');
+                $q->where('name', 'like', '%'.$this->search.'%')
+                    ->orWhere('short_name', 'like', '%'.$this->search.'%');
             });
         }
 

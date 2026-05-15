@@ -20,17 +20,27 @@ class ShowPlan extends Component
     public CurriculumPlan $plan;
 
     public ?int $courseFilter = null;
+
     public ?int $semesterFilter = null;
+
     public string $disciplineSearch = '';
+
     public ?int $teacherFilter = null; // Восстановлен фильтр по преподавателю
 
     public bool $showAssignModal = false;
+
     public ?int $assignDisciplineId = null;
+
     public ?int $assignTeacherId = null;
+
     public ?int $assignGroupId = null;
+
     public string $assignDisciplineName = '';
 
+    public string $teacherSearch = '';
+
     public bool $editingPlanName = false;
+
     public string $editedPlanName = '';
 
     public function mount(CurriculumPlan $plan): void
@@ -39,7 +49,7 @@ class ShowPlan extends Component
 
         // АВТО-ИСПРАВЛЕНИЕ: Если "Всего часов" равно 0, пересчитываем из базы
         if ($this->plan->total_hours === 0) {
-            $total = CurriculumSemester::whereHas('discipline', fn($q) => $q->where('curriculum_plan_id', $this->plan->id))
+            $total = CurriculumSemester::whereHas('discipline', fn ($q) => $q->where('curriculum_plan_id', $this->plan->id))
                 ->sum('hours_total');
             $this->plan->update(['total_hours' => $total]);
         }
@@ -52,10 +62,10 @@ class ShowPlan extends Component
             'academicYear',
             'creator',
             'practices',
-            'disciplines' => fn($q) => $q->orderBy('sort_order')->orderBy('name'),
-            'disciplines.semesters' => fn($q) => $q->orderBy('course_number')->orderBy('semester_number'),
+            'disciplines' => fn ($q) => $q->orderBy('sort_order')->orderBy('name'),
+            'disciplines.semesters' => fn ($q) => $q->orderBy('course_number')->orderBy('semester_number'),
             'disciplines.semesters.controlForm',
-            'disciplines.teacherDisciplines' => fn($q) => $q->where('academic_year_id', $plan->academic_year_id),
+            'disciplines.teacherDisciplines' => fn ($q) => $q->where('academic_year_id', $plan->academic_year_id),
             'disciplines.teacherDisciplines.teacher',
             'disciplines.teacherDisciplines.group',
         ]);
@@ -99,6 +109,7 @@ class ShowPlan extends Component
         $this->assignDisciplineName = $disciplineName;
         $this->assignTeacherId = null;
         $this->assignGroupId = null;
+        $this->teacherSearch = '';
         $this->showAssignModal = true;
     }
 
@@ -108,6 +119,43 @@ class ShowPlan extends Component
         $this->assignDisciplineId = null;
         $this->assignTeacherId = null;
         $this->assignGroupId = null;
+        $this->teacherSearch = '';
+    }
+
+    public function selectAndAssign(int $teacherId): void
+    {
+        $this->assignTeacherId = $teacherId;
+
+        $td = TeacherDiscipline::firstOrCreate([
+            'teacher_id' => $this->assignTeacherId,
+            'discipline_id' => $this->assignDisciplineId,
+            'group_id' => null,
+            'academic_year_id' => $this->plan->academic_year_id,
+        ], [
+            'is_primary' => true,
+            'planned_hours' => 0,
+        ]);
+
+        $semesters = CurriculumSemester::where('discipline_id', $this->assignDisciplineId)->get();
+        $totalHours = 0;
+
+        foreach ($semesters as $sem) {
+            TeacherDisciplineSemester::firstOrCreate([
+                'teacher_discipline_id' => $td->id,
+                'curriculum_semester_id' => $sem->id,
+            ], [
+                'planned_hours' => $sem->hours_total,
+                'is_active' => true,
+            ]);
+            $totalHours += $sem->hours_total;
+        }
+
+        $td->update(['planned_hours' => $totalHours]);
+
+        $this->closeAssignModal();
+        $this->loadPlanData($this->plan);
+
+        session()->flash('message', 'Преподаватель успешно назначен на дисциплину.');
     }
 
     public function saveAssignment(): void
@@ -164,17 +212,19 @@ class ShowPlan extends Component
      */
     public function isCycleHeader(string $code): bool
     {
-        if (empty($code))
+        if (empty($code)) {
             return false;
+        }
+
         // Если в коде нет цифр (например "ОД" или "ПМ") - это заголовок
-        return !preg_match('/\d/', $code);
+        return ! preg_match('/\d/', $code);
     }
 
     #[Computed]
     public function availableCourses(): Collection
     {
         return $this->plan->disciplines
-            ->flatMap(fn($d) => $d->semesters)
+            ->flatMap(fn ($d) => $d->semesters)
             ->pluck('course_number')
             ->unique()
             ->sort()
@@ -184,10 +234,11 @@ class ShowPlan extends Component
     #[Computed]
     public function availableSemesters(): Collection
     {
-        $semesters = $this->plan->disciplines->flatMap(fn($d) => $d->semesters);
+        $semesters = $this->plan->disciplines->flatMap(fn ($d) => $d->semesters);
         if ($this->courseFilter) {
             $semesters = $semesters->where('course_number', $this->courseFilter);
         }
+
         return $semesters->pluck('semester_number')->unique()->sort()->values();
     }
 
@@ -203,9 +254,23 @@ class ShowPlan extends Component
     }
 
     #[Computed]
-    public function availableTeachers(): Collection
+    public function searchableTeachers(): Collection
     {
-        return Teacher::active()->orderBy('last_name')->get()->map(fn($t) => ['id' => $t->id, 'name' => $t->short_name]);
+        $query = Teacher::active()
+            ->with(['position', 'department'])
+            ->orderBy('last_name');
+
+        if ($this->teacherSearch !== '') {
+            $search = mb_strtolower($this->teacherSearch);
+            $query->where(function ($q) use ($search) {
+                $q->where('last_name', 'like', "%{$search}%")
+                    ->orWhere('first_name', 'like', "%{$search}%")
+                    ->orWhere('middle_name', 'like', "%{$search}%")
+                    ->orWhereRaw("REPLACE(CONCAT(last_name, ' ', first_name, ' ', COALESCE(middle_name, '')), '  ', ' ') LIKE ?", ["%{$search}%"]);
+            });
+        }
+
+        return $query->get();
     }
 
     #[Computed]
@@ -214,13 +279,13 @@ class ShowPlan extends Component
         return Group::active()
             ->where('specialty_id', $this->plan->specialty_id)
             ->orderBy('name')->get()
-            ->map(fn($g) => ['id' => $g->id, 'name' => $g->name]);
+            ->map(fn ($g) => ['id' => $g->id, 'name' => $g->name]);
     }
 
     #[Layout('components.layouts.app')]
     public function render()
     {
-        $semesters = $this->plan->disciplines->flatMap(fn($d) => $d->semesters);
+        $semesters = $this->plan->disciplines->flatMap(fn ($d) => $d->semesters);
 
         if ($this->courseFilter) {
             $semesters = $semesters->where('course_number', $this->courseFilter);
@@ -243,6 +308,7 @@ class ShowPlan extends Component
             $semesters = $semesters->filter(function ($semester) {
                 $name = mb_strtolower($semester->discipline->name);
                 $code = mb_strtolower((string) $semester->discipline->code);
+
                 return str_contains($name, mb_strtolower($this->disciplineSearch))
                     || str_contains($code, mb_strtolower($this->disciplineSearch));
             });
@@ -251,6 +317,7 @@ class ShowPlan extends Component
         // Сортировка: Сначала курс, потом семестр, потом порядок из экселя
         $semesters = $semesters->sortBy(function ($s) {
             $d = $s->discipline;
+
             return [$s->course_number, $s->semester_number, $d->sort_order];
         });
 

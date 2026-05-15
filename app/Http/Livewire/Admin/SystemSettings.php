@@ -27,11 +27,66 @@ class SystemSettings extends Component
         return [];
     }
 
+    public bool $showYearForm = false;
+
+    public string $newYearName = '';
+
+    public int $newYearStart = 0;
+
+    public int $newYearEnd = 0;
+
+    public string $newYearDateStart = '';
+
+    public string $newYearDateEnd = '';
+
     public function mount(): void
     {
         $year = AcademicYear::where('is_current', true)->first();
         $this->currentAcademicYearId = $year?->id;
         $this->loadSettings();
+    }
+
+    public function openYearForm(): void
+    {
+        $lastYear = AcademicYear::orderBy('year_start', 'desc')->first();
+        $nextStart = $lastYear ? $lastYear->year_start + 1 : (int) date('Y');
+        $this->newYearStart = $nextStart;
+        $nextEnd = $nextStart + 1;
+        $this->newYearEnd = $nextEnd;
+        $this->newYearName = $nextStart.'/'.$nextEnd;
+        $this->newYearDateStart = $nextStart.'-09-01';
+        $this->newYearDateEnd = $nextEnd.'-08-31';
+        $this->showYearForm = true;
+    }
+
+    public function saveAcademicYear(): void
+    {
+        $this->validate([
+            'newYearName' => 'required|string|max:50',
+            'newYearStart' => 'required|integer|min:2000|max:2100',
+            'newYearEnd' => 'required|integer|min:2000|max:2100',
+            'newYearDateStart' => 'required|date',
+            'newYearDateEnd' => 'required|date',
+        ]);
+
+        $year = AcademicYear::create([
+            'name' => $this->newYearName,
+            'year_start' => $this->newYearStart,
+            'year_end' => $this->newYearEnd,
+            'date_start' => $this->newYearDateStart,
+            'date_end' => $this->newYearDateEnd,
+            'first_semester_start' => $this->newYearDateStart,
+            'first_semester_end' => $this->newYearDateEnd,
+            'second_semester_start' => $this->newYearDateStart,
+            'second_semester_end' => $this->newYearDateEnd,
+            'is_current' => false,
+        ]);
+
+        $this->currentAcademicYearId = $year->id;
+        $this->showYearForm = false;
+        $this->newYearName = '';
+
+        session()->flash('message', 'Учебный год создан');
     }
 
     public function loadSettings(): void
@@ -118,6 +173,27 @@ class SystemSettings extends Component
         }
 
         sort($current);
+        $this->settings[$key]['value'] = $current;
+    }
+
+    public function toggleLessonNumberForDay(string $key, int $day, int $num, bool $checked): void
+    {
+        $current = $this->settings[$key]['value'] ?? [];
+        if (! is_array($current)) {
+            $current = [];
+        }
+
+        $daySlots = $current[$day] ?? [];
+
+        if ($checked) {
+            $daySlots[] = $num;
+            $daySlots = array_unique($daySlots);
+        } else {
+            $daySlots = array_values(array_filter($daySlots, fn ($v) => (int) $v !== $num));
+        }
+
+        sort($daySlots);
+        $current[$day] = $daySlots;
         $this->settings[$key]['value'] = $current;
     }
 

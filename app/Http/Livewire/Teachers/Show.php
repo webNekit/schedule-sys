@@ -282,6 +282,27 @@ class Show extends Component
         sort($this->teacherWorkingLessonNumbers);
     }
 
+    public function toggleWorkingLessonNumberForDay(int $day, int $num, bool $checked): void
+    {
+        $current = $this->teacherWorkingLessonNumbers;
+        if (! is_array($current)) {
+            $current = [];
+        }
+
+        $daySlots = $current[$day] ?? [];
+
+        if ($checked) {
+            $daySlots[] = $num;
+            $daySlots = array_unique($daySlots);
+        } else {
+            $daySlots = array_values(array_filter($daySlots, fn ($v) => (int) $v !== $num));
+        }
+
+        sort($daySlots);
+        $current[$day] = $daySlots;
+        $this->teacherWorkingLessonNumbers = $current;
+    }
+
     public function removeDiscipline(int $disciplineId): void
     {
         TeacherDiscipline::where('teacher_id', $this->teacher->id)

@@ -24,8 +24,45 @@
                             <option value="{{ $year->id }}">{{ $year->name }}</option>
                         @endforeach
                     </select>
+                    <button wire:click="openYearForm" class="px-3 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-sm transition whitespace-nowrap">
+                        + Добавить
+                    </button>
                 </div>
                 <p class="text-xs text-gray-500 mt-1">При смене года меняются все связанные данные</p>
+
+                @if ($showYearForm)
+                    <div class="mt-4 p-4 border border-emerald-200 dark:border-emerald-800 rounded-lg bg-emerald-50 dark:bg-emerald-900/20 space-y-3">
+                        <p class="text-sm font-medium">Новый учебный год</p>
+                        <div>
+                            <label class="block text-xs font-medium mb-1">Название</label>
+                            <input type="text" wire:model="newYearName" class="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-2 text-sm">
+                        </div>
+                        <div class="grid grid-cols-2 gap-3">
+                            <div>
+                                <label class="block text-xs font-medium mb-1">Год начала</label>
+                                <input type="number" wire:model="newYearStart" class="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-2 text-sm">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-medium mb-1">Год конца</label>
+                                <input type="number" wire:model="newYearEnd" class="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-2 text-sm">
+                            </div>
+                        </div>
+                        <div class="grid grid-cols-2 gap-3">
+                            <div>
+                                <label class="block text-xs font-medium mb-1">Дата начала</label>
+                                <input type="date" wire:model="newYearDateStart" class="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-2 text-sm">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-medium mb-1">Дата конца</label>
+                                <input type="date" wire:model="newYearDateEnd" class="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-2 text-sm">
+                            </div>
+                        </div>
+                        <div class="flex justify-end gap-2">
+                            <button wire:click="$set('showYearForm', false)" class="px-3 py-1.5 text-sm text-gray-600 dark:text-gray-400 hover:text-gray-800 transition">Отмена</button>
+                            <button wire:click="saveAcademicYear" class="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-sm transition">Сохранить</button>
+                        </div>
+                    </div>
+                @endif
             </div>
             <div>
                 <label class="block text-sm font-medium mb-1">Перевод групп</label>
@@ -83,25 +120,44 @@
         </div>
     </div>
 
-    {{-- Lesson Numbers per Course --}}
+    {{-- Lesson Numbers per Course / per Day --}}
+    @php
+        $courseKeys = ['lesson_numbers_course_1' => '1 курс (1 смена)', 'lesson_numbers_course_2' => '2 курс (1 смена)', 'lesson_numbers_course_3' => '3 курс (2 смена)', 'lesson_numbers_course_4' => '4 курс (2 смена)'];
+        $courseWorkingDays = ['lesson_numbers_course_1' => 'working_days_course_1_2', 'lesson_numbers_course_2' => 'working_days_course_1_2', 'lesson_numbers_course_3' => 'working_days_course_3_4', 'lesson_numbers_course_4' => 'working_days_course_3_4'];
+    @endphp
+
     <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
-        <h3 class="font-semibold text-lg mb-4">Номера пар по курсам</h3>
-        <p class="text-sm text-gray-500 mb-4">Выберите, какие пары может ставить система для каждого курса</p>
-        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-            @foreach (['lesson_numbers_course_1' => '1 курс (1 смена)', 'lesson_numbers_course_2' => '2 курс (1 смена)', 'lesson_numbers_course_3' => '3 курс (2 смена)', 'lesson_numbers_course_4' => '4 курс (2 смена)'] as $key => $label)
+        <h3 class="font-semibold text-lg mb-4">Номера пар по курсам и дням</h3>
+        <p class="text-sm text-gray-500 mb-4">Для каждого рабочего дня выберите, какие пары может ставить система</p>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            @foreach ($courseKeys as $key => $label)
+                @php
+                    $wdKey = $courseWorkingDays[$key];
+                    $workingDays = $settings[$wdKey]['value'] ?? [1, 2, 3, 4, 5];
+                    $perDayData = $settings[$key]['value'] ?? [];
+                @endphp
                 <div class="border border-gray-200 dark:border-gray-700 rounded-lg p-4">
-                    <label class="block text-sm font-medium mb-2">{{ $label }}</label>
-                    <div class="flex flex-wrap gap-1.5">
-                        @php $nums = $settings[$key]['value'] ?? []; @endphp
-                        @foreach (range(1, 7) as $num)
-                            <label class="flex items-center gap-1 px-2.5 py-1.5 rounded-lg border text-xs cursor-pointer transition
-                                {{ in_array($num, $nums) ? 'bg-emerald-50 border-emerald-300 dark:bg-emerald-900/30 dark:border-emerald-700' : 'bg-gray-50 border-gray-200 dark:bg-gray-900 dark:border-gray-700' }}">
-                                <input type="checkbox" value="{{ $num }}"
-                                    {{ in_array($num, $nums) ? 'checked' : '' }}
-                                    wire:change="toggleLessonNumber('{{ $key }}', {{ $num }}, $event.target.checked)"
-                                    class="rounded border-gray-300 text-emerald-600">
-                                {{ $num }}
-                            </label>
+                    <label class="block text-sm font-semibold mb-3">{{ $label }}</label>
+                    <div class="space-y-3">
+                        @foreach ($workingDays as $wd)
+                            @php
+                                $daySlots = $perDayData[$wd] ?? [];
+                            @endphp
+                            <div>
+                                <span class="text-xs font-medium text-gray-500 uppercase">{{ $dayLabels[$wd] ?? $wd }}</span>
+                                <div class="flex flex-wrap gap-1.5 mt-1">
+                                    @foreach (range(1, 7) as $num)
+                                        <label class="flex items-center gap-1 px-2.5 py-1.5 rounded-lg border text-xs cursor-pointer transition
+                                            {{ in_array($num, $daySlots) ? 'bg-emerald-50 border-emerald-300 dark:bg-emerald-900/30 dark:border-emerald-700' : 'bg-gray-50 border-gray-200 dark:bg-gray-900 dark:border-gray-700' }}">
+                                            <input type="checkbox" value="{{ $num }}"
+                                                {{ in_array($num, $daySlots) ? 'checked' : '' }}
+                                                wire:change="toggleLessonNumberForDay('{{ $key }}', {{ $wd }}, {{ $num }}, $event.target.checked)"
+                                                class="rounded border-gray-300 text-emerald-600">
+                                            {{ $num }}
+                                        </label>
+                                    @endforeach
+                                </div>
+                            </div>
                         @endforeach
                     </div>
                 </div>
@@ -127,16 +183,16 @@
 
                         <div>
                             <label class="block text-sm font-medium mb-1">{{ $data['label'] ?? $key }}</label>
-                            @if ($data['description'])
+                            @if (($data['description'] ?? ''))
                                 <p class="text-xs text-gray-500 mb-1">{{ $data['description'] }}</p>
                             @endif
 
-                            @if ($data['type'] === 'boolean')
+                            @if (($data['type'] ?? '') === 'boolean')
                                 <label class="flex items-center gap-2">
                                     <input type="checkbox" wire:model="settings.{{ $key }}.value" class="rounded border-gray-300 text-emerald-600">
                                     <span class="text-sm">Включено</span>
                                 </label>
-                            @elseif ($data['type'] === 'integer')
+                            @elseif (($data['type'] ?? '') === 'integer')
                                 <input type="number" wire:model="settings.{{ $key }}.value" class="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-2">
                             @else
                                 <input type="text" wire:model="settings.{{ $key }}.value" class="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-2">

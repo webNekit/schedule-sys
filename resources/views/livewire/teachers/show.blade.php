@@ -34,6 +34,57 @@
         </div>
     </div>
 
+    {{-- Рабочие дни и пары преподавателя --}}
+    @php
+        $wdLabels = [1 => 'Пн', 2 => 'Вт', 3 => 'Ср', 4 => 'Чт', 5 => 'Пт', 6 => 'Сб'];
+        $twDays = $teacher->working_days ?? [];
+        $twLessonNumbers = $teacher->working_lesson_numbers ?? [];
+        $isPerDay = is_array($twLessonNumbers) && !empty($twLessonNumbers) && is_array(reset($twLessonNumbers));
+    @endphp
+    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-4">
+        <div class="flex items-center justify-between mb-3">
+            <h3 class="font-semibold">Рабочие дни и пары</h3>
+        </div>
+        @if(!empty($twDays))
+            <div class="flex flex-wrap gap-2 mb-3">
+                @foreach ($twDays as $dayNum)
+                    <span class="inline-flex items-center px-3 py-1.5 rounded-lg border text-sm font-medium bg-emerald-50 border-emerald-200 text-emerald-700 dark:bg-emerald-900/30 dark:border-emerald-800 dark:text-emerald-300">
+                        {{ $wdLabels[$dayNum] ?? $dayNum }}
+                    </span>
+                @endforeach
+            </div>
+            @if($isPerDay)
+                <div class="space-y-2">
+                    @foreach ($twDays as $dayNum)
+                        @php $daySlots = $twLessonNumbers[$dayNum] ?? []; @endphp
+                        <div class="flex items-center gap-3">
+                            <span class="text-xs font-medium text-gray-500 uppercase w-8">{{ $wdLabels[$dayNum] ?? $dayNum }}</span>
+                            <div class="flex gap-1">
+                                @foreach (range(1, 7) as $num)
+                                    <span class="inline-flex items-center justify-center w-7 h-7 rounded text-xs font-medium
+                                        {{ in_array($num, $daySlots) ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300' : 'bg-gray-100 text-gray-300 dark:bg-gray-700 dark:text-gray-600' }}">
+                                        {{ $num }}
+                                    </span>
+                                @endforeach
+                            </div>
+                        </div>
+                    @endforeach
+                </div>
+            @elseif(!empty($twLessonNumbers))
+                <div class="flex flex-wrap gap-1 mb-2">
+                    @foreach (range(1, 7) as $num)
+                        <span class="inline-flex items-center justify-center w-7 h-7 rounded text-xs font-medium
+                            {{ in_array($num, $twLessonNumbers) ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300' : 'bg-gray-100 text-gray-300 dark:bg-gray-700 dark:text-gray-600' }}">
+                            {{ $num }}
+                        </span>
+                    @endforeach
+                </div>
+            @endif
+        @else
+            <p class="text-sm text-gray-500 dark:text-gray-400">Не настроены. <a wire:click="openTeacherForm" class="text-emerald-600 hover:text-emerald-800 cursor-pointer">Настроить в редактировании</a></p>
+        @endif
+    </div>
+
     <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-4">
         <div class="flex items-center justify-between mb-3">
             <h3 class="font-semibold">Корпуса и аудитории</h3>
@@ -249,7 +300,7 @@
                     </div>
                     <div class="border-t border-gray-200 dark:border-gray-700 pt-4">
                         <p class="text-sm font-medium mb-2">Рабочие дни преподавателя</p>
-                        <div class="flex flex-wrap gap-2 mb-3">
+                        <div class="flex flex-wrap gap-2 mb-4">
                             @php $dayLabels = [1 => 'Пн', 2 => 'Вт', 3 => 'Ср', 4 => 'Чт', 5 => 'Пт', 6 => 'Сб']; @endphp
                             @foreach ($dayLabels as $dayNum => $dayLabel)
                                 <label class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-sm cursor-pointer transition
@@ -262,17 +313,26 @@
                                 </label>
                             @endforeach
                         </div>
-                        <p class="text-sm font-medium mb-2">Номера пар</p>
-                        <div class="flex flex-wrap gap-2">
-                            @foreach (range(1, 7) as $num)
-                                <label class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-sm cursor-pointer transition
-                                    {{ in_array($num, $teacherWorkingLessonNumbers) ? 'bg-emerald-50 border-emerald-300 dark:bg-emerald-900/30 dark:border-emerald-700' : 'bg-gray-50 border-gray-200 dark:bg-gray-900 dark:border-gray-700' }}">
-                                    <input type="checkbox" value="{{ $num }}"
-                                        {{ in_array($num, $teacherWorkingLessonNumbers) ? 'checked' : '' }}
-                                        wire:change="toggleWorkingLessonNumber({{ $num }}, $event.target.checked)"
-                                        class="rounded border-gray-300 text-emerald-600">
-                                    {{ $num }}
-                                </label>
+                        <p class="text-sm font-medium mb-2">Номера пар по дням</p>
+                        <div class="space-y-3">
+                            @php $selectedDays = $teacherWorkingDays ?: [1,2,3,4,5]; @endphp
+                            @foreach ($selectedDays as $wd)
+                                @php $daySlots = $teacherWorkingLessonNumbers[$wd] ?? []; @endphp
+                                <div>
+                                    <span class="text-xs font-medium text-gray-500 uppercase">{{ $dayLabels[$wd] ?? $wd }}</span>
+                                    <div class="flex flex-wrap gap-1.5 mt-1">
+                                        @foreach (range(1, 7) as $num)
+                                            <label class="flex items-center gap-1 px-2.5 py-1.5 rounded-lg border text-xs cursor-pointer transition
+                                                {{ in_array($num, $daySlots) ? 'bg-emerald-50 border-emerald-300 dark:bg-emerald-900/30 dark:border-emerald-700' : 'bg-gray-50 border-gray-200 dark:bg-gray-900 dark:border-gray-700' }}">
+                                                <input type="checkbox" value="{{ $num }}"
+                                                    {{ in_array($num, $daySlots) ? 'checked' : '' }}
+                                                    wire:change="toggleWorkingLessonNumberForDay({{ $wd }}, {{ $num }}, $event.target.checked)"
+                                                    class="rounded border-gray-300 text-emerald-600">
+                                                {{ $num }}
+                                            </label>
+                                        @endforeach
+                                    </div>
+                                </div>
                             @endforeach
                         </div>
                     </div>

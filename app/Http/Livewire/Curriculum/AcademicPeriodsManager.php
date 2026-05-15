@@ -80,7 +80,18 @@ class AcademicPeriodsManager extends Component
 
     public function saveYear(): void
     {
-        $this->validate();
+        $this->validate([
+            'name' => 'required|string|max:255',
+            'yearStart' => 'required|integer|min:2000|max:2100',
+            'yearEnd' => 'required|integer|min:2000|max:2100',
+            'dateStart' => 'required|date',
+            'dateEnd' => 'required|date',
+            'firstSemesterStart' => 'required|date',
+            'firstSemesterEnd' => 'required|date',
+            'secondSemesterStart' => 'required|date',
+            'secondSemesterEnd' => 'required|date',
+            'isCurrent' => 'boolean',
+        ]);
 
         if ($this->isCurrent) {
             AcademicYear::where('is_current', true)->update(['is_current' => false]);
@@ -219,7 +230,7 @@ class AcademicPeriodsManager extends Component
     private function recalculateVacationDuration(): void
     {
         if ($this->vacationStartDate !== '' && $this->vacationEndDate !== '') {
-            $this->vacationDurationDays = Carbon::parse($this->vacationStartDate)
+            $this->vacationDurationDays = (int) Carbon::parse($this->vacationStartDate)
                 ->diffInDays(Carbon::parse($this->vacationEndDate));
         }
     }

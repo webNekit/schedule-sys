@@ -94,6 +94,14 @@
                     Кафедры
                 </x-nav-link>
 
+                <x-nav-link href="{{ route('admin.positions') }}" :active="request()->routeIs('admin.positions')">
+                    Должности
+                </x-nav-link>
+
+                <x-nav-link href="{{ route('admin.room-types') }}" :active="request()->routeIs('admin.room-types')">
+                    Типы аудиторий
+                </x-nav-link>
+
                 <x-nav-link href="{{ route('curriculum.index') }}" :active="request()->routeIs('curriculum.*')">
                     Учебные планы
                 </x-nav-link>

@@ -146,16 +146,16 @@
                         <div class="grid grid-cols-2 gap-2">
                             <div>
                                 <label class="block text-sm font-medium mb-1">Дата начала</label>
-                                <input type="date" wire:model="vacationStartDate" class="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-2">
+                                <input type="date" wire:model.live="vacationStartDate" class="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-2">
                             </div>
                             <div>
                                 <label class="block text-sm font-medium mb-1">Дата конца</label>
-                                <input type="date" wire:model="vacationEndDate" class="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-2">
+                                <input type="date" wire:model.live="vacationEndDate" class="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-2">
                             </div>
                         </div>
                         <div>
                             <label class="block text-sm font-medium mb-1">Длительность (дней)</label>
-                            <input type="number" wire:model="vacationDurationDays" class="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-2">
+                            <input type="number" wire:model="vacationDurationDays" readonly class="w-full rounded-lg border border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-700 px-3 py-2 text-gray-500 cursor-not-allowed">
                         </div>
                         <div class="flex gap-2">
                             <button type="submit" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg transition">

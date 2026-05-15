@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Http\Livewire\Admin;
 
 use App\Models\Department;
+use App\Models\Teacher;
 use Livewire\Attributes\Layout;
 use Livewire\Component;
 use Livewire\WithPagination;
@@ -21,15 +22,7 @@ class DepartmentManager extends Component
 
     public string $shortName = '';
 
-    public string $headName = '';
-
-    public string $phone = '';
-
-    public string $email = '';
-
-    public string $roomNumber = '';
-
-    public string $description = '';
+    public ?int $headTeacherId = null;
 
     public bool $isActive = true;
 
@@ -46,11 +39,13 @@ class DepartmentManager extends Component
         $this->editingId = $department->id;
         $this->name = $department->name;
         $this->shortName = $department->short_name ?? '';
-        $this->headName = $department->head_name ?? '';
-        $this->phone = $department->phone ?? '';
-        $this->email = $department->email ?? '';
-        $this->roomNumber = $department->room_number ?? '';
-        $this->description = $department->description ?? '';
+
+        $teacher = Teacher::whereRaw(
+            "TRIM(CONCAT(last_name, ' ', first_name, ' ', COALESCE(middle_name, ''))) = ?",
+            [$department->head_name],
+        )->first();
+
+        $this->headTeacherId = $teacher?->id;
         $this->isActive = $department->is_active;
 
         $this->showForm = true;
@@ -61,21 +56,21 @@ class DepartmentManager extends Component
         $this->validate([
             'name' => 'required|string|max:255',
             'shortName' => 'nullable|string|max:100',
-            'headName' => 'nullable|string|max:255',
-            'phone' => 'nullable|string|max:50',
-            'email' => 'nullable|email|max:255',
-            'roomNumber' => 'nullable|string|max:50',
-            'description' => 'nullable|string',
+            'headTeacherId' => 'nullable|integer|exists:teachers,id',
         ]);
+
+        $headName = null;
+        if ($this->headTeacherId) {
+            $teacher = Teacher::find($this->headTeacherId);
+            $headName = $teacher
+                ? trim("{$teacher->last_name} {$teacher->first_name} {$teacher->middle_name}")
+                : null;
+        }
 
         $data = [
             'name' => $this->name,
             'short_name' => $this->shortName ?: null,
-            'head_name' => $this->headName ?: null,
-            'phone' => $this->phone ?: null,
-            'email' => $this->email ?: null,
-            'room_number' => $this->roomNumber ?: null,
-            'description' => $this->description ?: null,
+            'head_name' => $headName,
             'is_active' => $this->isActive,
         ];
 
@@ -105,11 +100,7 @@ class DepartmentManager extends Component
         $this->editingId = null;
         $this->name = '';
         $this->shortName = '';
-        $this->headName = '';
-        $this->phone = '';
-        $this->email = '';
-        $this->roomNumber = '';
-        $this->description = '';
+        $this->headTeacherId = null;
         $this->isActive = true;
     }
 
@@ -120,6 +111,7 @@ class DepartmentManager extends Component
             'departments' => Department::withCount('teachers', 'groups', 'specialties')
                 ->orderBy('name')
                 ->paginate(20),
+            'teachers' => Teacher::active()->orderBy('last_name')->get(),
         ]);
     }
 }

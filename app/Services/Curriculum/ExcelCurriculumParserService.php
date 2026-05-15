@@ -11,8 +11,8 @@ use App\Models\CurriculumPractice;
 use App\Models\CurriculumSemester;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
-use PhpOffice\PhpSpreadsheet\IOFactory;
 use PhpOffice\PhpSpreadsheet\Cell\Coordinate;
+use PhpOffice\PhpSpreadsheet\IOFactory;
 
 class ExcelCurriculumParserService
 {
@@ -42,12 +42,14 @@ class ExcelCurriculumParserService
                 $sheet = $spreadsheet->getSheetByName($name);
             } catch (\Exception $e) {
             }
-            if ($sheet)
+            if ($sheet) {
                 break;
+            }
         }
 
-        if (!$sheet)
+        if (! $sheet) {
             return [];
+        }
 
         $data = [];
         $rows = $sheet->toArray(null, true, true, false);
@@ -69,8 +71,9 @@ class ExcelCurriculumParserService
                 }
                 if (str_contains($val, 'Квалификация:') || str_contains($val, 'Квалификация ')) {
                     $q = trim(str_ireplace(['Квалификация:', 'Квалификация'], '', $val));
-                    if ($q)
+                    if ($q) {
                         $data['qualification'] = $q;
+                    }
                 }
             }
         }
@@ -86,11 +89,13 @@ class ExcelCurriculumParserService
                 $sheet = $spreadsheet->getSheetByName($name);
             } catch (\Exception $e) {
             }
-            if ($sheet)
+            if ($sheet) {
                 break;
+            }
         }
-        if (!$sheet)
+        if (! $sheet) {
             return [];
+        }
 
         $practices = [];
         $highestCol = Coordinate::columnIndexFromString($sheet->getHighestColumn());
@@ -121,8 +126,9 @@ class ExcelCurriculumParserService
             }
         }
 
-        if ($weekRowIndex === -1)
+        if ($weekRowIndex === -1) {
             return [];
+        }
 
         $currentCourse = 0;
         for ($row = $weekRowIndex + 1; $row <= $weekRowIndex + 40; $row++) {
@@ -131,14 +137,15 @@ class ExcelCurriculumParserService
                 $courseStr .= trim((string) $sheet->getCell([$c, $row])->getCalculatedValue());
             }
 
-            if (str_contains($courseStr, 'IV') || str_contains($courseStr, '4'))
+            if (str_contains($courseStr, 'IV') || str_contains($courseStr, '4')) {
                 $currentCourse = 4;
-            elseif (str_contains($courseStr, 'III') || str_contains($courseStr, '3'))
+            } elseif (str_contains($courseStr, 'III') || str_contains($courseStr, '3')) {
                 $currentCourse = 3;
-            elseif (str_contains($courseStr, 'II') || str_contains($courseStr, '2'))
+            } elseif (str_contains($courseStr, 'II') || str_contains($courseStr, '2')) {
                 $currentCourse = 2;
-            elseif (str_contains($courseStr, 'I') || str_contains($courseStr, '1'))
+            } elseif (str_contains($courseStr, 'I') || str_contains($courseStr, '1')) {
                 $currentCourse = 1;
+            }
 
             if ($currentCourse > 0) {
                 $courseYear = $yearStart + $currentCourse - 1;
@@ -181,8 +188,9 @@ class ExcelCurriculumParserService
 
     private function groupConsecutivePractices(array $practices): array
     {
-        if (empty($practices))
+        if (empty($practices)) {
             return [];
+        }
 
         $grouped = [];
         $current = $practices[0];
@@ -193,7 +201,7 @@ class ExcelCurriculumParserService
             if (
                 $current['course_number'] === $next['course_number'] &&
                 $current['symbol'] === $next['symbol'] &&
-                $current['week_number'] + 1 === $next['week_number']
+                $next['week_number'] === $current['week_number'] + 1
             ) {
 
                 $current['end_date'] = $next['end_date'];
@@ -207,6 +215,7 @@ class ExcelCurriculumParserService
 
         return array_map(function ($p) {
             unset($p['week_number']);
+
             return $p;
         }, $grouped);
     }
@@ -219,12 +228,14 @@ class ExcelCurriculumParserService
                 $sheet = $spreadsheet->getSheetByName($name);
             } catch (\Exception $e) {
             }
-            if ($sheet)
+            if ($sheet) {
                 break;
+            }
         }
 
-        if (!$sheet)
+        if (! $sheet) {
             throw new \RuntimeException('Лист «План» не найден в файле.');
+        }
 
         $rows = $sheet->toArray(null, true, true, false);
         $columnMap = $this->buildDynamicColumnMap($rows);
@@ -233,26 +244,30 @@ class ExcelCurriculumParserService
         $disciplines = [];
 
         foreach ($rows as $rowIndex => $row) {
-            if ($rowIndex < 3)
+            if ($rowIndex < 3) {
                 continue;
+            }
 
             $marker = trim((string) ($row[0] ?? ''));
             $code = trim((string) ($row[1] ?? ''));
             $name = trim((string) ($row[2] ?? ''));
 
-            if ($name === '')
+            if ($name === '') {
                 continue;
+            }
 
-            if (str_contains(mb_strtolower($name), 'наименование') || str_contains(mb_strtolower($name), 'итого'))
+            if (str_contains(mb_strtolower($name), 'наименование') || str_contains(mb_strtolower($name), 'итого')) {
                 continue;
+            }
 
             $isDiscipline = ($marker === '+' || $marker === '*' || $marker === '1');
-            if (!$isDiscipline && preg_match('/[А-Яа-яA-Za-z0-9]+\.\d+/', $code)) {
+            if (! $isDiscipline && preg_match('/[А-Яа-яA-Za-z0-9]+\.\d+/', $code)) {
                 $isDiscipline = true;
             }
 
-            if (!$isDiscipline)
+            if (! $isDiscipline) {
                 continue;
+            }
 
             $examSems = $this->parseControlSemesters((string) ($row[$controlFormsCols['exam']] ?? ''));
             $testSems = $this->parseControlSemesters((string) ($row[$controlFormsCols['test']] ?? ''));
@@ -283,24 +298,26 @@ class ExcelCurriculumParserService
 
                 $semTotal = $lecH + $labH + $prH + $consH + $srH + $pattH + $krpH;
 
-                if ($semTotal === 0)
+                if ($semTotal === 0) {
                     continue;
+                }
 
                 $totalLabHours += $labH;
                 $courseNum = (int) ceil($semNum / 2);
                 $semInCourse = $semNum % 2 === 1 ? 1 : 2;
 
                 $controlForm = null;
-                if (in_array($semNum, $examSems))
+                if (in_array($semNum, $examSems)) {
                     $controlForm = 'exam';
-                elseif (in_array($semNum, $diffTestSems))
+                } elseif (in_array($semNum, $diffTestSems)) {
                     $controlForm = 'diff_test';
-                elseif (in_array($semNum, $testSems))
+                } elseif (in_array($semNum, $testSems)) {
                     $controlForm = 'test';
-                elseif (in_array($semNum, $courseWorkSems))
+                } elseif (in_array($semNum, $courseWorkSems)) {
                     $controlForm = 'course_work';
-                elseif (in_array($semNum, $courseProjSems))
+                } elseif (in_array($semNum, $courseProjSems)) {
                     $controlForm = 'course_project';
+                }
 
                 $discipline['semesters'][] = [
                     'semester_number' => $semNum,
@@ -320,7 +337,7 @@ class ExcelCurriculumParserService
 
             $discipline['requires_lab'] = $totalLabHours > 0;
 
-            if (!empty($discipline['semesters'])) {
+            if (! empty($discipline['semesters'])) {
                 $disciplines[] = $discipline;
             }
         }
@@ -335,13 +352,16 @@ class ExcelCurriculumParserService
         $hoursRowIndex = -1;
 
         for ($i = 0; $i <= 4; $i++) {
-            if (!isset($rows[$i]))
+            if (! isset($rows[$i])) {
                 continue;
+            }
             $rowStr = implode(' ', array_map('mb_strtolower', array_map('strval', $rows[$i])));
-            if (str_contains($rowStr, 'семестр'))
+            if (str_contains($rowStr, 'семестр')) {
                 $semesterRowIndex = $i;
-            if (str_contains($rowStr, 'лек') && str_contains($rowStr, 'пр'))
+            }
+            if (str_contains($rowStr, 'лек') && str_contains($rowStr, 'пр')) {
                 $hoursRowIndex = $i;
+            }
         }
 
         if ($semesterRowIndex === -1 || $hoursRowIndex === -1) {
@@ -354,7 +374,7 @@ class ExcelCurriculumParserService
 
             if (str_contains($val, 'семестр')) {
                 preg_match('/семестр\s*(\d+)/i', $val, $matches);
-                if (!empty($matches[1])) {
+                if (! empty($matches[1])) {
                     $currentSemester = (int) $matches[1];
                     $map[$currentSemester] = ['lec' => null, 'lab' => null, 'prac' => null, 'cor' => null, 'krp' => null, 'cons' => null, 'sr' => null, 'patt' => null];
                 }
@@ -363,93 +383,111 @@ class ExcelCurriculumParserService
             if ($currentSemester > 0) {
                 $hourType = mb_strtolower(trim((string) ($rows[$hoursRowIndex][$colIndex] ?? '')));
 
-                if ($hourType === 'лек' || $hourType === 'л')
+                if ($hourType === 'лек' || $hourType === 'л') {
                     $map[$currentSemester]['lec'] = $colIndex;
-                elseif (str_contains($hourType, 'лаб'))
+                } elseif (str_contains($hourType, 'лаб')) {
                     $map[$currentSemester]['lab'] = $colIndex;
-                elseif ($hourType === 'пр' || $hourType === 'п' || str_contains($hourType, 'прак'))
+                } elseif ($hourType === 'пр' || $hourType === 'п' || str_contains($hourType, 'прак')) {
                     $map[$currentSemester]['prac'] = $colIndex;
-                elseif (str_contains($hourType, 'ср') || str_contains($hourType, 'срс'))
+                } elseif (str_contains($hourType, 'ср') || str_contains($hourType, 'срс')) {
                     $map[$currentSemester]['sr'] = $colIndex;
-                elseif (str_contains($hourType, 'конс'))
+                } elseif (str_contains($hourType, 'конс')) {
                     $map[$currentSemester]['cons'] = $colIndex;
-                elseif (str_contains($hourType, 'патт') || str_contains($hourType, 'атт') || str_contains($hourType, 'экз'))
+                } elseif (str_contains($hourType, 'патт') || str_contains($hourType, 'атт') || str_contains($hourType, 'экз')) {
                     $map[$currentSemester]['patt'] = $colIndex;
-                elseif (str_contains($hourType, 'крп') || str_contains($hourType, 'кур'))
+                } elseif (str_contains($hourType, 'крп') || str_contains($hourType, 'кур')) {
                     $map[$currentSemester]['krp'] = $colIndex;
-                elseif (str_contains($hourType, 'кор') || $hourType === 'кр')
+                } elseif (str_contains($hourType, 'кор') || $hourType === 'кр') {
                     $map[$currentSemester]['cor'] = $colIndex;
+                }
             }
         }
-        return array_filter($map, fn($s) => $s['lec'] !== null || $s['prac'] !== null || $s['sr'] !== null);
+
+        return array_filter($map, fn ($s) => $s['lec'] !== null || $s['prac'] !== null || $s['sr'] !== null);
     }
 
     private function findControlFormsColumns(array $rows): array
     {
         $cols = ['exam' => 3, 'test' => 4, 'diff_test' => 5, 'cw' => 6, 'cp' => 7];
         for ($i = 0; $i <= 3; $i++) {
-            if (!isset($rows[$i]))
+            if (! isset($rows[$i])) {
                 continue;
+            }
             foreach ($rows[$i] as $idx => $val) {
                 $v = mb_strtolower(trim((string) $val));
-                if (str_contains($v, 'экзамен') && !str_contains($v, 'квалиф'))
+                if (str_contains($v, 'экзамен') && ! str_contains($v, 'квалиф')) {
                     $cols['exam'] = $idx;
-                elseif ($v === 'зачет' || $v === 'зачёт')
+                } elseif ($v === 'зачет' || $v === 'зачёт') {
                     $cols['test'] = $idx;
-                elseif (str_contains($v, 'зачет с оц') || str_contains($v, 'диф') || str_contains($v, 'зачёт с оц'))
+                } elseif (str_contains($v, 'зачет с оц') || str_contains($v, 'диф') || str_contains($v, 'зачёт с оц')) {
                     $cols['diff_test'] = $idx;
-                elseif ($v === 'кр' || str_contains($v, 'курсовая раб'))
+                } elseif ($v === 'кр' || str_contains($v, 'курсовая раб')) {
                     $cols['cw'] = $idx;
-                elseif ($v === 'кп' || $v === 'др' || str_contains($v, 'курсовой про'))
+                } elseif ($v === 'кп' || $v === 'др' || str_contains($v, 'курсовой про')) {
                     $cols['cp'] = $idx;
+                }
             }
         }
+
         return $cols;
     }
 
     private function parseControlSemesters(string $value): array
     {
         $value = trim($value);
-        if ($value === '' || $value === '-' || $value === '0')
+        if ($value === '' || $value === '-' || $value === '0') {
             return [];
+        }
         $clean = preg_replace('/[^0-9,\s]/', '', $value);
         if (str_contains($clean, ',') || str_contains($clean, ' ')) {
-            return array_values(array_filter(array_map('intval', preg_split('/[,\s]+/', $clean)), fn($n) => $n > 0 && $n <= 8));
+            return array_values(array_filter(array_map('intval', preg_split('/[,\s]+/', $clean)), fn ($n) => $n > 0 && $n <= 8));
         }
         if (strlen($clean) > 1) {
-            return array_values(array_filter(array_map('intval', str_split($clean)), fn($n) => $n > 0 && $n <= 8));
+            return array_values(array_filter(array_map('intval', str_split($clean)), fn ($n) => $n > 0 && $n <= 8));
         }
         $n = (int) $clean;
+
         return $n > 0 && $n <= 8 ? [$n] : [];
     }
 
     private function determineCycle(string $code): string
     {
         $code = mb_strtoupper($code);
-        if (str_starts_with($code, 'ОД'))
+        if (str_starts_with($code, 'ОД')) {
             return 'ОД';
-        if (str_starts_with($code, 'ОГСЭ'))
+        }
+        if (str_starts_with($code, 'ОГСЭ')) {
             return 'ОГСЭ';
-        if (str_starts_with($code, 'ЕН'))
+        }
+        if (str_starts_with($code, 'ЕН')) {
             return 'ЕН';
-        if (str_starts_with($code, 'ОП'))
+        }
+        if (str_starts_with($code, 'ОП')) {
             return 'ОП';
-        if (str_starts_with($code, 'МДК'))
+        }
+        if (str_starts_with($code, 'МДК')) {
             return 'МДК';
-        if (str_starts_with($code, 'ПМ'))
+        }
+        if (str_starts_with($code, 'ПМ')) {
             return 'ПМ';
-        if (str_starts_with($code, 'ФК') || str_starts_with($code, 'ФЦД'))
+        }
+        if (str_starts_with($code, 'ФК') || str_starts_with($code, 'ФЦД')) {
             return 'ФК';
+        }
+
         return 'ОП';
     }
 
     private function safeInt($value): int
     {
-        if (is_null($value) || $value === '' || $value === '-')
+        if (is_null($value) || $value === '' || $value === '-') {
             return 0;
-        if (is_numeric($value))
+        }
+        if (is_numeric($value)) {
             return (int) $value;
+        }
         $v = preg_replace('/[^0-9]/', '', (string) $value);
+
         return $v !== '' ? (int) $v : 0;
     }
 
@@ -463,8 +501,8 @@ class ExcelCurriculumParserService
             $plan = CurriculumPlan::updateOrCreate(
                 ['specialty_id' => $specialtyId, 'academic_year_id' => $academicYearId],
                 [
-                    'name' => 'Учебный план ' . ($parsedData['meta']['year_start'] ?? date('Y')),
-                    'version' => date('Y') . '-v1',
+                    'name' => 'Учебный план '.($parsedData['meta']['year_start'] ?? date('Y')),
+                    'version' => date('Y').'-v1',
                     'excel_file_path' => $filePath,
                     'parsed_at' => now(),
                     'is_active' => true,
@@ -473,7 +511,7 @@ class ExcelCurriculumParserService
             );
 
             CurriculumPractice::where('curriculum_plan_id', $plan->id)->delete();
-            if (!empty($parsedData['practices'])) {
+            if (! empty($parsedData['practices'])) {
                 foreach ($parsedData['practices'] as $practice) {
                     CurriculumPractice::create([
                         'curriculum_plan_id' => $plan->id,
@@ -524,7 +562,7 @@ class ExcelCurriculumParserService
                     $imported++;
                 } catch (\Throwable $e) {
                     $failed++;
-                    $errors[] = "Ошибка в дисциплине {$disciplineData['code']}: " . $e->getMessage();
+                    $errors[] = "Ошибка в дисциплине {$disciplineData['code']}: ".$e->getMessage();
                 }
             }
         });
@@ -535,10 +573,13 @@ class ExcelCurriculumParserService
     private function mapDisciplineType(string $code): string
     {
         $code = mb_strtoupper($code);
-        if (str_starts_with($code, 'ПМ') || str_starts_with($code, 'МДК'))
+        if (str_starts_with($code, 'ПМ') || str_starts_with($code, 'МДК')) {
             return 'professional_module';
-        if (str_starts_with($code, 'ФК') || str_starts_with($code, 'ФЦД'))
+        }
+        if (str_starts_with($code, 'ФК') || str_starts_with($code, 'ФЦД')) {
             return 'optional';
+        }
+
         return 'theoretical';
     }
 }

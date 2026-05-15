@@ -9,24 +9,24 @@ use App\Models\Group;
 use App\Models\ScheduleLesson;
 use Carbon\Carbon;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
-use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 use PhpOffice\PhpSpreadsheet\Style\Alignment;
-use PhpOffice\PhpSpreadsheet\Style\Fill;
 use PhpOffice\PhpSpreadsheet\Style\Border;
+use PhpOffice\PhpSpreadsheet\Style\Fill;
+use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 
 class ExcelExportService
 {
     public function exportScheduleByDepartment(int $departmentId, Carbon $dateFrom, Carbon $dateTo, int $versionId): string
     {
         $department = Department::find($departmentId);
-        $spreadsheet = new Spreadsheet();
+        $spreadsheet = new Spreadsheet;
         $sheet = $spreadsheet->getActiveSheet();
 
         $dateStr = $dateFrom->format('d.m.Y');
 
         // 1. Желтая шапка
         $sheet->mergeCells('A1:D1');
-        $sheet->setCellValue('A1', "Кафедра " . mb_strtoupper($department->name));
+        $sheet->setCellValue('A1', 'Кафедра '.mb_strtoupper($department->name));
         $sheet->mergeCells('A2:D2');
         $sheet->setCellValue('A2', "Расписание учебных занятий на {$dateStr} г.");
 
@@ -108,13 +108,13 @@ class ExcelExportService
         $fileName = "schedule_{$department->short_name}_{$dateStr}.xlsx";
         $filePath = storage_path("app/public/exports/{$fileName}");
 
-        if (!file_exists(storage_path('app/public/exports'))) {
+        if (! file_exists(storage_path('app/public/exports'))) {
             mkdir(storage_path('app/public/exports'), 0777, true);
         }
 
         $writer = new Xlsx($spreadsheet);
         $writer->save($filePath);
 
-        return "/storage/exports/{$fileName}";
+        return $filePath;
     }
 }

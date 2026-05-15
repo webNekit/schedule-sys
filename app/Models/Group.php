@@ -136,7 +136,7 @@ class Group extends Model
     public function calculateCurrentCourse(): int
     {
         $currentYear = AcademicYear::where('is_current', true)->first();
-        if (!$currentYear || !$this->enrollment_date) {
+        if (! $currentYear || ! $this->enrollment_date) {
             return $this->current_course;
         }
 
@@ -178,15 +178,32 @@ class Group extends Model
 
     public function getAllowedLessonNumbers(): array
     {
-        $key = 'lesson_numbers_course_' . $this->current_course;
+        $key = 'lesson_numbers_course_'.$this->current_course;
         $setting = SystemSetting::where('key', $key)->first();
 
         if ($setting && $setting->value) {
             $numbers = json_decode($setting->value, true);
 
             if (is_array($numbers) && $numbers !== []) {
+                $firstKey = array_key_first($numbers);
+
+                if (is_array($numbers[$firstKey])) {
+                    return $numbers;
+                }
+
                 return $numbers;
             }
+        }
+
+        return [];
+    }
+
+    public function getAllowedLessonNumbersForDay(int $dayOfWeek): array
+    {
+        $all = $this->getAllowedLessonNumbers();
+
+        if (is_array($all) && isset($all[$dayOfWeek]) && is_array($all[$dayOfWeek])) {
+            return array_values($all[$dayOfWeek]);
         }
 
         return [];
@@ -205,11 +222,11 @@ class Group extends Model
     public function isOnPractice(Carbon $date): bool
     {
         $assignment = $this->curriculumAssignments()->where('is_active', true)->first();
-        if (!$assignment) {
+        if (! $assignment) {
             return false;
         }
 
-        return \App\Models\CurriculumPractice::where('curriculum_plan_id', $assignment->curriculum_plan_id)
+        return CurriculumPractice::where('curriculum_plan_id', $assignment->curriculum_plan_id)
             ->where('course_number', $this->current_course)
             ->where('start_date', '<=', $date->format('Y-m-d'))
             ->where('end_date', '>=', $date->format('Y-m-d'))

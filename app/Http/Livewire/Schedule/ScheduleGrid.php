@@ -21,6 +21,7 @@ use Livewire\Attributes\Computed;
 use Livewire\Attributes\Layout;
 use Livewire\Attributes\Rule;
 use Livewire\Component;
+use Symfony\Component\HttpFoundation\BinaryFileResponse;
 
 #[Layout('components.layouts.app')]
 class ScheduleGrid extends Component
@@ -104,7 +105,18 @@ class ScheduleGrid extends Component
         }
 
         if ($this->weekStart === '') {
-            $this->weekStart = Carbon::now()->startOfWeek(Carbon::MONDAY)->format('Y-m-d');
+            if ($this->versionId !== null) {
+                $version = ScheduleVersion::find($this->versionId);
+                if ($version !== null && $version->date_from !== null) {
+                    $this->weekStart = Carbon::parse($version->date_from)
+                        ->startOfWeek(Carbon::MONDAY)
+                        ->format('Y-m-d');
+                } else {
+                    $this->weekStart = Carbon::now()->startOfWeek(Carbon::MONDAY)->format('Y-m-d');
+                }
+            } else {
+                $this->weekStart = Carbon::now()->startOfWeek(Carbon::MONDAY)->format('Y-m-d');
+            }
         }
 
         $this->loadWeek();
@@ -114,16 +126,16 @@ class ScheduleGrid extends Component
     {
         $lessonConflictMap = [];
 
-        if (!empty($this->conflicts)) {
+        if (! empty($this->conflicts)) {
             $conflictLessons = collect($this->conflicts);
             foreach ($this->scheduleData as $lesson) {
                 $lid = $lesson['id'] ?? 0;
                 $match = $conflictLessons->first(function ($c) use ($lesson) {
                     $dateMatch = ($c['date'] ?? '') === ($lesson['date'] ?? '');
-                    $numMatch = !empty($c['lesson_number']) ? ($c['lesson_number'] == ($lesson['lesson_number'] ?? 0)) : true;
-                    $teacherMatch = !empty($c['teacher_id']) ? ($c['teacher_id'] == ($lesson['teacher_id'] ?? 0)) : true;
-                    $groupMatch = !empty($c['group_id']) ? ($c['group_id'] == ($lesson['group_id'] ?? 0)) : true;
-                    $roomMatch = !empty($c['room_id']) ? ($c['room_id'] == ($lesson['room_id'] ?? 0)) : true;
+                    $numMatch = ! empty($c['lesson_number']) ? ($c['lesson_number'] == ($lesson['lesson_number'] ?? 0)) : true;
+                    $teacherMatch = ! empty($c['teacher_id']) ? ($c['teacher_id'] == ($lesson['teacher_id'] ?? 0)) : true;
+                    $groupMatch = ! empty($c['group_id']) ? ($c['group_id'] == ($lesson['group_id'] ?? 0)) : true;
+                    $roomMatch = ! empty($c['room_id']) ? ($c['room_id'] == ($lesson['room_id'] ?? 0)) : true;
 
                     return $dateMatch && $numMatch && $teacherMatch && $groupMatch && $roomMatch;
                 });
@@ -152,22 +164,22 @@ class ScheduleGrid extends Component
         ])
             ->where('date', '>=', $weekStart->format('Y-m-d'))
             ->where('date', '<=', $weekEnd->format('Y-m-d'))
-            ->when($this->versionId !== null, fn($q) => $q->where('version_id', $this->versionId))
+            ->when($this->versionId !== null, fn ($q) => $q->where('version_id', $this->versionId))
             ->when(
                 $this->viewMode === 'group' && $this->viewId > 0,
-                fn($q) => $q->where('group_id', $this->viewId),
+                fn ($q) => $q->where('group_id', $this->viewId),
             )
             ->when(
                 $this->viewMode === 'teacher' && $this->viewId > 0,
-                fn($q) => $q->where('teacher_id', $this->viewId),
+                fn ($q) => $q->where('teacher_id', $this->viewId),
             )
             ->when(
                 $this->viewMode === 'room' && $this->viewId > 0,
-                fn($q) => $q->where('room_id', $this->viewId),
+                fn ($q) => $q->where('room_id', $this->viewId),
             )
             ->when(
                 $this->viewMode === 'department' && $this->viewId > 0,
-                fn($q) => $q->whereIn('group_id', Group::where('department_id', $this->viewId)->pluck('id')),
+                fn ($q) => $q->whereIn('group_id', Group::where('department_id', $this->viewId)->pluck('id')),
             )
             ->orderBy('date')
             ->orderBy('lesson_number')
@@ -303,6 +315,7 @@ class ScheduleGrid extends Component
 
         if ($overlap) {
             session()->flash('error', "ОШИБКА: На эти даты уже опубликовано расписание «{$overlap->name}». Сначала переведите его в архив, чтобы компенсировать часы преподавателям.");
+
             return;
         }
 
@@ -344,7 +357,7 @@ class ScheduleGrid extends Component
                 : Group::where('is_active', true)->first()?->id;
         }
 
-        if (!$groupId) {
+        if (! $groupId) {
             session()->flash('error', 'Нет доступных групп.');
 
             return;
@@ -405,27 +418,32 @@ class ScheduleGrid extends Component
             ->get();
     }
 
-    public function exportExcel(\App\Services\Export\ExcelExportService $exportService): void
+    public function exportExcel(ExcelExportService $exportService): ?BinaryFileResponse
     {
-        if (!$this->versionId) {
+        if (! $this->versionId) {
             session()->flash('error', 'Выберите версию расписания.');
-            return;
+
+            return null;
         }
 
         $version = ScheduleVersion::find($this->versionId);
-        $deptId = $this->viewMode === 'department' && $this->viewId > 0 ? $this->viewId : \App\Models\Department::first()->id;
+        $deptId = $this->viewMode === 'department' && $this->viewId > 0
+            ? $this->viewId
+            : Department::first()->id;
 
         try {
-            $url = $exportService->exportScheduleByDepartment(
-                $deptId,
-                Carbon::parse($this->weekStart), // Или конкретный день
-                Carbon::parse($this->weekStart),
-                $version->id
+            $filePath = $exportService->exportScheduleByDepartment(
+                deptId: $deptId,
+                dateFrom: Carbon::parse($this->weekStart),
+                dateTo: Carbon::parse($this->weekStart),
+                versionId: $version->id,
             );
-            // Редирект на скачивание файла
-            $this->redirect($url);
+
+            return response()->download($filePath, basename($filePath));
         } catch (\Exception $e) {
-            session()->flash('error', 'Ошибка экспорта: ' . $e->getMessage());
+            session()->flash('error', 'Ошибка экспорта: '.$e->getMessage());
+
+            return null;
         }
     }
 
@@ -435,17 +453,17 @@ class ScheduleGrid extends Component
 
     public function highlightConflict(string $date, ?int $teacherId, ?int $groupId, ?int $roomId, ?int $lessonNumber): void
     {
-        if (!$this->versionId) {
+        if (! $this->versionId) {
             $ver = ScheduleVersion::latest()->first();
             $this->versionId = $ver?->id;
         }
 
         $this->highlightedLessonIds = ScheduleLesson::where('version_id', $this->versionId)
             ->where('date', $date)
-            ->when($teacherId, fn($q) => $q->where('teacher_id', $teacherId))
-            ->when($groupId, fn($q) => $q->where('group_id', $groupId))
-            ->when($roomId, fn($q) => $q->where('room_id', $roomId))
-            ->when($lessonNumber, fn($q) => $q->where('lesson_number', $lessonNumber))
+            ->when($teacherId, fn ($q) => $q->where('teacher_id', $teacherId))
+            ->when($groupId, fn ($q) => $q->where('group_id', $groupId))
+            ->when($roomId, fn ($q) => $q->where('room_id', $roomId))
+            ->when($lessonNumber, fn ($q) => $q->where('lesson_number', $lessonNumber))
             ->pluck('id')
             ->toArray();
 
@@ -571,7 +589,7 @@ class ScheduleGrid extends Component
     public function generateShareLink(): void
     {
         $versionId = $this->versionId;
-        if (!$versionId) {
+        if (! $versionId) {
             $version = ScheduleVersion::latest()->first();
             $versionId = $version?->id;
         }
@@ -601,7 +619,7 @@ class ScheduleGrid extends Component
         }
 
         $priorityRooms = Room::where('is_active', true)
-            ->whereHas('teacherRooms', fn($q) => $q->where('teacher_id', $this->editTeacherId))
+            ->whereHas('teacherRooms', fn ($q) => $q->where('teacher_id', $this->editTeacherId))
             ->orderBy(
                 TeacherRoom::select('priority')
                     ->whereColumn('room_id', 'rooms.id')

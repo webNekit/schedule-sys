@@ -17,29 +17,45 @@ use Livewire\WithPagination;
 #[Layout('components.layouts.app')]
 class SpecialtyManager extends Component
 {
-    use WithPagination, WithFileUploads;
+    use WithFileUploads, WithPagination;
 
     public bool $showForm = false;
+
     public ?int $editingId = null;
+
     public string $code = '';
+
     public string $name = '';
+
     public string $shortName = '';
+
     public string $qualification = '';
+
     public ?int $departmentId = null;
+
     public ?int $educationLevelId = null;
+
     public ?int $studyYears9 = null;
+
     public ?int $studyYears11 = null;
+
     public string $baseEducation = '';
+
     public string $formOfStudy = '';
+
     public ?int $budgetPlaces = null;
+
     public ?int $contractPlaces = null;
+
     public bool $isActive = true;
 
     public string $search = '';
+
     public string $departmentFilter = '';
 
     // Импорт
     public bool $showImportModal = false;
+
     public $importFile;
 
     public function create(): void
@@ -172,11 +188,11 @@ class SpecialtyManager extends Component
             if ($result['imported'] > 0) {
                 session()->flash('message', "Импорт завершен. Добавлено/обновлено: {$result['imported']}.");
             }
-            if (!empty($result['errors'])) {
-                session()->flash('error', "Ошибки импорта: " . implode(' ', array_slice($result['errors'], 0, 3)) . (count($result['errors']) > 3 ? '...' : ''));
+            if (! empty($result['errors'])) {
+                session()->flash('error', 'Ошибки импорта: '.implode(' ', array_slice($result['errors'], 0, 3)).(count($result['errors']) > 3 ? '...' : ''));
             }
         } catch (\Exception $e) {
-            session()->flash('error', "Ошибка при импорте: " . $e->getMessage());
+            session()->flash('error', 'Ошибка при импорте: '.$e->getMessage());
         }
     }
 
@@ -186,8 +202,8 @@ class SpecialtyManager extends Component
 
         if ($this->search) {
             $query->where(function ($q) {
-                $q->where('name', 'like', '%' . $this->search . '%')
-                    ->orWhere('code', 'like', '%' . $this->search . '%');
+                $q->where('name', 'like', '%'.$this->search.'%')
+                    ->orWhere('code', 'like', '%'.$this->search.'%');
             });
         }
 

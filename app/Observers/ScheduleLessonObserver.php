@@ -2,18 +2,16 @@
 
 namespace App\Observers;
 
-use App\Models\AcademicYear;
 use App\Models\CurriculumSemester;
 use App\Models\HoursTracking;
 use App\Models\ScheduleLesson;
-use Carbon\Carbon;
 
 class ScheduleLessonObserver
 {
     public function updated(ScheduleLesson $lesson): void
     {
         $version = $lesson->version;
-        if (!$version || $version->status !== 'published') {
+        if (! $version || $version->status !== 'published') {
             return;
         }
 
@@ -31,7 +29,7 @@ class ScheduleLessonObserver
         }
 
         // Если назначили нового препода, создаем ему часы
-        if (!$isCancelled && (!$tracking || $tracking->teacher_id !== $lesson->teacher_id)) {
+        if (! $isCancelled && (! $tracking || $tracking->teacher_id !== $lesson->teacher_id)) {
             $semesterId = $this->resolveSemesterId($lesson->discipline_id, $lesson->date, $version->academic_year_id);
             if ($semesterId) {
                 HoursTracking::create([
@@ -58,9 +56,11 @@ class ScheduleLessonObserver
 
     private function resolveSemesterId(?int $disciplineId, mixed $date, ?int $academicYearId): ?int
     {
-        if (!$disciplineId)
+        if (! $disciplineId) {
             return null;
+        }
         $query = CurriculumSemester::where('discipline_id', $disciplineId);
+
         return $query->first()?->id;
     }
 }

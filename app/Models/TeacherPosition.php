@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
@@ -11,20 +12,23 @@ class TeacherPosition extends Model
 {
     protected $fillable = [
         'name',
-        'short_name',
-        'category',
-        'max_hours_per_week',
+        'is_active',
     ];
 
     protected function casts(): array
     {
         return [
-            'max_hours_per_week' => 'integer',
+            'is_active' => 'boolean',
         ];
     }
 
     public function teachers(): HasMany
     {
-        return $this->hasMany(Teacher::class);
+        return $this->hasMany(Teacher::class, 'position_id');
+    }
+
+    public function scopeActive(Builder $query): Builder
+    {
+        return $query->where('is_active', true);
     }
 }

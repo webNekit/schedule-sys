@@ -14,6 +14,7 @@ use Illuminate\Console\Command;
 class NotifyUpcomingPractices extends Command
 {
     protected $signature = 'schedule:notify-practices';
+
     protected $description = 'Отправляет уведомления за 7 дней до начала практик у групп';
 
     public function handle(): int
@@ -26,6 +27,7 @@ class NotifyUpcomingPractices extends Command
 
         if ($practices->isEmpty()) {
             $this->info("На {$targetDate} начало новых практик не запланировано.");
+
             return self::SUCCESS;
         }
 
@@ -36,6 +38,7 @@ class NotifyUpcomingPractices extends Command
 
         if ($usersToNotify->isEmpty()) {
             $this->warn('Нет пользователей с ролями admin/dispatcher для получения уведомлений.');
+
             return self::SUCCESS;
         }
 
@@ -50,12 +53,13 @@ class NotifyUpcomingPractices extends Command
                         ->where('is_active', true);
                 })->get();
 
-            if ($groups->isEmpty())
+            if ($groups->isEmpty()) {
                 continue;
+            }
 
             $groupNames = $groups->pluck('name')->implode(', ');
             $typeLabel = $practice->type === 'edu_practice' ? 'Учебная практика' : 'Производственная практика';
-            $title = "⚠️ Внимание: Скоро практика!";
+            $title = '⚠️ Внимание: Скоро практика!';
             $message = "Через 7 дней ({$targetDate}) начинается {$typeLabel} ({$practice->symbol}) у групп: {$groupNames}. Не забудьте скорректировать расписание.";
 
             foreach ($usersToNotify as $user) {
@@ -65,7 +69,7 @@ class NotifyUpcomingPractices extends Command
                     'title' => $title,
                     'message' => $message,
                     'is_read' => false,
-                    'created_at' => now()
+                    'created_at' => now(),
                 ]);
                 $notificationsSent++;
             }

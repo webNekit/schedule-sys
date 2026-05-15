@@ -17,7 +17,7 @@ Schedule::command('reports:hours-deficit')
     ->weeklyOn(7, '06:00')
     ->withoutOverlapping();
 
-Schedule::command('schedule:import-holidays ' . now()->year)
+Schedule::command('schedule:import-holidays '.now()->year)
     ->dailyAt('23:00');
 
 Schedule::command('schedule:notify-practices')

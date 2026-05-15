@@ -5,8 +5,10 @@ declare(strict_types=1);
 use App\Http\Livewire\Admin\DeleteDataChecklist;
 use App\Http\Livewire\Admin\DepartmentManager;
 use App\Http\Livewire\Admin\RoleManager;
+use App\Http\Livewire\Admin\RoomTypeManager;
 use App\Http\Livewire\Admin\SpecialtyManager;
 use App\Http\Livewire\Admin\SystemSettings;
+use App\Http\Livewire\Admin\TeacherPositionManager;
 use App\Http\Livewire\Admin\UserManager;
 use App\Http\Livewire\Auth\Login;
 use App\Http\Livewire\Curriculum\AcademicPeriodsManager;
@@ -70,5 +72,7 @@ Route::middleware('auth')->group(function () {
         Route::get('/admin/settings', SystemSettings::class)->name('admin.settings');
         Route::get('/admin/departments', DepartmentManager::class)->name('admin.departments');
         Route::get('/admin/specialties', SpecialtyManager::class)->name('admin.specialties');
+        Route::get('/admin/positions', TeacherPositionManager::class)->name('admin.positions');
+        Route::get('/admin/room-types', RoomTypeManager::class)->name('admin.room-types');
     });
 });

@@ -19,10 +19,6 @@ class Department extends Model
         'name',
         'short_name',
         'head_name',
-        'phone',
-        'email',
-        'room_number',
-        'description',
         'sort_order',
         'is_active',
     ];
