@@ -25,15 +25,16 @@
     <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
         <form wire:submit="import" class="space-y-5">
             <div>
-                <label class="block text-sm font-medium mb-1">Файл учебного плана (XML, XLSX, XLS)</label>
+                <label class="block text-sm font-medium mb-1">Файл учебного плана (XML, XLSX, XLS) <span class="text-red-500">*</span></label>
                 <input type="file" wire:model="xmlFile" accept=".xml,.xlsx,.xls"
                     class="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-2">
+                <p class="text-xs text-gray-400 mt-1">Обязательное поле</p>
                 @error('xmlFile') <p class="mt-1 text-sm text-red-600">{{ $message }}</p> @enderror
             </div>
 
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                    <label class="block text-sm font-medium mb-1">Специальность</label>
+                    <label class="block text-sm font-medium mb-1">Специальность <span class="text-red-500">*</span></label>
                     <select wire:model="specialtyId"
                         class="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-2">
                         <option value="">Выберите специальность</option>
@@ -41,11 +42,12 @@
                             <option value="{{ $specialty->id }}">{{ $specialty->name }}</option>
                         @endforeach
                     </select>
+                    <p class="text-xs text-gray-400 mt-1">Выберите из списка</p>
                     @error('specialtyId') <p class="mt-1 text-sm text-red-600">{{ $message }}</p> @enderror
                 </div>
 
                 <div>
-                    <label class="block text-sm font-medium mb-1">Учебный год</label>
+                    <label class="block text-sm font-medium mb-1">Учебный год <span class="text-red-500">*</span></label>
                     <select wire:model="academicYearId"
                         class="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-2">
                         <option value="">Выберите год</option>
@@ -53,6 +55,7 @@
                             <option value="{{ $year->id }}">{{ $year->name }}</option>
                         @endforeach
                     </select>
+                    <p class="text-xs text-gray-400 mt-1">Выберите из списка</p>
                     @error('academicYearId') <p class="mt-1 text-sm text-red-600">{{ $message }}</p> @enderror
                 </div>
             </div>

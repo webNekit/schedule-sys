@@ -103,37 +103,39 @@ class SystemSettings extends Component
                 $value = $value === 'true' || $value === '1' || $value === true;
             }
 
-            return [$setting->key => [
-                'id' => $setting->id,
-                'value' => $value,
-                'type' => $setting->type,
-                'group' => $setting->group,
-                'label' => $setting->label,
-                'description' => $setting->description,
-            ]];
+            return [
+                $setting->key => [
+                    'id' => $setting->id,
+                    'value' => $value,
+                    'type' => $setting->type,
+                    'group' => $setting->group,
+                    'label' => $setting->label,
+                    'description' => $setting->description,
+                ],
+            ];
         })->toArray();
     }
 
     public function save(): void
     {
         foreach ($this->settings as $key => $data) {
-            $setting = SystemSetting::where('key', $key)->first();
-            if (! $setting) {
-                continue;
-            }
-
             $value = $data['value'];
+            $type = $data['type'] ?? 'json';
 
-            if ($data['type'] === 'json' && is_array($value)) {
+            if ($type === 'json' && is_array($value)) {
                 $value = json_encode($value, JSON_UNESCAPED_UNICODE);
-            } elseif ($data['type'] === 'boolean') {
+            } elseif ($type === 'boolean') {
                 $value = $value ? 'true' : 'false';
-            } elseif ($data['type'] === 'integer') {
+            } elseif ($type === 'integer') {
                 $value = (string) (int) $value;
             }
-
-            $setting->update(['value' => (string) $value]);
+            SystemSetting::updateOrCreate(
+                ['key' => $key],
+                ['value' => (string) $value, 'type' => $type],
+            );
         }
+
+        $this->loadSettings();
 
         session()->flash('message', 'Настройки сохранены');
     }
@@ -158,6 +160,30 @@ class SystemSettings extends Component
         session()->flash('message', $this->promotionResult);
     }
 
+    private function persistSetting(string $key): void
+    {
+        $data = $this->settings[$key] ?? null;
+        if (! $data) {
+            return;
+        }
+
+        $value = $data['value'];
+        $type = $data['type'] ?? 'json';
+
+        if ($type === 'json' && is_array($value)) {
+            $value = json_encode($value, JSON_UNESCAPED_UNICODE);
+        } elseif ($type === 'boolean') {
+            $value = $value ? 'true' : 'false';
+        } elseif ($type === 'integer') {
+            $value = (string) (int) $value;
+        }
+
+        SystemSetting::updateOrCreate(
+            ['key' => $key],
+            ['value' => (string) $value, 'type' => $type],
+        );
+    }
+
     public function toggleLessonNumber(string $key, int $num, bool $checked): void
     {
         $current = $this->settings[$key]['value'] ?? [];
@@ -174,6 +200,7 @@ class SystemSettings extends Component
 
         sort($current);
         $this->settings[$key]['value'] = $current;
+        $this->persistSetting($key);
     }
 
     public function toggleLessonNumberForDay(string $key, int $day, int $num, bool $checked): void
@@ -195,6 +222,7 @@ class SystemSettings extends Component
         sort($daySlots);
         $current[$day] = $daySlots;
         $this->settings[$key]['value'] = $current;
+        $this->persistSetting($key);
     }
 
     public function toggleWorkingDay(string $key, int $day, bool $checked): void
@@ -213,6 +241,7 @@ class SystemSettings extends Component
 
         sort($current);
         $this->settings[$key]['value'] = $current;
+        $this->persistSetting($key);
     }
 
     #[Computed]
@@ -223,8 +252,10 @@ class SystemSettings extends Component
 
     public function render(): mixed
     {
-        $groups = collect($this->settings)->groupBy('group');
-        $groups->forget('generation');
+        $groups = collect($this->settings)
+            ->groupBy('group')
+            ->forget(['generation', 'schedule'])
+            ->filter(fn ($items, $group) => $group !== null && $group !== '');
 
         return view('livewire.admin.system-settings', [
             'groups' => $groups,

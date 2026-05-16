@@ -181,21 +181,24 @@
                 <form wire:submit="saveTeacher" class="p-6 space-y-4">
                     <div class="grid grid-cols-3 gap-3">
                         <div>
-                            <label class="block text-sm font-medium mb-1">Фамилия</label>
+                            <label class="block text-sm font-medium mb-1">Фамилия <span class="text-red-500">*</span></label>
                             <input type="text" wire:model="newLastName"
                                 class="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-2 text-sm">
+                            <p class="text-xs text-gray-400 mt-1">Обязательное поле</p>
                             @error('newLastName') <p class="text-xs text-red-600 mt-1">{{ $message }}</p> @enderror
                         </div>
                         <div>
-                            <label class="block text-sm font-medium mb-1">Имя</label>
+                            <label class="block text-sm font-medium mb-1">Имя <span class="text-red-500">*</span></label>
                             <input type="text" wire:model="newFirstName"
                                 class="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-2 text-sm">
+                            <p class="text-xs text-gray-400 mt-1">Обязательное поле</p>
                             @error('newFirstName') <p class="text-xs text-red-600 mt-1">{{ $message }}</p> @enderror
                         </div>
                         <div>
                             <label class="block text-sm font-medium mb-1">Отчество</label>
                             <input type="text" wire:model="newMiddleName"
                                 class="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-2 text-sm">
+                            <p class="text-xs text-gray-400 mt-1">Необязательное поле</p>
                         </div>
                     </div>
                     <div class="grid grid-cols-2 gap-4">
@@ -208,6 +211,7 @@
                                     <option value="{{ $dept->id }}">{{ $dept->name }}</option>
                                 @endforeach
                             </select>
+                            <p class="text-xs text-gray-400 mt-1">Выберите из списка</p>
                         </div>
                         <div>
                             <label class="block text-sm font-medium mb-1">Должность</label>
@@ -218,6 +222,7 @@
                                     <option value="{{ $pos->id }}">{{ $pos->name }}</option>
                                 @endforeach
                             </select>
+                            <p class="text-xs text-gray-400 mt-1">Выберите из списка</p>
                         </div>
                     </div>
                     <div class="grid grid-cols-2 gap-4">
@@ -229,11 +234,13 @@
                                 <option value="part_time">Совместитель</option>
                                 <option value="hourly">Почасовик</option>
                             </select>
+                            <p class="text-xs text-gray-400 mt-1">Выберите из списка</p>
                         </div>
                         <div>
-                            <label class="block text-sm font-medium mb-1">Ставка</label>
+                            <label class="block text-sm font-medium mb-1">Ставка <span class="text-red-500">*</span></label>
                             <input type="number" wire:model="newRate" step="0.25" min="0" max="3"
                                 class="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-2 text-sm">
+                            <p class="text-xs text-gray-400 mt-1">Введите число</p>
                             @error('newRate') <p class="text-xs text-red-600 mt-1">{{ $message }}</p> @enderror
                         </div>
                     </div>
@@ -242,11 +249,13 @@
                             <label class="block text-sm font-medium mb-1">Email</label>
                             <input type="email" wire:model="newEmail"
                                 class="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-2 text-sm">
+                            <p class="text-xs text-gray-400 mt-1">Введите email</p>
                         </div>
                         <div>
                             <label class="block text-sm font-medium mb-1">Телефон</label>
                             <input type="text" wire:model="newPhone"
                                 class="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-2 text-sm">
+                            <p class="text-xs text-gray-400 mt-1">Необязательное поле</p>
                         </div>
                     </div>
                     <div class="flex items-center gap-2">

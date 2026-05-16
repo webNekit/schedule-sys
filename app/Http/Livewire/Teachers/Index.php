@@ -79,7 +79,7 @@ class Index extends Component
             'newMiddleName' => 'nullable|string|max:255',
             'newDepartmentId' => 'nullable|integer|exists:departments,id',
             'newPositionId' => 'nullable|integer|exists:teacher_positions,id',
-            'newEmploymentType' => 'required|in:full_time,part_time,hourly',
+            'newEmploymentType' => 'nullable|in:full_time,part_time,hourly',
             'newRate' => 'required|numeric|min:0|max:3',
             'newEmail' => 'nullable|email|max:255',
             'newPhone' => 'nullable|string|max:50',

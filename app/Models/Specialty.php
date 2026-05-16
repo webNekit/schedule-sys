@@ -23,10 +23,15 @@ class Specialty extends Model
         'education_level_id',
         'study_years',
         'study_months',
+        'study_years_9',
+        'study_years_11',
         'base_education',
         'form_of_study',
         'max_courses',
+        'budget_places',
+        'commercial_places',
         'is_active',
+        'study_duration',
     ];
 
     protected function casts(): array
@@ -36,6 +41,8 @@ class Specialty extends Model
             'study_years' => 'integer',
             'study_months' => 'integer',
             'max_courses' => 'integer',
+            'budget_places' => 'integer',
+            'commercial_places' => 'integer',
         ];
     }
 
@@ -62,5 +69,37 @@ class Specialty extends Model
     public function scopeActive(Builder $query): Builder
     {
         return $query->where('is_active', true);
+    }
+
+    /**
+     * Мутатор: автоматически срабатывает при сохранении $specialty->study_duration = '3,9'
+     * Разбивает строку на годы и месяцы и раскладывает по нужным колонкам БД.
+     */
+    public function setStudyDurationAttribute($value): void
+    {
+        if (empty($value)) {
+            $this->attributes['study_years'] = 0;
+            $this->attributes['study_months'] = 0;
+
+            return;
+        }
+
+        // Поддерживаем как запятую, так и точку при вводе
+        $value = str_replace('.', ',', (string) $value);
+        $parts = explode(',', $value);
+
+        $this->attributes['study_years'] = (int) ($parts[0] ?? 0);
+        $this->attributes['study_months'] = (int) ($parts[1] ?? 0);
+    }
+
+    /**
+     * Аксессор: автоматически собирает обратно годы и месяцы в строку "3,9" для вывода в форму
+     */
+    public function getStudyDurationAttribute(): string
+    {
+        $years = $this->study_years ?? 0;
+        $months = $this->study_months ?? 0;
+
+        return $months > 0 ? "{$years},{$months}" : (string) $years;
     }
 }

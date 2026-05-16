@@ -27,6 +27,7 @@ class Group extends Model
         'shift',
         'status',
         'enrollment_date',
+        'enrollment_year',
         'graduation_date',
         'notes',
         'is_active',

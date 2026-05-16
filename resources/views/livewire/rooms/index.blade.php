@@ -161,42 +161,48 @@
                 </div>
                 <form wire:submit="saveRoom" class="p-6 space-y-4">
                     <div>
-                        <label class="block text-sm font-medium mb-1">Корпус</label>
+                        <label class="block text-sm font-medium mb-1">Корпус <span class="text-red-500">*</span></label>
                         <select wire:model="selectedBuildingId" class="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-2">
                             <option value="">Выберите корпус</option>
                             @foreach($buildings as $building)
                                 <option value="{{ $building->id }}">{{ $building->name }}</option>
                             @endforeach
                         </select>
+                        <p class="text-xs text-gray-400 mt-1">Выберите из списка</p>
                         @error('selectedBuildingId') <p class="text-xs text-red-600 mt-1">{{ $message }}</p> @enderror
                     </div>
                     <div>
-                        <label class="block text-sm font-medium mb-1">Номер</label>
+                        <label class="block text-sm font-medium mb-1">Номер <span class="text-red-500">*</span></label>
                         <input type="text" wire:model="roomNumber" class="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-2" placeholder="101, 2а, лаб-3">
+                        <p class="text-xs text-gray-400 mt-1">Обязательное поле</p>
                         @error('roomNumber') <p class="text-xs text-red-600 mt-1">{{ $message }}</p> @enderror
                     </div>
                     <div>
                         <label class="block text-sm font-medium mb-1">Название</label>
                         <input type="text" wire:model="roomName" class="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-2">
+                        <p class="text-xs text-gray-400 mt-1">Необязательное поле</p>
                     </div>
                     <div>
-                        <label class="block text-sm font-medium mb-1">Тип</label>
+                        <label class="block text-sm font-medium mb-1">Тип <span class="text-red-500">*</span></label>
                         <select wire:model="roomTypeId" class="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-2">
                             <option value="0">Выберите тип</option>
                             @foreach($roomTypes as $type)
                                 <option value="{{ $type->id }}">{{ $type->name }}</option>
                             @endforeach
                         </select>
+                        <p class="text-xs text-gray-400 mt-1">Выберите из списка</p>
                         @error('roomTypeId') <p class="text-xs text-red-600 mt-1">{{ $message }}</p> @enderror
                     </div>
                     <div class="grid grid-cols-2 gap-4">
                         <div>
-                            <label class="block text-sm font-medium mb-1">Вместимость</label>
+                            <label class="block text-sm font-medium mb-1">Вместимость <span class="text-red-500">*</span></label>
                             <input type="number" wire:model="capacity" min="1" class="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-2">
+                            <p class="text-xs text-gray-400 mt-1">Введите число</p>
                         </div>
                         <div>
-                            <label class="block text-sm font-medium mb-1">Этаж</label>
+                            <label class="block text-sm font-medium mb-1">Этаж <span class="text-red-500">*</span></label>
                             <input type="number" wire:model="floor" min="0" class="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-2">
+                            <p class="text-xs text-gray-400 mt-1">Введите число</p>
                         </div>
                     </div>
                     <div class="flex items-center gap-2">

@@ -16,39 +16,44 @@
     <form wire:submit="generate" class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6 space-y-4">
         <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
             <div>
-                <label class="block text-sm font-medium mb-1">Тип периода</label>
+                <label class="block text-sm font-medium mb-1">Тип периода <span class="text-red-500">*</span></label>
                 <select wire:model.live="periodType" class="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-2">
                     <option value="day">День</option>
                     <option value="week">Неделя</option>
                     <option value="month">Месяц</option>
                 </select>
+                <p class="text-xs text-gray-400 mt-1">Выберите из списка</p>
             </div>
 
             @if ($periodType === 'day')
                 <div>
-                    <label class="block text-sm font-medium mb-1">Дата</label>
+                    <label class="block text-sm font-medium mb-1">Дата <span class="text-red-500">*</span></label>
                     <input type="date" wire:model="date" class="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-2">
+                    <p class="text-xs text-gray-400 mt-1">Выберите дату</p>
                     @error('date') <p class="mt-1 text-sm text-red-600">{{ $message }}</p> @enderror
                 </div>
             @elseif ($periodType === 'week')
                 <div>
-                    <label class="block text-sm font-medium mb-1">Начало недели</label>
+                    <label class="block text-sm font-medium mb-1">Начало недели <span class="text-red-500">*</span></label>
                     <input type="date" wire:model="weekStart" class="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-2">
+                    <p class="text-xs text-gray-400 mt-1">Выберите дату</p>
                     @error('weekStart') <p class="mt-1 text-sm text-red-600">{{ $message }}</p> @enderror
                 </div>
             @elseif ($periodType === 'month')
                 <div>
-                    <label class="block text-sm font-medium mb-1">Месяц</label>
+                    <label class="block text-sm font-medium mb-1">Месяц <span class="text-red-500">*</span></label>
                     <select wire:model="month" class="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-2">
                         @foreach(range(1, 12) as $m)
                             <option value="{{ $m }}">{{ Carbon\Carbon::create()->month($m)->translatedFormat('F') }}</option>
                         @endforeach
                     </select>
+                    <p class="text-xs text-gray-400 mt-1">Выберите из списка</p>
                     @error('month') <p class="mt-1 text-sm text-red-600">{{ $message }}</p> @enderror
                 </div>
                 <div>
-                    <label class="block text-sm font-medium mb-1">Год</label>
+                    <label class="block text-sm font-medium mb-1">Год <span class="text-red-500">*</span></label>
                     <input type="number" wire:model="year" min="2000" max="2100" class="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-2">
+                    <p class="text-xs text-gray-400 mt-1">Введите число</p>
                     @error('year') <p class="mt-1 text-sm text-red-600">{{ $message }}</p> @enderror
                 </div>
             @endif
@@ -61,6 +66,7 @@
                         <option value="{{ $dept->id }}">{{ $dept->name }}</option>
                     @endforeach
                 </select>
+                <p class="text-xs text-gray-400 mt-1">Выберите из списка</p>
             </div>
         </div>
 
@@ -71,7 +77,7 @@
 
         @if (!$allGroups)
             <div>
-                <label class="block text-sm font-medium mb-1">Группы</label>
+                <label class="block text-sm font-medium mb-1">Группы <span class="text-red-500">*</span></label>
                 <div class="grid grid-cols-2 md:grid-cols-4 gap-2 max-h-48 overflow-y-auto">
                     @foreach ($groups as $group)
                         <label class="flex items-center gap-2 text-sm">

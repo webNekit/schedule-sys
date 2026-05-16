@@ -76,48 +76,57 @@
                 <h3 class="text-lg font-semibold mb-4">{{ $editingYearId ? 'Редактирование года' : 'Новый учебный год' }}</h3>
                 <form wire:submit="saveYear" class="space-y-3">
                     <div>
-                        <label class="block text-sm font-medium mb-1">Название</label>
+                        <label class="block text-sm font-medium mb-1">Название <span class="text-red-500">*</span></label>
                         <input type="text" wire:model="name" class="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-2">
+                        <p class="text-xs text-gray-400 mt-1">Обязательное поле</p>
                         @error('name') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
                     </div>
                     <div class="grid grid-cols-2 gap-2">
                         <div>
-                            <label class="block text-sm font-medium mb-1">Год начала</label>
+                            <label class="block text-sm font-medium mb-1">Год начала <span class="text-red-500">*</span></label>
                             <input type="number" wire:model="yearStart" class="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-2">
+                            <p class="text-xs text-gray-400 mt-1">Введите число</p>
                         </div>
                         <div>
-                            <label class="block text-sm font-medium mb-1">Год конца</label>
+                            <label class="block text-sm font-medium mb-1">Год конца <span class="text-red-500">*</span></label>
                             <input type="number" wire:model="yearEnd" class="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-2">
+                            <p class="text-xs text-gray-400 mt-1">Введите число</p>
                         </div>
                     </div>
                     <div class="grid grid-cols-2 gap-2">
                         <div>
-                            <label class="block text-sm font-medium mb-1">Дата начала</label>
+                            <label class="block text-sm font-medium mb-1">Дата начала <span class="text-red-500">*</span></label>
                             <input type="date" wire:model="dateStart" class="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-2">
+                            <p class="text-xs text-gray-400 mt-1">Выберите дату</p>
                         </div>
                         <div>
-                            <label class="block text-sm font-medium mb-1">Дата конца</label>
+                            <label class="block text-sm font-medium mb-1">Дата конца <span class="text-red-500">*</span></label>
                             <input type="date" wire:model="dateEnd" class="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-2">
+                            <p class="text-xs text-gray-400 mt-1">Выберите дату</p>
                         </div>
                     </div>
                     <div class="grid grid-cols-2 gap-2">
                         <div>
-                            <label class="block text-sm font-medium mb-1">1 семестр (с)</label>
+                            <label class="block text-sm font-medium mb-1">1 семестр (с) <span class="text-red-500">*</span></label>
                             <input type="date" wire:model="firstSemesterStart" class="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-2">
+                            <p class="text-xs text-gray-400 mt-1">Выберите дату</p>
                         </div>
                         <div>
-                            <label class="block text-sm font-medium mb-1">1 семестр (по)</label>
+                            <label class="block text-sm font-medium mb-1">1 семестр (по) <span class="text-red-500">*</span></label>
                             <input type="date" wire:model="firstSemesterEnd" class="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-2">
+                            <p class="text-xs text-gray-400 mt-1">Выберите дату</p>
                         </div>
                     </div>
                     <div class="grid grid-cols-2 gap-2">
                         <div>
-                            <label class="block text-sm font-medium mb-1">2 семестр (с)</label>
+                            <label class="block text-sm font-medium mb-1">2 семестр (с) <span class="text-red-500">*</span></label>
                             <input type="date" wire:model="secondSemesterStart" class="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-2">
+                            <p class="text-xs text-gray-400 mt-1">Выберите дату</p>
                         </div>
                         <div>
-                            <label class="block text-sm font-medium mb-1">2 семестр (по)</label>
+                            <label class="block text-sm font-medium mb-1">2 семестр (по) <span class="text-red-500">*</span></label>
                             <input type="date" wire:model="secondSemesterEnd" class="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-2">
+                            <p class="text-xs text-gray-400 mt-1">Выберите дату</p>
                         </div>
                     </div>
                     <div class="flex items-center gap-2">
@@ -140,17 +149,20 @@
                     <h3 class="text-lg font-semibold mb-4">{{ $editingVacationId ? 'Редактирование каникул' : 'Добавление каникул' }}</h3>
                     <form wire:submit="{{ $editingVacationId ? 'updateVacation' : 'addVacation(' . $vacationYearId . ')' }}" class="space-y-3">
                         <div>
-                            <label class="block text-sm font-medium mb-1">Название</label>
+                            <label class="block text-sm font-medium mb-1">Название <span class="text-red-500">*</span></label>
                             <input type="text" wire:model="vacationName" class="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-2">
+                            <p class="text-xs text-gray-400 mt-1">Обязательное поле</p>
                         </div>
                         <div class="grid grid-cols-2 gap-2">
                             <div>
-                                <label class="block text-sm font-medium mb-1">Дата начала</label>
+                                <label class="block text-sm font-medium mb-1">Дата начала <span class="text-red-500">*</span></label>
                                 <input type="date" wire:model.live="vacationStartDate" class="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-2">
+                                <p class="text-xs text-gray-400 mt-1">Выберите дату</p>
                             </div>
                             <div>
-                                <label class="block text-sm font-medium mb-1">Дата конца</label>
+                                <label class="block text-sm font-medium mb-1">Дата конца <span class="text-red-500">*</span></label>
                                 <input type="date" wire:model.live="vacationEndDate" class="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-2">
+                                <p class="text-xs text-gray-400 mt-1">Выберите дату</p>
                             </div>
                         </div>
                         <div>

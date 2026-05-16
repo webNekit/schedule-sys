@@ -254,26 +254,6 @@ class ShowPlan extends Component
     }
 
     #[Computed]
-    public function searchableTeachers(): Collection
-    {
-        $query = Teacher::active()
-            ->with(['position', 'department'])
-            ->orderBy('last_name');
-
-        if ($this->teacherSearch !== '') {
-            $search = mb_strtolower($this->teacherSearch);
-            $query->where(function ($q) use ($search) {
-                $q->where('last_name', 'like', "%{$search}%")
-                    ->orWhere('first_name', 'like', "%{$search}%")
-                    ->orWhere('middle_name', 'like', "%{$search}%")
-                    ->orWhereRaw("REPLACE(CONCAT(last_name, ' ', first_name, ' ', COALESCE(middle_name, '')), '  ', ' ') LIKE ?", ["%{$search}%"]);
-            });
-        }
-
-        return $query->get();
-    }
-
-    #[Computed]
     public function availableGroups(): Collection
     {
         return Group::active()
@@ -314,16 +294,30 @@ class ShowPlan extends Component
             });
         }
 
-        // Сортировка: Сначала курс, потом семестр, потом порядок из экселя
         $semesters = $semesters->sortBy(function ($s) {
             $d = $s->discipline;
 
             return [$s->course_number, $s->semester_number, $d->sort_order];
         });
 
+        $teachers = Teacher::active()
+            ->with(['position', 'department'])
+            ->orderBy('last_name')
+            ->get();
+
+        if ($this->teacherSearch !== '') {
+            $search = mb_strtolower($this->teacherSearch);
+            $teachers = $teachers->filter(function ($teacher) use ($search) {
+                $fullName = mb_strtolower("{$teacher->last_name} {$teacher->first_name} {$teacher->middle_name}");
+
+                return str_contains($fullName, $search);
+            });
+        }
+
         return view('livewire.curriculum.show-plan', [
             'plan' => $this->plan,
             'semesters' => $semesters,
+            'searchableTeachers' => $teachers,
         ]);
     }
 }

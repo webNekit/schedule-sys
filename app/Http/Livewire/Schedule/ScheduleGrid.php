@@ -86,24 +86,20 @@ class ScheduleGrid extends Component
         if ($version !== null) {
             $this->versionId = (int) $version;
         }
-
         if ($request !== null) {
             $qViewMode = $request->query('viewMode');
             if ($qViewMode !== null && in_array($qViewMode, ['group', 'teacher', 'room', 'department'], true)) {
                 $this->viewMode = $qViewMode;
             }
-
             $qViewId = $request->query('viewId');
             if ($qViewId !== null) {
                 $this->viewId = (int) $qViewId;
             }
-
             $qWeekStart = $request->query('weekStart');
             if ($qWeekStart !== null) {
                 $this->weekStart = $qWeekStart;
             }
         }
-
         if ($this->weekStart === '') {
             if ($this->versionId !== null) {
                 $version = ScheduleVersion::find($this->versionId);
@@ -118,14 +114,12 @@ class ScheduleGrid extends Component
                 $this->weekStart = Carbon::now()->startOfWeek(Carbon::MONDAY)->format('Y-m-d');
             }
         }
-
         $this->loadWeek();
     }
 
     public function render(): mixed
     {
         $lessonConflictMap = [];
-
         if (! empty($this->conflicts)) {
             $conflictLessons = collect($this->conflicts);
             foreach ($this->scheduleData as $lesson) {
@@ -154,7 +148,6 @@ class ScheduleGrid extends Component
     {
         $weekStart = Carbon::parse($this->weekStart);
         $weekEnd = $weekStart->copy()->endOfWeek(Carbon::SUNDAY);
-
         $lessons = ScheduleLesson::with([
             'group',
             'discipline',
@@ -184,7 +177,6 @@ class ScheduleGrid extends Component
             ->orderBy('date')
             ->orderBy('lesson_number')
             ->get();
-
         $this->scheduleData = $lessons->map(function ($lesson) {
             $data = $lesson->toArray();
             $data['date'] = $lesson->date instanceof Carbon
@@ -201,7 +193,6 @@ class ScheduleGrid extends Component
             ->subWeek()
             ->startOfWeek(Carbon::MONDAY)
             ->format('Y-m-d');
-
         $this->loadWeek();
     }
 
@@ -211,7 +202,6 @@ class ScheduleGrid extends Component
             ->addWeek()
             ->startOfWeek(Carbon::MONDAY)
             ->format('Y-m-d');
-
         $this->loadWeek();
     }
 
@@ -224,7 +214,6 @@ class ScheduleGrid extends Component
     public function editLesson(int $lessonId): void
     {
         $lesson = ScheduleLesson::findOrFail($lessonId);
-
         $this->editing = true;
         $this->editingLessonId = $lesson->id;
         $this->editTeacherId = $lesson->teacher_id ?? 0;
@@ -242,33 +231,26 @@ class ScheduleGrid extends Component
     public function saveLesson(): void
     {
         $this->validate();
-
         $lesson = ScheduleLesson::findOrFail($this->editingLessonId);
         $version = $lesson->version;
-
         $isPublished = $version && $version->status === 'published';
-
         $duplicate = ScheduleLesson::where('version_id', $lesson->version_id)
             ->where('group_id', $lesson->group_id)
             ->where('date', $this->editDate)
             ->where('lesson_number', $this->editLessonNumber)
             ->where('id', '!=', $lesson->id)
             ->exists();
-
         if ($duplicate) {
             session()->flash('error', 'В этой ячейке уже есть занятие.');
 
             return;
         }
-
         $teacherChanged = $isPublished && $this->editTeacherId > 0 && $this->editTeacherId !== $lesson->teacher_id;
-
         $oldData = $isPublished ? [
             'teacher_id' => $lesson->teacher_id,
             'discipline_id' => $lesson->discipline_id,
             'lesson_number' => $lesson->lesson_number,
         ] : null;
-
         $lesson->update([
             'teacher_id' => $this->editTeacherId > 0 ? $this->editTeacherId : null,
             'room_id' => $this->editRoomId > 0 ? $this->editRoomId : null,
@@ -277,17 +259,13 @@ class ScheduleGrid extends Component
             'is_replacement' => $isPublished,
             'original_lesson_id' => $isPublished ? $lesson->id : null,
         ]);
-
         if ($isPublished) {
             $version->untrackLesson($lesson);
             $version->trackHours();
         }
-
         $this->editing = false;
         $this->editingLessonId = null;
-
         $this->loadWeek();
-
         $msg = $teacherChanged ? 'Замена сохранена. Часы пересчитаны.' : 'Занятие обновлено.';
         session()->flash('message', $msg);
     }
@@ -295,16 +273,13 @@ class ScheduleGrid extends Component
     public function deleteLesson(int $lessonId): void
     {
         ScheduleLesson::findOrFail($lessonId)->delete();
-
         $this->loadWeek();
-
         session()->flash('message', __('Lesson deleted successfully.'));
     }
 
     public function publish(int $versionId): void
     {
         $version = ScheduleVersion::findOrFail($versionId);
-
         // 10. Проверка на существующие опубликованные расписания в эти даты
         $overlap = ScheduleVersion::where('status', 'published')
             ->where('id', '!=', $version->id)
@@ -312,13 +287,11 @@ class ScheduleGrid extends Component
                 $q->whereBetween('date_from', [$version->date_from, $version->date_to])
                     ->orWhereBetween('date_to', [$version->date_from, $version->date_to]);
             })->first();
-
         if ($overlap) {
             session()->flash('error', "ОШИБКА: На эти даты уже опубликовано расписание «{$overlap->name}». Сначала переведите его в архив, чтобы компенсировать часы преподавателям.");
 
             return;
         }
-
         $version->publish(auth()->id());
         $this->loadWeek();
         session()->flash('message', 'Расписание опубликовано. Часы учтены (по 2 ч. за пару).');
@@ -332,11 +305,9 @@ class ScheduleGrid extends Component
 
             return;
         }
-
         $version = ScheduleVersion::whereIn('status', ['draft', 'generating'])
             ->latest()
             ->first();
-
         if ($version === null) {
             $academicYear = AcademicYear::where('is_current', true)->first();
             $version = ScheduleVersion::create([
@@ -350,33 +321,27 @@ class ScheduleGrid extends Component
                 'created_by' => auth()->id(),
             ]);
         }
-
         if ($groupId <= 0) {
             $groupId = $this->viewMode === 'group' && $this->viewId > 0
                 ? $this->viewId
                 : Group::where('is_active', true)->first()?->id;
         }
-
         if (! $groupId) {
             session()->flash('error', 'Нет доступных групп.');
 
             return;
         }
-
         $exists = ScheduleLesson::where('version_id', $version->id)
             ->where('date', $date ?: $this->weekStart)
             ->where('lesson_number', $lessonNumber)
             ->where('group_id', $groupId)
             ->exists();
-
         if ($exists) {
             session()->flash('error', 'В этой ячейке уже есть занятие.');
 
             return;
         }
-
         $academicYear = AcademicYear::where('is_current', true)->first();
-
         $lesson = ScheduleLesson::create([
             'version_id' => $version->id,
             'date' => $date ?: $this->weekStart,
@@ -390,7 +355,6 @@ class ScheduleGrid extends Component
             'building_id' => 1,
             'status' => 'draft',
         ]);
-
         $this->editLesson($lesson->id);
     }
 
@@ -425,12 +389,10 @@ class ScheduleGrid extends Component
 
             return null;
         }
-
         $version = ScheduleVersion::find($this->versionId);
         $deptId = $this->viewMode === 'department' && $this->viewId > 0
             ? $this->viewId
             : Department::first()->id;
-
         try {
             $filePath = $exportService->exportScheduleByDepartment(
                 deptId: $deptId,
@@ -457,7 +419,6 @@ class ScheduleGrid extends Component
             $ver = ScheduleVersion::latest()->first();
             $this->versionId = $ver?->id;
         }
-
         $this->highlightedLessonIds = ScheduleLesson::where('version_id', $this->versionId)
             ->where('date', $date)
             ->when($teacherId, fn ($q) => $q->where('teacher_id', $teacherId))
@@ -466,9 +427,10 @@ class ScheduleGrid extends Component
             ->when($lessonNumber, fn ($q) => $q->where('lesson_number', $lessonNumber))
             ->pluck('id')
             ->toArray();
-
         $this->showConflictModal = false;
         $this->loadWeek();
+        // 🔥 Оповещаем фронтенд, что нужно проскроллить
+        $this->dispatch('scroll-to-highlight');
     }
 
     public function clearHighlights(): void
@@ -482,17 +444,13 @@ class ScheduleGrid extends Component
         $version = ScheduleVersion::whereIn('status', ['draft', 'published'])
             ->latest()
             ->first();
-
         if ($version === null) {
             session()->flash('info', 'Нет версии расписания для автоматического исправления.');
 
             return;
         }
-
         $this->autoFixResult = $conflictChecker->autoFix($version->id);
-
         $this->conflicts = $conflictChecker->checkVersion($version->id);
-
         session()->flash('message', $this->autoFixResult['message']);
     }
 
@@ -501,13 +459,11 @@ class ScheduleGrid extends Component
         $version = ScheduleVersion::whereIn('status', ['draft', 'published'])
             ->latest()
             ->first();
-
         if ($version === null) {
             session()->flash('info', __('No schedule version found to check.'));
 
             return;
         }
-
         $this->conflicts = $conflictChecker->checkVersion($version->id);
         $this->showConflictModal = true;
         $this->highlightedLessonIds = [];
@@ -518,26 +474,21 @@ class ScheduleGrid extends Component
         $version = ScheduleVersion::whereIn('status', ['draft', 'published'])
             ->latest()
             ->first();
-
         if ($version === null) {
             session()->flash('info', __('No schedule version found to check.'));
 
             return;
         }
-
         if ($this->versionId === null) {
             $this->versionId = $version->id;
         }
-
         $weekStart = Carbon::parse($this->weekStart);
         $weekEnd = $weekStart->copy()->endOfWeek(Carbon::SUNDAY);
-
         $this->conflicts = $conflictChecker->checkVersionForRange(
             $version->id,
             $weekStart->format('Y-m-d'),
             $weekEnd->format('Y-m-d'),
         );
-
         $this->showConflictModal = true;
         $this->highlightedLessonIds = [];
     }
@@ -553,24 +504,19 @@ class ScheduleGrid extends Component
         if ($this->resolvingConflictId === null) {
             return;
         }
-
         $conflictChecker->resolveConflict(
             conflictId: $this->resolvingConflictId,
             userId: auth()->id(),
             resolution: $this->resolutionNote,
         );
-
         $this->resolvingConflictId = null;
         $this->resolutionNote = '';
-
         $version = ScheduleVersion::whereIn('status', ['draft', 'published'])
             ->latest()
             ->first();
-
         if ($version !== null) {
             $this->conflicts = app(ConflictCheckerService::class)->checkVersion($version->id);
         }
-
         session()->flash('message', __('Conflict resolved successfully.'));
     }
 
@@ -593,7 +539,6 @@ class ScheduleGrid extends Component
             $version = ScheduleVersion::latest()->first();
             $versionId = $version?->id;
         }
-
         if ($this->shareType === 'day') {
             $date = $this->shareDate ?: Carbon::now()->format('Y-m-d');
             $this->shareLink = route('schedule.day', [
@@ -607,7 +552,6 @@ class ScheduleGrid extends Component
                 'viewId' => $this->shareViewId,
             ]);
         }
-
         $this->showShareModal = false;
     }
 
@@ -617,7 +561,6 @@ class ScheduleGrid extends Component
         if ($this->editTeacherId <= 0) {
             return Room::where('is_active', true)->orderBy('name')->get();
         }
-
         $priorityRooms = Room::where('is_active', true)
             ->whereHas('teacherRooms', fn ($q) => $q->where('teacher_id', $this->editTeacherId))
             ->orderBy(
@@ -628,7 +571,6 @@ class ScheduleGrid extends Component
                     ->limit(1)
             )
             ->get();
-
         if ($priorityRooms->isNotEmpty()) {
             return $priorityRooms;
         }
@@ -646,7 +588,6 @@ class ScheduleGrid extends Component
     public function getDisciplinesProperty(): mixed
     {
         $query = CurriculumDiscipline::query()->orderBy('name');
-
         if ($this->editGroupId > 0) {
             $group = Group::with('curriculumPlans')->find($this->editGroupId);
             if ($group && $group->curriculumPlans->isNotEmpty()) {

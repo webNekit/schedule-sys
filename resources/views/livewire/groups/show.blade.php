@@ -209,8 +209,9 @@
                 </div>
                 <form wire:submit="saveGroup" class="p-6 space-y-4">
                     <div>
-                        <label class="block text-sm font-medium mb-1">Название</label>
+                        <label class="block text-sm font-medium mb-1">Название <span class="text-red-500">*</span></label>
                         <input type="text" wire:model="groupFormName" class="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-2">
+                        <p class="text-xs text-gray-400 mt-1">Обязательное поле</p>
                         @error('groupFormName') <p class="text-xs text-red-600 mt-1">{{ $message }}</p> @enderror
                     </div>
                     <div>
@@ -221,6 +222,7 @@
                                 <option value="{{ $spec->id }}">{{ $spec->name }}</option>
                             @endforeach
                         </select>
+                        <p class="text-xs text-gray-400 mt-1">Выберите из списка</p>
                     </div>
                     <div>
                         <label class="block text-sm font-medium mb-1">Кафедра</label>
@@ -230,6 +232,7 @@
                                 <option value="{{ $dept->id }}">{{ $dept->name }}</option>
                             @endforeach
                         </select>
+                        <p class="text-xs text-gray-400 mt-1">Выберите из списка</p>
                     </div>
                     <div>
                         <label class="block text-sm font-medium mb-1">Учебный год</label>
@@ -239,11 +242,13 @@
                                 <option value="{{ $year->id }}">{{ $year->name }}</option>
                             @endforeach
                         </select>
+                        <p class="text-xs text-gray-400 mt-1">Выберите из списка</p>
                     </div>
                     <div class="grid grid-cols-2 gap-4">
                         <div>
                             <label class="block text-sm font-medium mb-1">Курс</label>
                             <input type="number" wire:model="groupFormCourse" min="1" max="6" class="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-2">
+                            <p class="text-xs text-gray-400 mt-1">Введите число</p>
                         </div>
                         <div>
                             <label class="block text-sm font-medium mb-1">Смена</label>
@@ -251,11 +256,13 @@
                                 <option value="1">1-я смена</option>
                                 <option value="2">2-я смена</option>
                             </select>
+                            <p class="text-xs text-gray-400 mt-1">Выберите из списка</p>
                         </div>
                     </div>
                     <div>
                         <label class="block text-sm font-medium mb-1">Кол-во студентов</label>
                         <input type="number" wire:model="groupFormStudentsCount" min="0" class="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-2">
+                        <p class="text-xs text-gray-400 mt-1">Введите число</p>
                     </div>
                     <div class="flex justify-end gap-3 pt-4 border-t border-gray-200 dark:border-gray-700">
                         <button type="button" wire:click="$set('showGroupForm', false)" class="px-4 py-2 text-sm text-gray-600 dark:text-gray-400 hover:text-gray-800 transition">Отмена</button>

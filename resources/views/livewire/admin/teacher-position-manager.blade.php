@@ -73,8 +73,9 @@
                 </div>
                 <form wire:submit="save" class="p-6 space-y-4">
                     <div>
-                        <label class="block text-sm font-medium mb-1">Название</label>
+                        <label class="block text-sm font-medium mb-1">Название <span class="text-red-500">*</span></label>
                         <input type="text" wire:model="name" class="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-2">
+                        <p class="text-xs text-gray-400 mt-1">Обязательное поле</p>
                         @error('name') <p class="text-xs text-red-600 mt-1">{{ $message }}</p> @enderror
                     </div>
                     <div class="flex items-center gap-2">

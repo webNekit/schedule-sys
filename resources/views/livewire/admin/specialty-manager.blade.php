@@ -69,11 +69,15 @@
                             <td class="px-4 py-3 font-mono text-sm">{{ $spec->code }}</td>
                             <td class="px-4 py-3 font-medium">{{ $spec->name }}</td>
                             <td class="px-4 py-3 text-gray-500">{{ $spec->department?->short_name ?? '—' }}</td>
-                            <td class="px-4 py-3">{{ $spec->study_years_9 ?? $spec->study_years }} г.</td>
-                            <td class="px-4 py-3">{{ $spec->study_years_11 ?? '—' }} г.</td>
+                            <td class="px-4 py-3">
+                                {{ $spec->study_years_9 ? str_replace('.', ',', $spec->study_years_9) . ' г.' : ($spec->study_years ? str_replace('.', ',', $spec->study_years) . ' г.' : '—') }}
+                            </td>
+                            <td class="px-4 py-3">
+                                {{ $spec->study_years_11 ? str_replace('.', ',', $spec->study_years_11) . ' г.' : '—' }}
+                            </td>
                             <td class="px-4 py-3">{{ $spec->form_of_study ?? '—' }}</td>
                             <td class="px-4 py-3">{{ $spec->budget_places ?? '—' }}</td>
-                            <td class="px-4 py-3">{{ $spec->contract_places ?? '—' }}</td>
+                            <td class="px-4 py-3">{{ $spec->commercial_places ?? '—' }}</td>
                             <td class="px-4 py-3 text-center">
                                 <div class="flex justify-center gap-2">
                                     <button wire:click="edit({{ $spec->id }})"
@@ -134,7 +138,7 @@
                 <form wire:submit="save" class="p-6 space-y-4">
                     <div class="grid grid-cols-2 gap-4">
                         <div>
-                            <label class="block text-sm font-medium mb-1">Код</label>
+                            <label class="block text-sm font-medium mb-1">Код <span class="text-red-500">*</span></label>
                             <input type="text" wire:model="code"
                                 class="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-2"
                                 placeholder="09.02.07">
@@ -148,7 +152,7 @@
                         </div>
                     </div>
                     <div>
-                        <label class="block text-sm font-medium mb-1">Полное название</label>
+                        <label class="block text-sm font-medium mb-1">Полное название <span class="text-red-500">*</span></label>
                         <input type="text" wire:model="name"
                             class="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-2">
                         @error('name') <p class="text-xs text-red-600 mt-1">{{ $message }}</p> @enderror
@@ -165,14 +169,18 @@
                     </div>
                     <div class="grid grid-cols-2 gap-4">
                         <div>
-                            <label class="block text-sm font-medium mb-1">Срок обучения для 9 кл (лет)</label>
-                            <input type="number" wire:model="studyYears9" min="1" max="6"
-                                class="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-2">
+                            <label class="block text-sm font-medium mb-1">Срок обучения для 9 кл</label>
+                            <input type="text" wire:model="studyYears9"
+                                class="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-2"
+                                placeholder="Например: 3,9">
+                            @error('studyYears9') <p class="text-xs text-red-600 mt-1">{{ $message }}</p> @enderror
                         </div>
                         <div>
-                            <label class="block text-sm font-medium mb-1">Срок обучения для 11 кл (лет)</label>
-                            <input type="number" wire:model="studyYears11" min="1" max="6"
-                                class="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-2">
+                            <label class="block text-sm font-medium mb-1">Срок обучения для 11 кл</label>
+                            <input type="text" wire:model="studyYears11"
+                                class="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-2"
+                                placeholder="Например: 2,9">
+                            @error('studyYears11') <p class="text-xs text-red-600 mt-1">{{ $message }}</p> @enderror
                         </div>
                     </div>
                     <div class="grid grid-cols-2 gap-4">
@@ -197,12 +205,14 @@
                         <div>
                             <label class="block text-sm font-medium mb-1">Бюджетные места</label>
                             <input type="number" wire:model="budgetPlaces" min="0"
-                                class="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-2">
+                                class="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-2"
+                                placeholder="Пусто = нет">
                         </div>
                         <div>
                             <label class="block text-sm font-medium mb-1">Внебюджетные места</label>
-                            <input type="number" wire:model="contractPlaces" min="0"
-                                class="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-2">
+                            <input type="number" wire:model="commercialPlaces" min="0"
+                                class="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-2"
+                                placeholder="Пусто = нет">
                         </div>
                     </div>
                     <div class="flex items-center gap-2">
@@ -210,6 +220,7 @@
                             class="rounded border-gray-300 text-emerald-600">
                         <label for="isActive" class="text-sm">Активна</label>
                     </div>
+                    <p class="text-xs text-gray-400"><span class="text-red-500">*</span> — обязательные поля</p>
                     <div class="flex justify-end gap-3 pt-4 border-t border-gray-200 dark:border-gray-700">
                         <button type="button" wire:click="cancel"
                             class="px-4 py-2 text-sm text-gray-600 dark:text-gray-400 hover:text-gray-800">Отмена</button>

@@ -34,27 +34,32 @@
                     <div class="mt-4 p-4 border border-emerald-200 dark:border-emerald-800 rounded-lg bg-emerald-50 dark:bg-emerald-900/20 space-y-3">
                         <p class="text-sm font-medium">Новый учебный год</p>
                         <div>
-                            <label class="block text-xs font-medium mb-1">Название</label>
+                            <label class="block text-xs font-medium mb-1">Название <span class="text-red-500">*</span></label>
                             <input type="text" wire:model="newYearName" class="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-2 text-sm">
+                            <p class="text-xs text-gray-400 mt-1">Обязательное поле</p>
                         </div>
                         <div class="grid grid-cols-2 gap-3">
                             <div>
-                                <label class="block text-xs font-medium mb-1">Год начала</label>
+                                <label class="block text-xs font-medium mb-1">Год начала <span class="text-red-500">*</span></label>
                                 <input type="number" wire:model="newYearStart" class="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-2 text-sm">
+                                <p class="text-xs text-gray-400 mt-1">Введите число</p>
                             </div>
                             <div>
-                                <label class="block text-xs font-medium mb-1">Год конца</label>
+                                <label class="block text-xs font-medium mb-1">Год конца <span class="text-red-500">*</span></label>
                                 <input type="number" wire:model="newYearEnd" class="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-2 text-sm">
+                                <p class="text-xs text-gray-400 mt-1">Введите число</p>
                             </div>
                         </div>
                         <div class="grid grid-cols-2 gap-3">
                             <div>
-                                <label class="block text-xs font-medium mb-1">Дата начала</label>
+                                <label class="block text-xs font-medium mb-1">Дата начала <span class="text-red-500">*</span></label>
                                 <input type="date" wire:model="newYearDateStart" class="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-2 text-sm">
+                                <p class="text-xs text-gray-400 mt-1">Выберите дату</p>
                             </div>
                             <div>
-                                <label class="block text-xs font-medium mb-1">Дата конца</label>
+                                <label class="block text-xs font-medium mb-1">Дата конца <span class="text-red-500">*</span></label>
                                 <input type="date" wire:model="newYearDateEnd" class="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-2 text-sm">
+                                <p class="text-xs text-gray-400 mt-1">Выберите дату</p>
                             </div>
                         </div>
                         <div class="flex justify-end gap-2">
@@ -86,7 +91,7 @@
         <h3 class="font-semibold text-lg mb-4">Рабочие дни</h3>
         <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div>
-                <label class="block text-sm font-medium mb-2">Для 1-2 курсов (5-дневка)</label>
+                <label class="block text-sm font-medium mb-2">Для 1-2 курсов</label>
                 <div class="flex flex-wrap gap-2">
                     @php $wd12 = $settings['working_days_course_1_2']['value'] ?? []; @endphp
                     @foreach ($dayLabels as $dayNum => $dayLabel)
@@ -102,7 +107,7 @@
                 </div>
             </div>
             <div>
-                <label class="block text-sm font-medium mb-2">Для 3-4 курсов (6-дневка)</label>
+                <label class="block text-sm font-medium mb-2">Для 3-4 курсов</label>
                 <div class="flex flex-wrap gap-2">
                     @php $wd34 = $settings['working_days_course_3_4']['value'] ?? []; @endphp
                     @foreach ($dayLabels as $dayNum => $dayLabel)
@@ -122,7 +127,7 @@
 
     {{-- Lesson Numbers per Course / per Day --}}
     @php
-        $courseKeys = ['lesson_numbers_course_1' => '1 курс (1 смена)', 'lesson_numbers_course_2' => '2 курс (1 смена)', 'lesson_numbers_course_3' => '3 курс (2 смена)', 'lesson_numbers_course_4' => '4 курс (2 смена)'];
+        $courseKeys = ['lesson_numbers_course_1' => '1 курс', 'lesson_numbers_course_2' => '2 курс', 'lesson_numbers_course_3' => '3 курс', 'lesson_numbers_course_4' => '4 курс'];
         $courseWorkingDays = ['lesson_numbers_course_1' => 'working_days_course_1_2', 'lesson_numbers_course_2' => 'working_days_course_1_2', 'lesson_numbers_course_3' => 'working_days_course_3_4', 'lesson_numbers_course_4' => 'working_days_course_3_4'];
     @endphp
 
@@ -179,8 +184,6 @@
                 </div>
                 <div class="p-6 space-y-4">
                     @foreach ($groupSettings as $key => $data)
-                        @continue(in_array($key, ['working_days_course_1_2', 'working_days_course_3_4', 'lesson_numbers_course_1', 'lesson_numbers_course_2', 'lesson_numbers_course_3', 'lesson_numbers_course_4', 'schedule_generation_max_retries']))
-
                         <div>
                             <label class="block text-sm font-medium mb-1">{{ $data['label'] ?? $key }}</label>
                             @if (($data['description'] ?? ''))

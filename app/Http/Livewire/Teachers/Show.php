@@ -108,7 +108,7 @@ class Show extends Component
             'teacherMiddleName' => 'nullable|string|max:255',
             'teacherDepartmentId' => 'nullable|integer|exists:departments,id',
             'teacherPositionId' => 'nullable|integer|exists:teacher_positions,id',
-            'teacherEmploymentType' => 'required|in:full_time,part_time,hourly',
+            'teacherEmploymentType' => 'nullable|in:full_time,part_time,hourly',
             'teacherRate' => 'required|numeric|min:0|max:3',
         ]);
 

@@ -75,13 +75,15 @@
                 <form wire:submit="save" class="p-6 space-y-5">
                     <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div>
-                            <label class="block text-sm font-medium mb-1">Название</label>
+                            <label class="block text-sm font-medium mb-1">Название <span class="text-red-500">*</span></label>
                             <input wire:model="name" type="text" class="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-sm focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none transition">
+                            <p class="text-xs text-gray-400 mt-1">Обязательное поле</p>
                             @error('name') <p class="mt-1 text-sm text-red-600 dark:text-red-400">{{ $message }}</p> @enderror
                         </div>
                         <div>
-                            <label class="block text-sm font-medium mb-1">Слаг</label>
+                            <label class="block text-sm font-medium mb-1">Слаг <span class="text-red-500">*</span></label>
                             <input wire:model="slug" type="text" class="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-sm focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none transition">
+                            <p class="text-xs text-gray-400 mt-1">Обязательное поле</p>
                             @error('slug') <p class="mt-1 text-sm text-red-600 dark:text-red-400">{{ $message }}</p> @enderror
                         </div>
                     </div>
@@ -89,6 +91,7 @@
                     <div>
                         <label class="block text-sm font-medium mb-1">Описание</label>
                         <textarea wire:model="description" rows="2" class="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-sm focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none transition"></textarea>
+                        <p class="text-xs text-gray-400 mt-1">Необязательное поле</p>
                     </div>
 
                     <div>

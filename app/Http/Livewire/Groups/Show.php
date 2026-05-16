@@ -89,9 +89,9 @@ class Show extends Component
             'groupFormSpecialtyId' => 'nullable|integer|exists:specialties,id',
             'groupFormDepartmentId' => 'nullable|integer|exists:departments,id',
             'groupFormAcademicYearId' => 'nullable|integer|exists:academic_years,id',
-            'groupFormShift' => 'required|integer|in:1,2',
-            'groupFormStudentsCount' => 'required|integer|min:0',
-            'groupFormCourse' => 'required|integer|min:1',
+            'groupFormShift' => 'nullable|integer|in:1,2',
+            'groupFormStudentsCount' => 'nullable|integer|min:0',
+            'groupFormCourse' => 'nullable|integer|min:1',
         ]);
 
         $this->group->update([

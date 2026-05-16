@@ -17,7 +17,7 @@
 
         <form wire:submit="login" class="space-y-5">
             <div>
-                <label for="email" class="block text-sm font-medium mb-1">Email</label>
+                <label for="email" class="block text-sm font-medium mb-1">Email <span class="text-red-500">*</span></label>
                 <input
                     wire:model="email"
                     id="email"
@@ -26,11 +26,12 @@
                     class="w-full px-4 py-2.5 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none transition"
                     placeholder="admin@college.ru"
                 >
+                <p class="text-xs text-gray-400 mt-1">Введите email</p>
                 @error('email') <p class="mt-1 text-sm text-red-600 dark:text-red-400">{{ $message }}</p> @enderror
             </div>
 
             <div>
-                <label for="password" class="block text-sm font-medium mb-1">Пароль</label>
+                <label for="password" class="block text-sm font-medium mb-1">Пароль <span class="text-red-500">*</span></label>
                 <input
                     wire:model="password"
                     id="password"
@@ -39,6 +40,7 @@
                     class="w-full px-4 py-2.5 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none transition"
                     placeholder="••••••••"
                 >
+                <p class="text-xs text-gray-400 mt-1">Минимум 8 символов</p>
             </div>
 
             <button type="submit" class="w-full py-2.5 px-4 bg-emerald-600 hover:bg-emerald-700 text-white font-medium rounded-lg transition cursor-pointer">

@@ -43,9 +43,7 @@ class Index extends Component
 
     public int $newStudentsCount = 0;
 
-    public int $newShift = 1;
-
-    public string $newEnrollmentDate = '';
+    public ?int $newEnrollmentYear = null;
 
     public string $newStatus = 'active';
 
@@ -69,8 +67,7 @@ class Index extends Component
         $this->newAcademicYearId = null;
         $this->newCourse = 1;
         $this->newStudentsCount = 0;
-        $this->newShift = 1;
-        $this->newEnrollmentDate = '';
+        $this->newEnrollmentYear = null;
         $this->newStatus = 'active';
     }
 
@@ -83,10 +80,9 @@ class Index extends Component
             'newDepartmentId' => 'nullable|integer|exists:departments,id',
             'newAcademicYearId' => 'nullable|integer|exists:academic_years,id',
             'newCourse' => 'required|integer|min:1|max:6',
-            'newStudentsCount' => 'required|integer|min:0',
-            'newShift' => 'required|integer|in:1,2',
-            'newEnrollmentDate' => 'nullable|date',
-            'newStatus' => 'required|in:active,graduated,academic_leave',
+            'newStudentsCount' => 'nullable|integer|min:0',
+            'newEnrollmentYear' => 'nullable|integer|min:2000|max:2100',
+            'newStatus' => 'nullable|in:active,graduated,academic_leave',
         ]);
 
         Group::create([
@@ -97,8 +93,8 @@ class Index extends Component
             'academic_year_id' => $this->newAcademicYearId,
             'current_course' => $this->newCourse,
             'students_count' => $this->newStudentsCount,
-            'shift' => $this->newShift,
-            'enrollment_date' => $this->newEnrollmentDate ?: null,
+            'shift' => 1,
+            'enrollment_year' => $this->newEnrollmentYear,
             'status' => $this->newStatus,
             'is_active' => true,
         ]);

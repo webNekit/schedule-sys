@@ -241,18 +241,21 @@
                 <form wire:submit="saveTeacher" class="p-6 space-y-4">
                     <div class="grid grid-cols-3 gap-3">
                         <div>
-                            <label class="block text-sm font-medium mb-1">Фамилия</label>
+                            <label class="block text-sm font-medium mb-1">Фамилия <span class="text-red-500">*</span></label>
                             <input type="text" wire:model="teacherLastName" class="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-2">
+                            <p class="text-xs text-gray-400 mt-1">Обязательное поле</p>
                             @error('teacherLastName') <p class="text-xs text-red-600 mt-1">{{ $message }}</p> @enderror
                         </div>
                         <div>
-                            <label class="block text-sm font-medium mb-1">Имя</label>
+                            <label class="block text-sm font-medium mb-1">Имя <span class="text-red-500">*</span></label>
                             <input type="text" wire:model="teacherFirstName" class="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-2">
+                            <p class="text-xs text-gray-400 mt-1">Обязательное поле</p>
                             @error('teacherFirstName') <p class="text-xs text-red-600 mt-1">{{ $message }}</p> @enderror
                         </div>
                         <div>
                             <label class="block text-sm font-medium mb-1">Отчество</label>
                             <input type="text" wire:model="teacherMiddleName" class="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-2">
+                            <p class="text-xs text-gray-400 mt-1">Необязательное поле</p>
                         </div>
                     </div>
                     <div>
@@ -263,6 +266,7 @@
                                 <option value="{{ $dept->id }}">{{ $dept->name }}</option>
                             @endforeach
                         </select>
+                        <p class="text-xs text-gray-400 mt-1">Выберите из списка</p>
                     </div>
                     <div>
                         <label class="block text-sm font-medium mb-1">Должность</label>
@@ -272,6 +276,7 @@
                                 <option value="{{ $pos->id }}">{{ $pos->name }}</option>
                             @endforeach
                         </select>
+                        <p class="text-xs text-gray-400 mt-1">Выберите из списка</p>
                     </div>
                     <div class="grid grid-cols-2 gap-4">
                         <div>
@@ -281,10 +286,12 @@
                                 <option value="part_time">Совместитель</option>
                                 <option value="hourly">Почасовик</option>
                             </select>
+                            <p class="text-xs text-gray-400 mt-1">Выберите из списка</p>
                         </div>
                         <div>
-                            <label class="block text-sm font-medium mb-1">Ставка</label>
+                            <label class="block text-sm font-medium mb-1">Ставка <span class="text-red-500">*</span></label>
                             <input type="number" wire:model="teacherRate" step="0.25" min="0" max="3" class="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-2">
+                            <p class="text-xs text-gray-400 mt-1">Введите число</p>
                             @error('teacherRate') <p class="text-xs text-red-600 mt-1">{{ $message }}</p> @enderror
                         </div>
                     </div>
@@ -292,10 +299,12 @@
                         <div>
                             <label class="block text-sm font-medium mb-1">Email</label>
                             <input type="email" wire:model="teacherEmail" class="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-2">
+                            <p class="text-xs text-gray-400 mt-1">Введите email</p>
                         </div>
                         <div>
                             <label class="block text-sm font-medium mb-1">Телефон</label>
                             <input type="text" wire:model="teacherPhone" class="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-2">
+                            <p class="text-xs text-gray-400 mt-1">Необязательное поле</p>
                         </div>
                     </div>
                     <div class="border-t border-gray-200 dark:border-gray-700 pt-4">
@@ -428,16 +437,18 @@
                                 <option value="{{ $plan->id }}">{{ $plan->name }} ({{ $plan->specialty?->short_name ?? '—' }})</option>
                             @endforeach
                         </select>
+                        <p class="text-xs text-gray-400 mt-1">Выберите из списка</p>
                     </div>
                     @if($disciplinePlanId)
                         <div>
-                            <label class="block text-sm font-medium mb-1">Дисциплина</label>
+                            <label class="block text-sm font-medium mb-1">Дисциплина <span class="text-red-500">*</span></label>
                             <select wire:model="disciplineId" class="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-2">
                                 <option value="">Выберите дисциплину</option>
                                 @foreach($disciplinesByPlan as $disc)
                                     <option value="{{ $disc->id }}">{{ $disc->name }}</option>
                                 @endforeach
                             </select>
+                            <p class="text-xs text-gray-400 mt-1">Выберите из списка</p>
                             @error('disciplineId') <p class="text-xs text-red-600 mt-1">{{ $message }}</p> @enderror
                         </div>
                     @endif
@@ -449,6 +460,7 @@
                                 <option value="{{ $group->id }}">{{ $group->name }}</option>
                             @endforeach
                         </select>
+                        <p class="text-xs text-gray-400 mt-1">Выберите из списка</p>
                     </div>
                     <div class="grid grid-cols-2 gap-4">
                         <div>
@@ -459,10 +471,12 @@
                                     <option value="{{ $year->id }}">{{ $year->name }}</option>
                                 @endforeach
                             </select>
+                            <p class="text-xs text-gray-400 mt-1">Выберите из списка</p>
                         </div>
                         <div>
-                            <label class="block text-sm font-medium mb-1">Плановые часы</label>
+                            <label class="block text-sm font-medium mb-1">Плановые часы <span class="text-red-500">*</span></label>
                             <input type="number" wire:model="disciplinePlannedHours" min="0" class="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-2">
+                            <p class="text-xs text-gray-400 mt-1">Введите число</p>
                             @error('disciplinePlannedHours') <p class="text-xs text-red-600 mt-1">{{ $message }}</p> @enderror
                         </div>
                     </div>

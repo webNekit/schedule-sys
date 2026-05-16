@@ -71,14 +71,16 @@
                 </div>
                 <form wire:submit="save" class="p-6 space-y-4">
                     <div>
-                        <label class="block text-sm font-medium mb-1">Название</label>
+                        <label class="block text-sm font-medium mb-1">Название <span class="text-red-500">*</span></label>
                         <input type="text" wire:model="name" class="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-2">
+                        <p class="text-xs text-gray-400 mt-1">Обязательное поле</p>
                         @error('name') <p class="text-xs text-red-600 mt-1">{{ $message }}</p> @enderror
                     </div>
                     <div class="grid grid-cols-2 gap-4">
                         <div>
                             <label class="block text-sm font-medium mb-1">Короткое название</label>
                             <input type="text" wire:model="shortName" class="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-2">
+                            <p class="text-xs text-gray-400 mt-1">Необязательное поле</p>
                         </div>
                         <div>
                             <label class="block text-sm font-medium mb-1">Заведующий</label>
@@ -88,6 +90,7 @@
                                     <option value="{{ $teacher->id }}">{{ $teacher->last_name }} {{ $teacher->first_name }} {{ $teacher->middle_name }}</option>
                                 @endforeach
                             </select>
+                            <p class="text-xs text-gray-400 mt-1">Выберите из списка</p>
                         </div>
                     </div>
                     <div class="flex items-center gap-2">
