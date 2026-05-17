@@ -4,7 +4,8 @@
             <h1 class="text-3xl font-bold">{{ $department?->name ?? 'Расписание' }}</h1>
             <p class="text-base text-gray-500 mt-1">{{ Carbon\Carbon::parse($date)->translatedFormat('l, d F Y') }}</p>
         </div>
-        <button onclick="window.print()" class="px-6 py-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-base transition">
+        <button onclick="window.print()"
+            class="px-6 py-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-base transition">
             Печать
         </button>
     </div>
@@ -35,13 +36,37 @@
                         <div class="px-4 py-2.5 flex items-start gap-3 min-h-[60px]">
                             <span class="text-gray-400 font-mono text-sm w-6 shrink-0 mt-0.5">{{ $num }}.</span>
                             @if ($lesson)
-                                <div class="text-sm leading-snug min-w-0">
-                                    <div class="font-semibold text-gray-800">{{ $lesson['discipline']['name'] ?? '' }}</div>
-                                    <div class="text-gray-500 mt-1">{{ $lesson['teacher']['last_name'] ?? '' }} {{ $lesson['teacher']['first_name'] ?? '' }}</div>
+                                @php
+                                    $dayDiscCode = trim($lesson['discipline']['code'] ?? '');
+                                    $dayDiscName = trim($lesson['discipline']['name'] ?? '—');
+                                    $dayIsMdk = preg_match('/^МДК/ui', $dayDiscCode);
+                                    $dayIsPractice = preg_match('/^(УП|ПП|ПДП|ГИА)/ui', $dayDiscCode);
+                                    $dayIsExam = !$dayIsPractice && (preg_match('/^Э/ui', $dayDiscCode) || mb_strpos(mb_strtolower($dayDiscName), 'экзамен') !== false);
+                                    $dayTypeColor = match (true) {
+                                        preg_match('/^УП/ui', $dayDiscCode) => 'border-l-4 border-l-indigo-400 bg-indigo-50/60',
+                                        preg_match('/^ПП/ui', $dayDiscCode) => 'border-l-4 border-l-pink-400 bg-pink-50/60',
+                                        preg_match('/^ПДП/ui', $dayDiscCode) => 'border-l-4 border-l-amber-400 bg-amber-50/60',
+                                        preg_match('/^ГИА/ui', $dayDiscCode) => 'border-l-4 border-l-red-400 bg-red-50/60',
+                                        $dayIsExam => 'border-l-4 border-l-purple-400 bg-purple-50/60',
+                                        $dayIsMdk => 'border-l-4 border-l-teal-300 bg-teal-50/40',
+                                        default => 'border-l-4 border-l-transparent bg-gray-50',
+                                    };
+                                @endphp
+                                <div class="text-sm leading-snug min-w-0 pl-2 {{ $dayTypeColor }}">
+                                    <div class="font-semibold text-gray-800">
+                                        @if($dayIsMdk || $dayIsPractice)
+                                            <span title="{{ $dayDiscName }}"
+                                                class="border-b border-dashed border-gray-400 cursor-help">{{ $dayDiscCode }}</span>
+                                        @else
+                                            <span title="{{ $dayDiscCode }}">{{ $dayDiscName }}</span>
+                                        @endif
+                                    </div>
+                                    <div class="text-gray-500 mt-1">{{ $lesson['teacher']['last_name'] ?? '' }}
+                                        {{ mb_substr($lesson['teacher']['first_name'] ?? '', 0, 1) }}.</div>
                                     <div class="text-gray-400 text-xs mt-1">
                                         {{ $lesson['room']['number'] ?? '' }}
-                                        @if (!empty($lesson['building']))
-                                            , {{ $lesson['building']['short_name'] ?? '' }}
+                                        @if (!empty($lesson['room']['building']))
+                                            , {{ $lesson['room']['building']['short_name'] ?? '' }}
                                         @endif
                                     </div>
                                 </div>
@@ -55,7 +80,9 @@
         @empty
             <div class="col-span-full p-12 text-center text-gray-400">Нет данных для отображения</div>
         @endforelse
+    <span class="hidden border-l-indigo-400 bg-indigo-50/60 border-l-pink-400 bg-pink-50/60 border-l-amber-400 bg-amber-50/60 border-l-red-400 bg-red-50/60 border-l-purple-400 bg-purple-50/60 border-l-teal-300 bg-teal-50/40 border-l-transparent bg-gray-50"></span>
     </div>
 
-    <p class="text-center text-sm text-gray-400 mt-8 no-print">Расписание на {{ Carbon\Carbon::parse($date)->translatedFormat('d F Y') }}</p>
+    <p class="text-center text-sm text-gray-400 mt-8 no-print">Расписание на
+        {{ Carbon\Carbon::parse($date)->translatedFormat('d F Y') }}</p>
 </div>

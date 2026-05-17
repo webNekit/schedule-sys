@@ -8,6 +8,7 @@ use App\DTOs\GenerationResult;
 use App\Models\AcademicYear;
 use App\Models\Building;
 use App\Models\CurriculumDiscipline;
+use App\Models\CurriculumPractice;
 use App\Models\Group;
 use App\Models\GroupBuilding;
 use App\Models\GroupCurriculumAssignment;
@@ -44,10 +45,7 @@ class ScheduleGeneratorService
 
         foreach ($groups as $group) {
             $workingDays = $group->getWorkingDays();
-            $workingDaysCount = count($workingDays);
-
-            // Распределяем квоту: максимум 18 пар (36 часов), минимум 3 в день, максимум 5 в день
-            $dailyQuotas = $this->distributeQuota(18, $workingDaysCount);
+            $dailyQuotas = $this->distributeQuota(18, count($workingDays));
 
             $current = $weekStart->copy();
             $dayIndex = 0;
@@ -55,29 +53,48 @@ class ScheduleGeneratorService
             while ($current->lessThanOrEqualTo($weekEnd)) {
                 $dayOfWeek = (int) $current->format('N');
 
-                if (! in_array($dayOfWeek, $workingDays, true) || $this->isNonWorkingDay($current) || $group->isOnPractice($current)) {
+                // Если выходной или группа на практике/сессии - полностью пропускаем день
+                if (! in_array($dayOfWeek, $workingDays, true) || $this->isNonWorkingDay($current) || $this->groupOnPracticeOrExam($group, $current)) {
                     $current->addDay();
 
                     continue;
                 }
 
                 $pairsCountToGenerate = $dailyQuotas[$dayIndex] ?? 3;
-
-                // Получаем разрешенные номера пар из настроек системы/группы
                 $perDaySlots = $group->getAllowedLessonNumbersForDay($dayOfWeek);
                 if (empty($perDaySlots)) {
-                    // Фоллбэк: если не задано, берем по смене
                     $perDaySlots = $group->shift === 1 ? [1, 2, 3, 4, 5] : [3, 4, 5, 6, 7];
                 }
 
-                // Ищем лучшее "плавающее окно" слотов для этого дня
-                $bestData = $this->findBestWindow($version, $group, $current, $perDaySlots, $pairsCountToGenerate);
+                // Множественные окна в день: заполняем все возможные непрерывные окна
+                $allDayLessons = [];
+                $usedDayDisciplines = [];
+                $dayUsedTeachers = [];
+                $remainingSlots = $perDaySlots;
+                $remainingTarget = $pairsCountToGenerate;
 
-                if (! empty($bestData['lessons'])) {
-                    $buildingId = $bestData['building']->id;
-                    $this->groupDayBuildings[$group->id][$current->format('Y-m-d')] = $buildingId;
+                while ($remainingTarget > 0 && ! empty($remainingSlots)) {
+                    $isFirstWindow = empty($allDayLessons);
+                    $windowData = $this->findBestStrictWindow(
+                        $version, $group, $current, array_values($remainingSlots),
+                        $remainingTarget, $usedDayDisciplines, $dayUsedTeachers,
+                        anchorStart: ! $isFirstWindow
+                    );
 
-                    foreach ($bestData['lessons'] as $lessonData) {
+                    if (empty($windowData['lessons'])) {
+                        break;
+                    }
+
+                    $allDayLessons = array_merge($allDayLessons, $windowData['lessons']);
+                    $remainingSlots = array_values(array_diff($remainingSlots, $windowData['slots']));
+                    $remainingTarget -= count($windowData['lessons']);
+                }
+
+                if (! empty($allDayLessons)) {
+                    $dayBuildingId = $allDayLessons[0]['building_id'];
+                    $this->groupDayBuildings[$group->id][$current->format('Y-m-d')] = $dayBuildingId;
+
+                    foreach ($allDayLessons as $lessonData) {
                         ScheduleLesson::create(array_merge($lessonData, [
                             'version_id' => $version->id,
                             'date' => $current->toDateString(),
@@ -86,15 +103,14 @@ class ScheduleGeneratorService
                             'status' => 'draft',
                         ]));
                         $totalLessons++;
-                        $this->teacherDayBuildings[$lessonData['teacher_id']][$current->format('Y-m-d')] = $buildingId;
+                        $this->teacherDayBuildings[$lessonData['teacher_id']][$current->format('Y-m-d')] = $dayBuildingId;
                     }
 
-                    // Если смогли сгенерировать меньше пар, чем планировалось (нет преподавателей/кабинетов)
-                    if (count($bestData['lessons']) < $pairsCountToGenerate) {
-                        $conflicts += ($pairsCountToGenerate - count($bestData['lessons']));
+                    $dayConflict = $pairsCountToGenerate - count($allDayLessons);
+                    if ($dayConflict > 0) {
+                        $conflicts += $dayConflict;
                     }
                 } else {
-                    // Полностью не удалось составить день
                     $conflicts += $pairsCountToGenerate;
                 }
 
@@ -123,148 +139,178 @@ class ScheduleGeneratorService
         return $this->generateForWeek(Carbon::create($year, $month, 1), $groupIds);
     }
 
-    /**
-     * Распределяет общую недельную квоту пар по рабочим дням (от 3 до 5 пар в день)
-     */
     private function distributeQuota(int $totalPairs, int $daysCount): array
     {
         if ($daysCount <= 0) {
             return [];
         }
-        $quotas = array_fill(0, $daysCount, 3); // База: минимум 3 пары в день
+        $quotas = array_fill(0, $daysCount, 3); // База 3 пары в день
         $remaining = $totalPairs - ($daysCount * 3);
 
         $i = 0;
         while ($remaining > 0 && $i < $daysCount) {
-            if ($quotas[$i] < 5) { // Ограничение: максимум 5 пар в день
+            if ($quotas[$i] < 5) {
                 $quotas[$i]++;
                 $remaining--;
             }
             $i = ($i + 1) % $daysCount;
         }
-
-        rsort($quotas); // Сортируем по убыванию (самые тяжелые дни в начало недели)
+        rsort($quotas);
 
         return $quotas;
     }
 
     /**
-     * Алгоритм "Плавающего окна": проверяет все возможные последовательности пар
-     * и выбирает ту, которая заполняется с наименьшим количеством "окон"
+     * Strict Sliding Window: Ищет только НЕПРЕРЫВНЫЕ окна без дыр.
+     * Заполняет одно окно и возвращает его. Может быть вызван несколько раз
+     * для одного дня, чтобы заполнить несколько окон.
      */
-    private function findBestWindow(ScheduleVersion $version, Group $group, Carbon $date, array $allowedSlots, int $targetPairs): array
+    private function findBestStrictWindow(ScheduleVersion $version, Group $group, Carbon $date, array $allowedSlots, int $targetPairs, array &$usedDisciplines = [], array &$usedTeachers = [], bool $anchorStart = false): array
     {
-        $windows = [];
+        $building = $this->pickBuildingForGroupDay($group, $date) ?? Building::where('is_active', true)->first();
+        if (! $building) {
+            return ['slots' => [], 'lessons' => [], 'building' => $building];
+        }
         $n = count($allowedSlots);
 
-        // Формируем все непрерывные окна нужной длины
-        for ($i = 0; $i <= $n - $targetPairs; $i++) {
-            $windowSlots = array_slice($allowedSlots, $i, $targetPairs);
-            $isContinuous = true;
-            for ($j = 1; $j < count($windowSlots); $j++) {
-                if ($windowSlots[$j] !== $windowSlots[$j - 1] + 1) {
-                    $isContinuous = false;
-                    break;
+        for ($currentLength = min($targetPairs, $n); $currentLength >= 1; $currentLength--) {
+            $startIdx = 0;
+            $endIdx = $anchorStart ? 0 : ($n - $currentLength);
+            for ($i = $startIdx; $i <= $endIdx; $i++) {
+                $windowSlots = array_slice($allowedSlots, $i, $currentLength);
+
+                $isContinuous = true;
+                for ($j = 1; $j < count($windowSlots); $j++) {
+                    if ($windowSlots[$j] !== $windowSlots[$j - 1] + 1) {
+                        $isContinuous = false;
+                        break;
+                    }
                 }
-            }
-            if ($isContinuous) {
-                $windows[] = $windowSlots;
-            }
-        }
-
-        // Если непрерывных окон нет (настроены разорванные пары), берем любые куски
-        if (empty($windows)) {
-            for ($i = 0; $i <= $n - $targetPairs; $i++) {
-                $windows[] = array_slice($allowedSlots, $i, $targetPairs);
-            }
-        }
-
-        $bestWindow = null;
-        $bestScore = -1;
-        $bestLessonsData = [];
-
-        $building = $this->pickBuildingForGroupDay($group, $date);
-
-        // Симулируем заполнение каждого окна
-        foreach ($windows as $windowSlots) {
-            $score = 0;
-            $lessonsData = [];
-            $usedDisciplines = [];
-            $usedTeachers = [];
-
-            $skipNext = false;
-            foreach ($windowSlots as $index => $slot) {
-                if ($skipNext) {
-                    $skipNext = false;
-
+                if (! $isContinuous) {
                     continue;
                 }
 
-                // Пытаемся поставить Физкультуру (она спаренная, забирает 2 слота)
-                if ($this->shouldGeneratePE($group, $date) && isset($windowSlots[$index + 1])) {
-                    $peData = $this->simulatePELessons($version, $group, $date, $slot, $group->shift, $usedTeachers);
-                    if ($peData) {
-                        $lessonsData[] = $peData[0];
-                        $lessonsData[] = $peData[1];
-                        $score += 2;
-                        $skipNext = true;
+                $lessonsData = [];
+                $windowSuccess = true;
+                $skipNext = false;
+                $localBuilding = $building;
+
+                foreach ($windowSlots as $index => $slot) {
+                    if ($skipNext) {
+                        $skipNext = false;
 
                         continue;
                     }
+
+                    if ($this->shouldGeneratePE($group) && isset($windowSlots[$index + 1])) {
+                        $peData = $this->simulatePELessons($version, $group, $date, $slot, $group->shift, $usedTeachers);
+                        if ($peData) {
+                            $lessonsData[] = $peData[0];
+                            $lessonsData[] = $peData[1];
+                            $skipNext = true;
+
+                            continue;
+                        }
+                    }
+
+                    // Пробуем до 10 разных дисциплин для этого слота
+                    $discipline = null;
+                    $teacher = null;
+                    $triedDisciplineIds = [];
+
+                    for ($attempt = 0; $attempt < 10; $attempt++) {
+                        $candidate = $this->pickDisciplineForGroup(
+                            $group,
+                            array_merge($usedDisciplines, $triedDisciplineIds),
+                            (int) $date->format('N')
+                        );
+
+                        if (! $candidate) {
+                            break;
+                        }
+
+                        $candidateTeacher = $this->pickTeacherForDiscipline($candidate->id, $group->id, $date, $slot, $localBuilding, $usedTeachers);
+                        if (! $candidateTeacher) {
+                            $candidateTeacher = $this->pickTeacherForDisciplineFallback($candidate->id, $group->id, $date, $slot, $usedTeachers);
+                        }
+
+                        if (! $candidateTeacher) {
+                            $triedDisciplineIds[] = $candidate->id;
+
+                            continue;
+                        }
+
+                        $candidateRoom = $this->pickRoomForLesson($localBuilding->id, $group->students_count, $candidate, $date, $slot, $candidateTeacher);
+                        if (! $candidateRoom) {
+                            $candidateRoom = $this->pickRoomForLessonFallback($group->students_count, $candidate, $date, $slot, $candidateTeacher);
+                        }
+
+                        if (! $candidateRoom) {
+                            $triedDisciplineIds[] = $candidate->id;
+
+                            continue;
+                        }
+
+                        $discipline = $candidate;
+                        $teacher = $candidateTeacher;
+                        $room = $candidateRoom;
+                        $localBuilding = Building::find($room->building_id);
+                        break;
+                    }
+
+                    if (! $discipline || ! $teacher) {
+                        $windowSuccess = false;
+                        break;
+                    }
+
+                    $lessonsData[] = [
+                        'lesson_number' => $slot,
+                        'shift' => $group->shift,
+                        'discipline_id' => $discipline->id,
+                        'teacher_id' => $teacher->id,
+                        'room_id' => $room->id,
+                        'building_id' => $localBuilding->id,
+                        'lesson_type_id' => LessonType::where('code', 'lecture')->first()?->id ?? 1,
+                    ];
+
+                    $usedDisciplines[] = $discipline->id;
+                    $usedTeachers[$teacher->id] = ($usedTeachers[$teacher->id] ?? 0) + 1;
                 }
 
-                // Стандартная пара
-                $discipline = $this->pickDisciplineForGroup($group, $usedDisciplines);
-                if (! $discipline) {
-                    continue;
+                if ($windowSuccess && count($lessonsData) > 0) {
+                    return ['slots' => $windowSlots, 'lessons' => $lessonsData, 'building' => $localBuilding];
                 }
-
-                $teacher = $this->pickTeacherForDiscipline($discipline->id, $group->id, $date, $slot, $building, $usedTeachers);
-                if (! $teacher) {
-                    continue;
-                }
-
-                $room = $this->pickRoomForLesson($building->id, $group->students_count, $discipline, $date, $slot, $teacher);
-                if (! $room) {
-                    continue;
-                }
-
-                $lessonsData[] = [
-                    'lesson_number' => $slot,
-                    'shift' => $group->shift,
-                    'discipline_id' => $discipline->id,
-                    'teacher_id' => $teacher->id,
-                    'room_id' => $room->id,
-                    'building_id' => $building->id,
-                    'lesson_type_id' => LessonType::where('code', 'lecture')->first()?->id ?? 1,
-                ];
-
-                $score++;
-                $usedDisciplines[] = $discipline->id;
-                $usedTeachers[$teacher->id] = ($usedTeachers[$teacher->id] ?? 0) + 1;
-            }
-
-            // Выигрывает окно, в которое мы смогли вставить больше всего пар (без окон)
-            if ($score > $bestScore) {
-                $bestScore = $score;
-                $bestLessonsData = $lessonsData;
-                $bestWindow = $windowSlots;
             }
         }
 
-        return ['slots' => $bestWindow, 'lessons' => $bestLessonsData, 'building' => $building];
+        return ['slots' => [], 'lessons' => [], 'building' => $building];
+    }
+
+    private function groupOnPracticeOrExam(Group $group, Carbon $date): bool
+    {
+        $assignment = $group->curriculumAssignments()->where('is_active', true)->first();
+        if (! $assignment) {
+            return false;
+        }
+
+        return CurriculumPractice::where('curriculum_plan_id', $assignment->curriculum_plan_id)
+            ->where('course_number', $group->current_course)
+            ->where('start_date', '<=', $date->format('Y-m-d'))
+            ->where('end_date', '>=', $date->format('Y-m-d'))
+            ->exists();
     }
 
     private function simulatePELessons(ScheduleVersion $version, Group $group, Carbon $date, int $startLessonNumber, int $shift, array &$usedTeachers): ?array
     {
         $peDiscipline = CurriculumDiscipline::whereHas('curriculumPlan.groupAssignments', fn ($q) => $q->where('group_id', $group->id))
             ->where('name', 'like', '%Физическая культура%')
+            ->where('is_schedulable', true)
             ->first();
-
         if (! $peDiscipline) {
             return null;
         }
 
+        // Поиск именно спортзала
         $sportRoom = Room::whereHas('roomType', fn ($q) => $q->where('name', 'like', '%Спорт%'))->first();
         if (! $sportRoom) {
             return null;
@@ -275,7 +321,6 @@ class ScheduleGeneratorService
             return null;
         }
 
-        // Для спаренной физ-ры преподаватель должен быть доступен и на следующую пару
         if (! $teacher->isAvailableOn($date, $startLessonNumber + 1)) {
             return null;
         }
@@ -284,8 +329,8 @@ class ScheduleGeneratorService
             ! $this->conflictChecker->checkRoomConflict($sportRoom->id, $date->format('Y-m-d'), $startLessonNumber)
             && ! $this->conflictChecker->checkRoomConflict($sportRoom->id, $date->format('Y-m-d'), $startLessonNumber + 1)
         ) {
-            $typeId = LessonType::where('code', 'practice')->first()?->id ?? 2;
 
+            $typeId = LessonType::where('code', 'practice')->first()?->id ?? 2;
             $usedTeachers[$teacher->id] = ($usedTeachers[$teacher->id] ?? 0) + 2;
 
             return [
@@ -313,35 +358,43 @@ class ScheduleGeneratorService
         return null;
     }
 
-    private function shouldGeneratePE(Group $group, Carbon $date): bool
+    private function shouldGeneratePE(Group $group): bool
     {
-        return rand(1, 5) === 1;
+        return rand(1, 5) === 1; // 20% шанс
     }
 
-    private function pickDisciplineForGroup(Group $group, array $excludeIds = []): ?CurriculumDiscipline
+    private function pickDisciplineForGroup(Group $group, array $excludeIds = [], ?int $dayOfWeek = null): ?CurriculumDiscipline
     {
-        $assignment = GroupCurriculumAssignment::where('group_id', $group->id)
-            ->where('is_active', true)
-            ->first();
-
+        $assignment = GroupCurriculumAssignment::where('group_id', $group->id)->where('is_active', true)->first();
         if (! $assignment) {
             return null;
         }
 
         $query = CurriculumDiscipline::where('curriculum_plan_id', $assignment->curriculum_plan_id)
-            ->where('name', 'not like', '%Физическая культура%');
+            ->where('name', 'not like', '%Физическая культура%')
+            ->where('is_schedulable', true);
 
-        // Стараемся не ставить одну и ту же дисциплину 4 раза в день
+        // Фильтр: у дисциплины должен быть преподаватель, работающий в этот день
+        if ($dayOfWeek !== null) {
+            $query->whereHas('teacherDisciplines.teacher', function ($q) use ($dayOfWeek) {
+                $q->where(function ($sub) use ($dayOfWeek) {
+                    $sub->whereJsonContains('working_days', $dayOfWeek)
+                        ->orWhereNull('working_days')
+                        ->orWhere('working_days', '[]');
+                });
+            });
+        }
+
         if (! empty($excludeIds)) {
             $query->whereNotIn('id', $excludeIds);
         }
 
         $discipline = $query->inRandomOrder()->first();
 
-        // Если все предметы исчерпаны, разрешаем повторять (снимаем фильтр)
         if (! $discipline && ! empty($excludeIds)) {
             return CurriculumDiscipline::where('curriculum_plan_id', $assignment->curriculum_plan_id)
                 ->where('name', 'not like', '%Физическая культура%')
+                ->where('is_schedulable', true)
                 ->inRandomOrder()
                 ->first();
         }
@@ -351,109 +404,75 @@ class ScheduleGeneratorService
 
     private function pickTeacherForDiscipline(int $disciplineId, int $groupId, Carbon $date, int $lessonNumber, Building $targetBuilding, array $simulatedTeacherLoads = []): ?Teacher
     {
-        $candidates = Teacher::whereHas(
-            'disciplines',
-            fn ($q) => $q
-                ->where('discipline_id', $disciplineId)
-                ->where(fn ($q2) => $q2->where('group_id', $groupId)->orWhereNull('group_id')),
-        )->get();
-
+        $candidates = Teacher::whereHas('disciplines', fn ($q) => $q->where('discipline_id', $disciplineId)->where(fn ($q2) => $q2->where('group_id', $groupId)->orWhereNull('group_id')))->get();
         if ($candidates->isEmpty()) {
             return null;
         }
 
         $dateStr = $date->format('Y-m-d');
-        $dateString = $date->toDateString();
         $scored = [];
 
         foreach ($candidates as $teacher) {
-            // ИСПОЛЬЗУЕМ ВАШ НОВЫЙ МЕТОД из модели Teacher! (учитывает окна, больничные и рабочие дни)
             if (! $teacher->isAvailableOn($date, $lessonNumber)) {
                 continue;
             }
-
             if ($this->conflictChecker->checkTeacherConflict($teacher->id, $dateStr, $lessonNumber)) {
                 continue;
             }
 
-            // Проверка здания (преподаватель не может бегать между зданиями в один день)
             $teacherDayBuildingId = $this->teacherDayBuildings[$teacher->id][$dateStr] ?? null;
             if ($teacherDayBuildingId && $teacherDayBuildingId !== $targetBuilding->id) {
                 continue;
             }
 
-            $score = 100;
-
-            $existingNumbers = ScheduleLesson::where('teacher_id', $teacher->id)
-                ->where('date', $dateString)
-                ->where('version_id', '!=', 0)
-                ->pluck('lesson_number')
-                ->toArray();
-
-            // Скоринг для склейки пар (минимизация окон)
-            if (empty($existingNumbers)) {
-                $score += 50;
-            } else {
-                $minExisting = min($existingNumbers);
-                $maxExisting = max($existingNumbers);
-
-                $isAdjacentAfter = $lessonNumber === $maxExisting + 1;
-                $isAdjacentBefore = $lessonNumber === $minExisting - 1;
-
-                if ($isAdjacentAfter || $isAdjacentBefore) {
-                    $score += 30;
-                } else {
-                    $gapAfter = $lessonNumber - $maxExisting;
-                    $gapBefore = $minExisting - $lessonNumber;
-
-                    if ($gapAfter > 0 && $gapAfter <= 2) {
-                        $score += 15 - $gapAfter * 5;
-                    } elseif ($gapBefore > 0 && $gapBefore <= 2) {
-                        $score += 15 - $gapBefore * 5;
-                    }
-                }
-            }
-
-            // Учет нагрузки в БД + симулированной нагрузки (чтобы не превысить 5 пар в день)
-            $dbLoad = ScheduleLesson::where('teacher_id', $teacher->id)->where('date', $dateString)->count();
+            $dbLoad = ScheduleLesson::where('teacher_id', $teacher->id)->where('date', $dateStr)->count();
             $simLoad = $simulatedTeacherLoads[$teacher->id] ?? 0;
-            $dayLoad = $dbLoad + $simLoad;
-
-            if ($dayLoad >= 4) {
-                $score -= 20; // Пенальти за высокую нагрузку
-            }
-            if ($dayLoad >= ($teacher->max_lessons_per_day ?? 5)) {
-                continue; // Жесткое ограничение
+            if (($dbLoad + $simLoad) >= ($teacher->max_lessons_per_day ?? 5)) {
+                continue;
             }
 
-            $scored[] = ['teacher' => $teacher, 'score' => $score];
+            $scored[] = ['teacher' => $teacher, 'score' => 100 - ($dbLoad + $simLoad) * 10]; // Чем меньше пар, тем выше скор
         }
 
         if (empty($scored)) {
             return null;
         }
-
         usort($scored, fn ($a, $b) => $b['score'] <=> $a['score']);
 
         return $scored[0]['teacher'];
     }
 
-    private function pickBuildingForGroupDay(Group $group, Carbon $date): Building
+    private function pickTeacherForDisciplineFallback(int $disciplineId, int $groupId, Carbon $date, int $lessonNumber, array $simulatedTeacherLoads = []): ?Teacher
     {
-        $gb = GroupBuilding::where('group_id', $group->id)
-            ->orderBy('is_primary', 'desc')
-            ->first();
+        $candidates = Teacher::whereHas('disciplines', fn ($q) => $q->where('discipline_id', $disciplineId)->where(fn ($q2) => $q2->where('group_id', $groupId)->orWhereNull('group_id')))->get();
+        if ($candidates->isEmpty()) {
+            return null;
+        }
 
-        return $gb ? $gb->building : Building::where('is_active', true)->first();
+        $dateStr = $date->format('Y-m-d');
+        foreach ($candidates as $teacher) {
+            if (! $teacher->isAvailableOn($date, $lessonNumber)) {
+                continue;
+            }
+            if ($this->conflictChecker->checkTeacherConflict($teacher->id, $dateStr, $lessonNumber)) {
+                continue;
+            }
+
+            $dbLoad = ScheduleLesson::where('teacher_id', $teacher->id)->where('date', $dateStr)->count();
+            $simLoad = $simulatedTeacherLoads[$teacher->id] ?? 0;
+            if (($dbLoad + $simLoad) >= ($teacher->max_lessons_per_day ?? 5)) {
+                continue;
+            }
+
+            return $teacher;
+        }
+
+        return null;
     }
 
     private function pickRoomForLesson(int $buildingId, int $studentsCount, CurriculumDiscipline $discipline, Carbon $date, int $lessonNumber, ?Teacher $teacher): ?Room
     {
-        $query = Room::where('building_id', $buildingId)
-            ->where('is_active', true)
-            ->where('is_available_for_booking', true)
-            ->where('capacity', '>=', $studentsCount);
-
+        $query = Room::where('building_id', $buildingId)->where('is_active', true)->where('is_available_for_booking', true)->where('capacity', '>=', $studentsCount);
         if ($discipline->requires_lab) {
             $query->whereHas('roomType', fn ($q) => $q->where('requires_lab', true));
         }
@@ -461,13 +480,16 @@ class ScheduleGeneratorService
         if ($teacher) {
             $personalRoomIds = $teacher->rooms()->pluck('room_id')->toArray();
             if (! empty($personalRoomIds)) {
-                $query->orderByRaw('FIELD(id, '.implode(',', $personalRoomIds).') DESC');
+                $caseWhen = 'CASE id';
+                foreach ($personalRoomIds as $index => $roomId) {
+                    $caseWhen .= " WHEN {$roomId} THEN ".(count($personalRoomIds) - $index);
+                }
+                $caseWhen .= ' ELSE 0 END DESC';
+                $query->orderByRaw($caseWhen);
             }
         }
 
-        $rooms = $query->get();
-
-        foreach ($rooms as $room) {
+        foreach ($query->get() as $room) {
             if (! $this->conflictChecker->checkRoomConflict($room->id, $date->format('Y-m-d'), $lessonNumber)) {
                 return $room;
             }
@@ -476,19 +498,39 @@ class ScheduleGeneratorService
         return null;
     }
 
+    private function pickRoomForLessonFallback(int $studentsCount, CurriculumDiscipline $discipline, Carbon $date, int $lessonNumber, ?Teacher $teacher): ?Room
+    {
+        $query = Room::where('is_active', true)->where('is_available_for_booking', true)->where('capacity', '>=', $studentsCount);
+        if ($discipline->requires_lab) {
+            $query->whereHas('roomType', fn ($q) => $q->where('requires_lab', true));
+        }
+
+        foreach ($query->get() as $room) {
+            if (! $this->conflictChecker->checkRoomConflict($room->id, $date->format('Y-m-d'), $lessonNumber)) {
+                return $room;
+            }
+        }
+
+        return null;
+    }
+
+    private function pickBuildingForGroupDay(Group $group, Carbon $date): Building
+    {
+        $gb = GroupBuilding::where('group_id', $group->id)->orderBy('is_primary', 'desc')->first();
+
+        return $gb ? $gb->building : Building::where('is_active', true)->first();
+    }
+
     private function isNonWorkingDay(Carbon $date): bool
     {
         if ($date->isSunday()) {
             return true;
         }
-
         if (Holiday::where('date', $date->toDateString())->exists()) {
             return true;
         }
 
-        return Vacation::where('start_date', '<=', $date->toDateString())
-            ->where('end_date', '>=', $date->toDateString())
-            ->exists();
+        return Vacation::where('start_date', '<=', $date->toDateString())->where('end_date', '>=', $date->toDateString())->exists();
     }
 
     private function createVersion(string $periodType, Carbon $dateFrom, Carbon $dateTo, array $groupIds): ScheduleVersion
@@ -510,10 +552,7 @@ class ScheduleGeneratorService
     private function getGroups(array $groupIds): array
     {
         if (empty($groupIds)) {
-            return Group::where('is_active', true)
-                ->where('status', 'active')
-                ->get()
-                ->all();
+            return Group::where('is_active', true)->where('status', 'active')->get()->all();
         }
 
         return Group::whereIn('id', $groupIds)->get()->all();

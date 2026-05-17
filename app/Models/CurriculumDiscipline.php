@@ -21,6 +21,7 @@ class CurriculumDiscipline extends Model
         'requires_subgroup',
         'subgroup_type',
         'requires_lab',
+        'is_schedulable',
         'required_room_type_id',
         'sort_order',
         'notes',
@@ -32,6 +33,7 @@ class CurriculumDiscipline extends Model
             'is_federal' => 'boolean',
             'requires_subgroup' => 'boolean',
             'requires_lab' => 'boolean',
+            'is_schedulable' => 'boolean',
             'sort_order' => 'integer',
         ];
     }

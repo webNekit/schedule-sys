@@ -6,7 +6,8 @@
                 <p class="text-sm text-gray-500">{{ $version->name }}</p>
             @endif
         </div>
-        <button onclick="window.print()" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-sm transition">
+        <button onclick="window.print()"
+            class="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-sm transition">
             Печать
         </button>
     </div>
@@ -41,7 +42,8 @@
             </select>
         @endif
 
-        <span class="text-sm text-gray-500 ml-auto">{{ Carbon\Carbon::parse($weekStart)->format('d.m') }} — {{ Carbon\Carbon::parse($weekStart)->endOfWeek(Carbon\Carbon::SUNDAY)->format('d.m.Y') }}</span>
+        <span class="text-sm text-gray-500 ml-auto">{{ Carbon\Carbon::parse($weekStart)->format('d.m') }} —
+            {{ Carbon\Carbon::parse($weekStart)->endOfWeek(Carbon\Carbon::SUNDAY)->format('d.m.Y') }}</span>
     </div>
 
     @php
@@ -52,15 +54,15 @@
 
     @forelse ($grouped as $entityId => $lessons)
         @php
-            $entity = match($viewMode) {
+            $entity = match ($viewMode) {
                 'group' => $groups->firstWhere('id', $entityId),
                 'teacher' => $teachers->firstWhere('id', $entityId),
                 'room' => $rooms->firstWhere('id', $entityId),
                 default => null,
             };
-            $entityName = match($viewMode) {
+            $entityName = match ($viewMode) {
                 'group' => $entity?->name ?? 'Группа',
-                'teacher' => $entity ? $entity->last_name.' '.$entity->first_name : 'Преподаватель',
+                'teacher' => $entity ? $entity->last_name . ' ' . $entity->first_name : 'Преподаватель',
                 'room' => $entity?->name ?? 'Аудитория',
                 default => '',
             };
@@ -75,8 +77,10 @@
                         <tr class="bg-gray-100">
                             <th class="px-2 py-1.5 text-left font-medium text-gray-500 text-xs w-10">Пара</th>
                             @foreach ($dayNames as $i => $day)
-                                <th class="px-2 py-1.5 text-left font-medium text-gray-500 text-xs border-l border-gray-200 min-w-[110px]">
-                                    {{ $day }}<br><span class="font-normal">{{ Carbon\Carbon::parse($weekStart)->addDays($i)->format('d.m') }}</span>
+                                <th
+                                    class="px-2 py-1.5 text-left font-medium text-gray-500 text-xs border-l border-gray-200 min-w-[110px]">
+                                    {{ $day }}<br><span
+                                        class="font-normal">{{ Carbon\Carbon::parse($weekStart)->addDays($i)->format('d.m') }}</span>
                                 </th>
                             @endforeach
                         </tr>
@@ -92,17 +96,41 @@
                                     @endphp
                                     <td class="px-2 py-1 border-l border-gray-100 align-top">
                                         @foreach ($cellLessons as $lesson)
-                                            <div class="mb-0.5 p-1.5 rounded bg-gray-50 border border-gray-100">
-                                                <div class="font-medium text-xs leading-tight">{{ $lesson['discipline']['name'] ?? '' }}</div>
-                                                <div class="text-[11px] text-gray-500">
+                                            @php
+                                                $pubDiscCode = trim($lesson['discipline']['code'] ?? '');
+                                                $pubDiscName = trim($lesson['discipline']['name'] ?? '—');
+                                                $pubIsMdk = preg_match('/^МДК/ui', $pubDiscCode);
+                                                $pubIsPractice = preg_match('/^(УП|ПП|ПДП|ГИА)/ui', $pubDiscCode);
+                                                $pubIsExam = !$pubIsPractice && (preg_match('/^Э/ui', $pubDiscCode) || mb_strpos(mb_strtolower($pubDiscName), 'экзамен') !== false);
+                                                $pubTypeColor = match (true) {
+                                                    preg_match('/^УП/ui', $pubDiscCode) => 'border-l-indigo-400 bg-indigo-50/60',
+                                                    preg_match('/^ПП/ui', $pubDiscCode) => 'border-l-pink-400 bg-pink-50/60',
+                                                    preg_match('/^ПДП/ui', $pubDiscCode) => 'border-l-amber-400 bg-amber-50/60',
+                                                    preg_match('/^ГИА/ui', $pubDiscCode) => 'border-l-red-400 bg-red-50/60',
+                                                    $pubIsExam => 'border-l-purple-400 bg-purple-50/60',
+                                                    $pubIsMdk => 'border-l-teal-300 bg-teal-50/40',
+                                                    default => 'bg-gray-50 border-gray-100',
+                                                };
+                                            @endphp
+                                            <div class="mb-0.5 p-1.5 pl-2 rounded border {{ $pubTypeColor }}">
+                                                <div class="font-medium text-xs leading-tight">
+                                                    @if($pubIsMdk || $pubIsPractice)
+                                                        <span title="{{ $pubDiscName }}"
+                                                            class="border-b border-dashed border-gray-400 cursor-help">{{ $pubDiscCode }}</span>
+                                                    @else
+                                                        <span title="{{ $pubDiscCode }}">{{ $pubDiscName }}</span>
+                                                    @endif
+                                                </div>
+                                                <div class="text-[11px] text-gray-500 mt-0.5">
                                                     @if ($viewMode !== 'teacher')
-                                                        {{ $lesson['teacher']['last_name'] ?? '' }} {{ $lesson['teacher']['first_name'] ?? '' }}
+                                                        {{ $lesson['teacher']['last_name'] ?? '' }}
+                                                        {{ $lesson['teacher']['first_name'] ?? '' }}
                                                     @endif
                                                 </div>
                                                 <div class="text-[10px] text-gray-400">
                                                     {{ $lesson['room']['number'] ?? '' }}
-                                                    @if (!empty($lesson['building']))
-                                                        {{ $lesson['building']['short_name'] ?? '' }}
+                                                    @if (!empty($lesson['room']['building']))
+                                                        {{ $lesson['room']['building']['short_name'] ?? '' }}
                                                     @endif
                                                 </div>
                                             </div>
@@ -119,5 +147,7 @@
         <div class="p-12 text-center text-gray-400">Нет занятий в выбранном периоде</div>
     @endforelse
 
-    <p class="text-center text-xs text-gray-400 mt-6 no-print">Расписание занятий — данные актуальны на момент генерации</p>
+    <span class="hidden border-l-indigo-400 bg-indigo-50/60 border-l-pink-400 bg-pink-50/60 border-l-amber-400 bg-amber-50/60 border-l-red-400 bg-red-50/60 border-l-purple-400 bg-purple-50/60 border-l-teal-300 bg-teal-50/40 bg-gray-50 border-gray-100"></span>
+    <p class="text-center text-xs text-gray-400 mt-6 no-print">Расписание занятий — данные актуальны на момент генерации
+    </p>
 </div>

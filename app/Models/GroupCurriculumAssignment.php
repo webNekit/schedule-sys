@@ -12,6 +12,7 @@ class GroupCurriculumAssignment extends Model
     protected $fillable = [
         'group_id',
         'curriculum_plan_id',
+        'course_number',
         'assigned_at',
         'assigned_by',
         'is_active',

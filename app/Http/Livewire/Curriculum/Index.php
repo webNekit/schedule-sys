@@ -37,6 +37,21 @@ class Index extends Component
         $this->statusFilter = '';
     }
 
+    public function deletePlan(int $id): void
+    {
+        $plan = CurriculumPlan::findOrFail($id);
+
+        if ($plan->groupAssignments()->exists()) {
+            session()->flash('error', 'Нельзя удалить учебный план, который привязан к группам. Сначала отвяжите план от всех групп.');
+
+            return;
+        }
+
+        $plan->delete();
+
+        session()->flash('message', 'Учебный план успешно удалён.');
+    }
+
     #[Layout('components.layouts.app')]
     public function render()
     {
@@ -55,8 +70,11 @@ class Index extends Component
         $plans = $plansQuery->orderBy('name')->get();
 
         $departments = Department::where('is_active', true)
-            ->withWhereHas('specialties', function ($q) use ($plans) {
-                $q->whereIn('id', $plans->pluck('specialty_id')->unique());
+            ->with(['specialties' => function ($q) {
+                $q->where('is_active', true)->orderBy('name');
+            }])
+            ->whereHas('specialties', function ($q) {
+                $q->where('is_active', true);
             })
             ->orderBy('name')
             ->get();

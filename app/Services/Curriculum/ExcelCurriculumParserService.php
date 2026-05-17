@@ -528,6 +528,8 @@ class ExcelCurriculumParserService
 
             foreach ($parsedData['disciplines'] as $disciplineData) {
                 try {
+                    $isSchedulable = $this->isSchedulable($disciplineData['code'], $disciplineData['name'], $disciplineData['semesters']);
+
                     $discipline = CurriculumDiscipline::updateOrCreate(
                         ['curriculum_plan_id' => $plan->id, 'code' => $disciplineData['code']],
                         [
@@ -536,6 +538,7 @@ class ExcelCurriculumParserService
                             'cycle' => $disciplineData['cycle'],
                             'discipline_type' => $this->mapDisciplineType($disciplineData['code']),
                             'requires_lab' => $disciplineData['requires_lab'],
+                            'is_schedulable' => $isSchedulable,
                             'sort_order' => $imported + 1,
                         ]
                     );
@@ -581,5 +584,47 @@ class ExcelCurriculumParserService
         }
 
         return 'theoretical';
+    }
+
+    private function isSchedulable(string $code, string $name, array $semesters): bool
+    {
+        $upperCode = mb_strtoupper(trim($code));
+
+        // 1. Код начинается с УП, ПП, ПДП, ГИА, ПМ. (с точкой)
+        if (
+            str_starts_with($upperCode, 'УП') ||
+            str_starts_with($upperCode, 'ПП') ||
+            str_starts_with($upperCode, 'ПДП') ||
+            str_starts_with($upperCode, 'ГИА') ||
+            str_starts_with($upperCode, 'ПМ.')
+        ) {
+            return false;
+        }
+
+        // 3. Код строго равен заголовку цикла (без цифр)
+        $cycleHeaders = ['ОП', 'ОГСЭ', 'ЕН', 'ОД', 'ФК', 'ФЦД'];
+        if (in_array($upperCode, $cycleHeaders, true)) {
+            return false;
+        }
+
+        // 2. В названии есть ключевые слова
+        $lowerName = mb_strtolower(trim($name));
+        $keywords = ['экзамен', 'практика', 'консультация', 'государственн', 'квалификационн'];
+        foreach ($keywords as $keyword) {
+            if (mb_strpos($lowerName, $keyword) !== false) {
+                return false;
+            }
+        }
+
+        // 4. Сумма контактных часов (лекции + практики + лабы) = 0
+        $totalContact = 0;
+        foreach ($semesters as $sem) {
+            $totalContact += ($sem['hours_lecture'] ?? 0) + ($sem['hours_practice'] ?? 0) + ($sem['hours_lab'] ?? 0);
+        }
+        if ($totalContact === 0) {
+            return false;
+        }
+
+        return true;
     }
 }

@@ -7,17 +7,14 @@ namespace App\Http\Livewire\Admin;
 use App\Models\Department;
 use App\Models\EducationLevel;
 use App\Models\Specialty;
-use App\Services\Import\ExcelDictionaryImportService;
-use Illuminate\Support\Facades\Storage;
 use Livewire\Attributes\Layout;
 use Livewire\Component;
-use Livewire\WithFileUploads;
 use Livewire\WithPagination;
 
 #[Layout('components.layouts.app')]
 class SpecialtyManager extends Component
 {
-    use WithFileUploads, WithPagination;
+    use WithPagination;
 
     public bool $showForm = false;
 
@@ -35,9 +32,9 @@ class SpecialtyManager extends Component
 
     public ?int $educationLevelId = null;
 
-    public ?string $studyYears9 = null;
+    public ?int $studyYears9 = null;
 
-    public ?string $studyYears11 = null;
+    public ?int $studyYears11 = null;
 
     public string $baseEducation = '';
 
@@ -45,18 +42,13 @@ class SpecialtyManager extends Component
 
     public ?int $budgetPlaces = null;
 
-    public ?int $commercialPlaces = null;
+    public ?int $contractPlaces = null;
 
     public bool $isActive = true;
 
     public string $search = '';
 
     public string $departmentFilter = '';
-
-    // Импорт
-    public bool $showImportModal = false;
-
-    public $importFile;
 
     public function create(): void
     {
@@ -75,15 +67,12 @@ class SpecialtyManager extends Component
         $this->qualification = $spec->qualification ?? '';
         $this->departmentId = $spec->department_id;
         $this->educationLevelId = $spec->education_level_id;
-
-        // Восстанавливаем значение в виде строки "3,9"
-        $this->studyYears9 = $spec->study_years_9 ?? ($spec->study_months > 0 ? "{$spec->study_years},{$spec->study_months}" : (string) $spec->study_years);
-        $this->studyYears11 = $spec->study_years_11 ? (string) $spec->study_years_11 : null;
-
+        $this->studyYears9 = $spec->study_years_9 ?? $spec->study_years;
+        $this->studyYears11 = $spec->study_years_11;
         $this->baseEducation = $spec->base_education ?? '';
         $this->formOfStudy = $spec->form_of_study ?? '';
         $this->budgetPlaces = $spec->budget_places;
-        $this->commercialPlaces = $spec->commercial_places;
+        $this->contractPlaces = $spec->contract_places;
         $this->isActive = $spec->is_active;
         $this->showForm = true;
     }
@@ -96,18 +85,14 @@ class SpecialtyManager extends Component
             'shortName' => 'nullable|string|max:100',
             'departmentId' => 'nullable|integer|exists:departments,id',
             'educationLevelId' => 'nullable|integer|exists:education_levels,id',
-            'studyYears9' => 'nullable|string|max:10',
-            'studyYears11' => 'nullable|string|max:10',
+            'studyYears9' => 'nullable|integer|min:1|max:6',
+            'studyYears11' => 'nullable|integer|min:1|max:6',
             'baseEducation' => 'nullable|string|max:50',
             'formOfStudy' => 'nullable|string|max:50',
             'budgetPlaces' => 'nullable|integer|min:0',
-            'commercialPlaces' => 'nullable|integer|min:0',
+            'contractPlaces' => 'nullable|integer|min:0',
             'isActive' => 'boolean',
         ]);
-
-        // Нормализуем ввод (запятую меняем на точку для базы)
-        $val9 = $this->studyYears9 ? str_replace(',', '.', trim($this->studyYears9)) : null;
-        $val11 = $this->studyYears11 ? str_replace(',', '.', trim($this->studyYears11)) : null;
 
         $data = [
             'code' => $this->code,
@@ -116,27 +101,15 @@ class SpecialtyManager extends Component
             'qualification' => $this->qualification ?: null,
             'department_id' => $this->departmentId,
             'education_level_id' => $this->educationLevelId,
-            'study_years_9' => $val9,
-            'study_years_11' => $val11,
+            'study_years' => $this->studyYears9 ?? 4,
+            'study_years_9' => $this->studyYears9,
+            'study_years_11' => $this->studyYears11,
             'base_education' => $this->baseEducation ?: null,
             'form_of_study' => $this->formOfStudy ?: null,
             'budget_places' => $this->budgetPlaces,
-            'commercial_places' => $this->commercialPlaces,
+            'contract_places' => $this->contractPlaces,
             'is_active' => $this->isActive,
         ];
-
-        // Раскладываем срок 9 классов на годы и месяцы только если значение задано
-        if ($val9 !== null && str_contains($val9, '.')) {
-            $parts = explode('.', $val9);
-            $data['study_years'] = (int) ($parts[0] ?? 0);
-            $data['study_months'] = (int) ($parts[1] ?? 0);
-        } elseif ($val9 !== null) {
-            $data['study_years'] = (int) $val9;
-            $data['study_months'] = 0;
-        } else {
-            $data['study_years'] = null;
-            $data['study_months'] = null;
-        }
 
         if ($this->editingId) {
             Specialty::findOrFail($this->editingId)->update($data);
@@ -175,44 +148,8 @@ class SpecialtyManager extends Component
         $this->baseEducation = '';
         $this->formOfStudy = '';
         $this->budgetPlaces = null;
-        $this->commercialPlaces = null;
+        $this->contractPlaces = null;
         $this->isActive = true;
-    }
-
-    public function openImportModal(): void
-    {
-        $this->importFile = null;
-        $this->showImportModal = true;
-    }
-
-    public function closeImportModal(): void
-    {
-        $this->showImportModal = false;
-        $this->importFile = null;
-    }
-
-    public function importExcel(ExcelDictionaryImportService $importService): void
-    {
-        $this->validate([
-            'importFile' => 'required|file|mimes:xlsx,xls|max:10240',
-        ]);
-
-        $storedPath = $this->importFile->store('imports', 'local');
-        $fullPath = Storage::disk('local')->path($storedPath);
-
-        try {
-            $result = $importService->importSpecialties($fullPath);
-            $this->closeImportModal();
-
-            if ($result['imported'] > 0) {
-                session()->flash('message', "Импорт завершен. Добавлено/обновлено: {$result['imported']}.");
-            }
-            if (! empty($result['errors'])) {
-                session()->flash('error', 'Ошибки импорта: '.implode(' ', array_slice($result['errors'], 0, 3)).(count($result['errors']) > 3 ? '...' : ''));
-            }
-        } catch (\Exception $e) {
-            session()->flash('error', 'Ошибка при импорте: '.$e->getMessage());
-        }
     }
 
     public function render(): mixed

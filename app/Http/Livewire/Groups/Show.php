@@ -47,7 +47,7 @@ class Show extends Component
 
     public ?int $selectedSpecialtyId = null;
 
-    public ?int $selectedPlanId = null;
+    public ?int $selectedPlanIdForForm = null;
 
     public bool $showBuildingForm = false;
 
@@ -65,6 +65,7 @@ class Show extends Component
             'academicYear',
             'buildings',
             'subgroups',
+            'curriculumAssignments.curriculumPlan',
         ]);
 
         $this->selectedSpecialtyId = $group->specialty_id;
@@ -111,36 +112,36 @@ class Show extends Component
     public function openCurriculumForm(): void
     {
         $this->selectedSpecialtyId = $this->group->specialty_id;
-        $this->selectedPlanId = null;
+        $this->selectedPlanIdForForm = null;
         $this->showCurriculumForm = true;
     }
 
     public function assignCurriculum(): void
     {
         $this->validate([
-            'selectedPlanId' => 'required|integer|exists:curriculum_plans,id',
+            'selectedPlanIdForForm' => 'required|integer|exists:curriculum_plans,id',
         ]);
 
         GroupCurriculumAssignment::create([
             'group_id' => $this->group->id,
-            'curriculum_plan_id' => $this->selectedPlanId,
+            'curriculum_plan_id' => $this->selectedPlanIdForForm,
             'assigned_at' => now(),
             'assigned_by' => auth()->id(),
             'is_active' => true,
         ]);
 
         $this->showCurriculumForm = false;
-        $this->selectedPlanId = null;
-        $this->group->load('curriculumPlans');
+        $this->selectedPlanIdForForm = null;
+        $this->group->load('curriculumAssignments.curriculumPlan');
     }
 
-    public function removeCurriculum(int $planId): void
+    public function removeCurriculum(int $assignmentId): void
     {
         GroupCurriculumAssignment::where('group_id', $this->group->id)
-            ->where('curriculum_plan_id', $planId)
+            ->where('id', $assignmentId)
             ->delete();
 
-        $this->group->load('curriculumPlans');
+        $this->group->load('curriculumAssignments.curriculumPlan');
     }
 
     public function openBuildingForm(): void
@@ -183,14 +184,15 @@ class Show extends Component
     #[Layout('components.layouts.app')]
     public function render()
     {
-        $curriculumPlans = $this->group->curriculumPlans()
-            ->with(['disciplines.semesters'])
+        $assignments = $this->group->curriculumAssignments()
+            ->with(['curriculumPlan.disciplines.semesters'])
             ->get();
 
         $disciplines = collect();
         $semesters = collect();
 
-        foreach ($curriculumPlans as $plan) {
+        foreach ($assignments as $assignment) {
+            $plan = $assignment->curriculumPlan;
             foreach ($plan->disciplines as $discipline) {
                 foreach ($discipline->semesters as $semester) {
                     $semesters->push($semester);
@@ -247,7 +249,7 @@ class Show extends Component
             ->get();
 
         return view('livewire.groups.show', [
-            'curriculumPlans' => $curriculumPlans,
+            'assignments' => $assignments,
             'disciplines' => $disciplines,
             'semesters' => $semesters,
             'courses' => $courses,

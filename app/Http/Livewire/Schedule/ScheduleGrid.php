@@ -331,6 +331,22 @@ class ScheduleGrid extends Component
 
             return;
         }
+
+        $group = Group::find($groupId);
+        $assignment = $group?->curriculumAssignments()->where('is_active', true)->first();
+        $disciplineId = $assignment?->curriculum_plan_id
+            ? CurriculumDiscipline::where('curriculum_plan_id', $assignment->curriculum_plan_id)->first()?->id
+            : null;
+
+        $teacherId = $disciplineId
+            ? Teacher::whereHas('disciplines', fn ($q) => $q->where('discipline_id', $disciplineId))->first()?->id
+            : null;
+
+        $buildingId = $group?->buildings()->orderBy('is_primary', 'desc')->first()?->id;
+        $roomId = $buildingId
+            ? Room::where('building_id', $buildingId)->where('is_active', true)->first()?->id
+            : null;
+
         $exists = ScheduleLesson::where('version_id', $version->id)
             ->where('date', $date ?: $this->weekStart)
             ->where('lesson_number', $lessonNumber)
@@ -341,18 +357,18 @@ class ScheduleGrid extends Component
 
             return;
         }
-        $academicYear = AcademicYear::where('is_current', true)->first();
+
         $lesson = ScheduleLesson::create([
             'version_id' => $version->id,
             'date' => $date ?: $this->weekStart,
             'lesson_number' => $lessonNumber,
-            'shift' => 1,
+            'shift' => $group?->shift ?? 1,
             'group_id' => $groupId,
-            'discipline_id' => 1,
+            'discipline_id' => $disciplineId,
             'lesson_type_id' => 1,
-            'teacher_id' => 1,
-            'room_id' => 1,
-            'building_id' => 1,
+            'teacher_id' => $teacherId,
+            'room_id' => $roomId,
+            'building_id' => $buildingId,
             'status' => 'draft',
         ]);
         $this->editLesson($lesson->id);
@@ -377,9 +393,7 @@ class ScheduleGrid extends Component
     #[Computed]
     public function getRoomsProperty(): mixed
     {
-        return Room::where('is_active', true)
-            ->orderBy('name')
-            ->get();
+        return Room::with('building')->where('is_active', true)->orderBy('name')->get();
     }
 
     public function exportExcel(ExcelExportService $exportService): ?BinaryFileResponse
@@ -559,9 +573,9 @@ class ScheduleGrid extends Component
     public function getRoomsForTeacherProperty(): mixed
     {
         if ($this->editTeacherId <= 0) {
-            return Room::where('is_active', true)->orderBy('name')->get();
+            return Room::with('building')->where('is_active', true)->orderBy('name')->get();
         }
-        $priorityRooms = Room::where('is_active', true)
+        $priorityRooms = Room::with('building')->where('is_active', true)
             ->whereHas('teacherRooms', fn ($q) => $q->where('teacher_id', $this->editTeacherId))
             ->orderBy(
                 TeacherRoom::select('priority')
@@ -575,7 +589,7 @@ class ScheduleGrid extends Component
             return $priorityRooms;
         }
 
-        return Room::where('is_active', true)->orderBy('name')->get();
+        return Room::with('building')->where('is_active', true)->orderBy('name')->get();
     }
 
     #[Computed]
@@ -587,18 +601,22 @@ class ScheduleGrid extends Component
     #[Computed]
     public function getDisciplinesProperty(): mixed
     {
-        $query = CurriculumDiscipline::query()->orderBy('name');
+        $query = CurriculumDiscipline::where('is_schedulable', true)->orderBy('name');
         if ($this->editGroupId > 0) {
-            $group = Group::with('curriculumPlans')->find($this->editGroupId);
-            if ($group && $group->curriculumPlans->isNotEmpty()) {
-                $planIds = $group->curriculumPlans->pluck('id');
-                $query->whereIn('curriculum_plan_id', $planIds);
+            $group = Group::with('curriculumAssignments.curriculumPlan')->find($this->editGroupId);
+            if ($group) {
+                $assignment = $group->curriculumAssignments->where('is_active', true)->first();
+                if ($assignment) {
+                    $query->where('curriculum_plan_id', $assignment->curriculum_plan_id);
+                }
             }
         } elseif ($this->viewMode === 'group' && $this->viewId > 0) {
-            $group = Group::with('curriculumPlans')->find($this->viewId);
-            if ($group && $group->curriculumPlans->isNotEmpty()) {
-                $planIds = $group->curriculumPlans->pluck('id');
-                $query->whereIn('curriculum_plan_id', $planIds);
+            $group = Group::with('curriculumAssignments.curriculumPlan')->find($this->viewId);
+            if ($group) {
+                $assignment = $group->curriculumAssignments->where('is_active', true)->first();
+                if ($assignment) {
+                    $query->where('curriculum_plan_id', $assignment->curriculum_plan_id);
+                }
             }
         }
 

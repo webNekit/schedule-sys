@@ -11,6 +11,17 @@
         </div>
     </div>
 
+    @if (session('message'))
+        <div class="p-3 bg-emerald-50 dark:bg-emerald-900/30 border border-emerald-200 dark:border-emerald-800 rounded-lg text-sm text-emerald-700 dark:text-emerald-300">
+            {{ session('message') }}
+        </div>
+    @endif
+    @if (session('error'))
+        <div class="p-3 bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800 rounded-lg text-sm text-red-700 dark:text-red-300">
+            {{ session('error') }}
+        </div>
+    @endif
+
     <div class="rounded-xl bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 overflow-hidden">
         <div class="p-4 border-b border-gray-100 dark:border-gray-700">
             <div class="flex flex-col sm:flex-row gap-3">
@@ -36,7 +47,7 @@
         <div class="p-4 space-y-2">
             @forelse($departments as $department)
                 @php
-                    $deptSpecialties = $department->specialties->filter(fn ($s) => $plans->where('specialty_id', $s->id)->isNotEmpty());
+                    $deptSpecialties = $department->specialties;
                 @endphp
                 @if($deptSpecialties->isNotEmpty())
                     <div class="rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
@@ -70,27 +81,41 @@
 
                                         @if($expandedSpecialties[$specialty->id] ?? false)
                                             <div class="border-t border-gray-100 dark:border-gray-700">
-                                                @foreach($specialtyPlans as $plan)
-                                                    <a href="{{ route('curriculum.show', $plan) }}"
-                                                        class="flex items-center gap-3 px-4 py-2.5 pl-20 hover:bg-gray-50 dark:hover:bg-gray-700/30 transition-colors group">
-                                                        <div class="w-6 h-6 rounded-md bg-amber-50 dark:bg-amber-900/30 flex items-center justify-center text-xs font-bold text-amber-600 dark:text-amber-400 shrink-0">П</div>
-                                                        <div class="flex-1 min-w-0">
-                                                            <p class="text-sm font-medium text-gray-900 dark:text-white group-hover:text-emerald-600 dark:group-hover:text-emerald-400">{{ $plan->name }}</p>
-                                                            <p class="text-xs text-gray-400 dark:text-gray-500">{{ $plan->academicYear?->name ?? '—' }} • {{ $plan->version ?? '1.0' }} • {{ $plan->total_hours ?? 0 }} ч.</p>
-                                                        </div>
-                                                        <div class="shrink-0">
-                                                            @if($plan->is_active)
-                                                                <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-emerald-50 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400">
-                                                                    Активен
-                                                                </span>
-                                                            @else
-                                                                <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-gray-100 text-gray-500 dark:bg-gray-700 dark:text-gray-400">
-                                                                    Нет
-                                                                </span>
-                                                            @endif
-                                                        </div>
-                                                    </a>
-                                                @endforeach
+                                                @forelse($specialtyPlans as $plan)
+                                                    <div class="flex items-center gap-3 px-4 py-2.5 pl-20 hover:bg-gray-50 dark:hover:bg-gray-700/30 transition-colors group">
+                                                        <a href="{{ route('curriculum.show', $plan) }}"
+                                                            class="flex items-center gap-3 flex-1 min-w-0">
+                                                            <div class="w-6 h-6 rounded-md bg-amber-50 dark:bg-amber-900/30 flex items-center justify-center text-xs font-bold text-amber-600 dark:text-amber-400 shrink-0">П</div>
+                                                            <div class="flex-1 min-w-0">
+                                                                <p class="text-sm font-medium text-gray-900 dark:text-white group-hover:text-emerald-600 dark:group-hover:text-emerald-400">{{ $plan->name }}</p>
+                                                                <p class="text-xs text-gray-400 dark:text-gray-500">{{ $plan->academicYear?->name ?? '—' }} • {{ $plan->version ?? '1.0' }} • {{ $plan->total_hours ?? 0 }} ч.</p>
+                                                            </div>
+                                                            <div class="shrink-0">
+                                                                @if($plan->is_active)
+                                                                    <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-emerald-50 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400">
+                                                                        Активен
+                                                                    </span>
+                                                                @else
+                                                                    <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-gray-100 text-gray-500 dark:bg-gray-700 dark:text-gray-400">
+                                                                        Нет
+                                                                    </span>
+                                                                @endif
+                                                            </div>
+                                                        </a>
+                                                        <button wire:click.stop="deletePlan({{ $plan->id }})"
+                                                            wire:confirm="Удалить учебный план? Все связанные с ним дисциплины будут скрыты."
+                                                            class="shrink-0 p-1.5 rounded-lg text-red-400 hover:text-white hover:bg-red-500 transition-colors opacity-0 group-hover:opacity-100"
+                                                            title="Удалить план">
+                                                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+                                                            </svg>
+                                                        </button>
+                                                    </div>
+                                                @empty
+                                                    <div class="px-4 py-3 pl-20 text-sm text-gray-400 dark:text-gray-500">
+                                                        Нет учебных планов для этой специальности
+                                                    </div>
+                                                @endforelse
                                             </div>
                                         @endif
                                     </div>

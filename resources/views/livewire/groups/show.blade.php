@@ -51,22 +51,42 @@
         @endif
     </div>
 
-    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-4">
-        <div class="flex items-center justify-between mb-3">
-            <h3 class="font-semibold">Учебные планы</h3>
-            <button wire:click="openCurriculumForm" class="text-sm text-emerald-600 hover:text-emerald-800">+ Привязать план</button>
+    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-5">
+        <div class="flex items-center justify-between mb-4">
+            <h3 class="font-semibold text-gray-900 dark:text-white text-lg">Учебные планы</h3>
+            <button wire:click="openCurriculumForm" class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300 text-sm font-medium hover:bg-emerald-100 dark:hover:bg-emerald-900/40 transition-colors">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+                Привязать план
+            </button>
         </div>
-        @if($curriculumPlans->isNotEmpty())
-            <div class="flex flex-wrap gap-2">
-                @foreach($curriculumPlans as $plan)
-                    <span class="inline-flex items-center gap-2 px-3 py-1 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 rounded-full text-sm">
-                        {{ $plan->name }}
-                        <button wire:click="removeCurriculum({{ $plan->id }})" wire:confirm="Отвязать учебный план?" class="text-red-500 hover:text-red-700">&times;</button>
-                    </span>
+
+        @if($assignments->isNotEmpty())
+            <div class="space-y-2">
+                @foreach($assignments as $assignment)
+                    @php
+                        $plan = $assignment->curriculumPlan;
+                    @endphp
+                    <div class="flex items-center gap-4 p-3 rounded-lg border bg-emerald-50 dark:bg-emerald-900/20 border-emerald-200 dark:border-emerald-800">
+                        <div class="flex-1 min-w-0">
+                            <p class="font-semibold text-emerald-900 dark:text-emerald-100 truncate">{{ $plan->name }}</p>
+                        </div>
+                        <div class="flex-shrink-0 flex items-center gap-2">
+                            <button wire:click="removeCurriculum({{ $assignment->id }})"
+                                    wire:confirm="Отвязать учебный план?"
+                                    class="p-1.5 rounded-lg text-emerald-400 hover:text-red-500 hover:bg-red-100 dark:hover:bg-red-900/30 transition-colors"
+                                    title="Отвязать план">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                            </button>
+                        </div>
+                    </div>
                 @endforeach
             </div>
         @else
-            <p class="text-sm text-gray-500">Не привязаны</p>
+            <div class="text-center py-8">
+                <svg class="w-12 h-12 mx-auto text-gray-300 dark:text-gray-600 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+                <p class="text-sm text-gray-500 dark:text-gray-400">Учебные планы не привязаны</p>
+                <p class="text-xs text-gray-400 dark:text-gray-500 mt-1">Привяжите учебный план для группы</p>
+            </div>
         @endif
     </div>
 
@@ -87,16 +107,21 @@
 
     <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
         <div class="p-4 border-b border-gray-100 dark:border-gray-700">
-            <h3 class="font-semibold">Дисциплины по семестрам</h3>
+            <h3 class="font-semibold text-gray-900 dark:text-white">Дисциплины по семестрам</h3>
         </div>
 
-        @if($courses->isNotEmpty())
+        @if($disciplines->isNotEmpty())
             <div class="flex flex-wrap gap-2 px-4 py-3 border-b border-gray-100 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-800/50">
+                @php $currentCourse = $group->calculateCurrentCourse(); @endphp
                 @foreach($courses as $course)
+                    @php $isCurrent = $course === $currentCourse; $isSelected = $selectedCourse === $course; @endphp
                     <button wire:click="selectCourse({{ $course }})"
                             class="px-3 py-1.5 rounded-lg text-sm font-medium transition
-                                   {{ $selectedCourse === $course ? 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300' : 'text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700' }}">
+                                   {{ $isCurrent ? 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300 ring-1 ring-emerald-300 dark:ring-emerald-700' : ($isSelected ? 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300' : 'text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700') }}">
                         {{ $course }} курс
+                        @if($isCurrent)
+                            <span class="ml-1 text-[10px] opacity-70">· текущий</span>
+                        @endif
                     </button>
                 @endforeach
                 <span class="w-px h-6 bg-gray-200 dark:bg-gray-700 self-center mx-1"></span>
@@ -145,7 +170,7 @@
                         @forelse($semestersForCourse as $semester)
                             @php
                                 $discipline = $semester->discipline;
-                                $assignments = $teacherAssignments->get($semester->discipline_id);
+                                $teacherAssignmentsForDiscipline = $teacherAssignments->get($semester->discipline_id);
                             @endphp
                             <tr class="hover:bg-gray-50/50 dark:hover:bg-gray-700/30 transition-colors">
                                 <td class="px-4 py-2.5">
@@ -172,9 +197,9 @@
                                     @endif
                                 </td>
                                 <td class="px-4 py-2.5">
-                                    @if($assignments && $assignments->isNotEmpty())
+                                    @if($teacherAssignmentsForDiscipline && $teacherAssignmentsForDiscipline->isNotEmpty())
                                         <div class="flex flex-wrap gap-1">
-                                            @foreach($assignments as $ta)
+                                            @foreach($teacherAssignmentsForDiscipline as $ta)
                                                 <a href="{{ route('teachers.show', $ta->teacher) }}"
                                                     class="inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-medium bg-indigo-50 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-400 hover:bg-indigo-100 dark:hover:bg-indigo-900/40 transition-colors">
                                                     {{ $ta->teacher->short_name }}
@@ -197,7 +222,7 @@
                 </table>
             </div>
         @else
-            <div class="p-8 text-center text-gray-400 dark:text-gray-500">Нет учебных планов для этой группы</div>
+            <div class="p-8 text-center text-gray-400 dark:text-gray-500">Нет дисциплин для выбранного учебного плана</div>
         @endif
     </div>
 
@@ -277,21 +302,22 @@
         <div class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40" wire:click.self="$set('showCurriculumForm', false)">
             <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
                 <div class="p-6 border-b border-gray-200 dark:border-gray-700">
-                    <h3 class="text-lg font-semibold">Привязать учебный план</h3>
+                    <h3 class="text-lg font-semibold text-gray-900 dark:text-white">Привязать учебный план</h3>
                 </div>
             <form wire:submit="assignCurriculum" class="p-6 space-y-4">
                 <div>
                     <p class="text-sm text-gray-500 dark:text-gray-400 mb-3">
                         Специальность: <span class="font-medium text-gray-900 dark:text-white">{{ $group->specialty?->name ?? '—' }}</span>
                     </p>
-                    <label class="block text-sm font-medium mb-1">Учебный план</label>
-                    <select wire:model="selectedPlanId" class="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-2">
+                    <label class="block text-sm font-medium mb-1">Учебный план <span class="text-red-500">*</span></label>
+                    <select wire:model="selectedPlanIdForForm" class="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-2">
                         <option value="">Выберите план</option>
                         @foreach($plansForSpecialty as $plan)
-                            <option value="{{ $plan->id }}">{{ $plan->name }} ({{ $plan->version ?? '—' }})</option>
+                            <option value="{{ $plan->id }}">{{ $plan->name }}</option>
                         @endforeach
                     </select>
-                    @error('selectedPlanId') <p class="text-xs text-red-600 mt-1">{{ $message }}</p> @enderror
+                    <p class="text-xs text-gray-400 mt-1">Выберите план для специальности</p>
+                    @error('selectedPlanIdForForm') <p class="text-xs text-red-600 mt-1">{{ $message }}</p> @enderror
                 </div>
                     <div class="flex justify-end gap-3 pt-4 border-t border-gray-200 dark:border-gray-700">
                         <button type="button" wire:click="$set('showCurriculumForm', false)" class="px-4 py-2 text-sm text-gray-600 dark:text-gray-400 hover:text-gray-800 transition">Отмена</button>
