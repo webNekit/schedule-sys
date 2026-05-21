@@ -28,11 +28,14 @@ class ShowPlan extends Component
 
     public bool $showAssignModal = false;
 
+    public bool $showWorkloadModal = false;
+
+    public ?int $activeSemesterId = null;
+
+    // Стейт нагрузки: semester_id => [ {teacher_id, teacher_name, hours}, ... ]
+    public array $workloadState = []; 
+
     public ?int $assignDisciplineId = null;
-
-    public ?int $assignTeacherId = null;
-
-    public ?int $assignGroupId = null;
 
     public string $assignDisciplineName = '';
 
@@ -41,6 +44,16 @@ class ShowPlan extends Component
     public bool $editingPlanName = false;
 
     public string $editedPlanName = '';
+
+    public bool $showExamModal = false;
+
+    public ?int $examCourse = null;
+
+    public ?int $examSemester = null;
+
+    public ?string $examStartDate = null;
+
+    public ?string $examEndDate = null;
 
     public function mount(CurriculumPlan $plan): void
     {
@@ -67,77 +80,182 @@ class ShowPlan extends Component
         ]);
     }
 
-    public function editPlanName(): void
-    {
-        $this->editedPlanName = $this->plan->name;
-        $this->editingPlanName = true;
-    }
-
-    public function savePlanName(): void
-    {
-        $this->validate(['editedPlanName' => 'required|string|max:255']);
-        $this->plan->update(['name' => $this->editedPlanName]);
-        $this->editingPlanName = false;
-        $this->loadPlanData($this->plan);
-    }
-
-    public function cancelEditPlanName(): void
-    {
-        $this->editingPlanName = false;
-    }
-
-    public function updatedCourseFilter(): void
-    {
-        $this->semesterFilter = null;
-    }
-
-    public function resetFilters(): void
-    {
-        $this->courseFilter = null;
-        $this->semesterFilter = null;
-        $this->disciplineSearch = '';
-        $this->teacherFilter = null;
-    }
-
-    public function openAssignModal(int $disciplineId, string $disciplineName): void
+    public function openWorkloadManager(int $disciplineId, string $disciplineName): void
     {
         $this->assignDisciplineId = $disciplineId;
         $this->assignDisciplineName = $disciplineName;
-        $this->assignTeacherId = null;
-        $this->assignGroupId = null;
+        
+        $semesters = CurriculumSemester::where('discipline_id', $disciplineId)->orderBy('semester_number')->get();
+        $this->workloadState = [];
+        
+        foreach ($semesters as $sem) {
+            $assignments = TeacherDisciplineSemester::where('curriculum_semester_id', $sem->id)
+                ->whereHas('teacherDiscipline', fn($q) => $q->where('academic_year_id', $this->plan->academic_year_id))
+                ->with('teacherDiscipline.teacher')
+                ->orderBy('sort_order')
+                ->get();
+                
+            $this->workloadState[$sem->id] = $assignments->map(fn($a) => [
+                'teacher_id' => $a->teacherDiscipline->teacher_id,
+                'teacher_name' => $a->teacherDiscipline->teacher->short_name,
+                'hours' => $a->planned_hours,
+            ])->toArray();
+        }
+        
+        $this->activeSemesterId = $semesters->first()?->id;
+        $this->showWorkloadModal = true;
+    }
+
+    public function selectSemester(int $semesterId): void
+    {
+        $this->activeSemesterId = $semesterId;
+    }
+
+    public function openAssignModal(): void
+    {
         $this->teacherSearch = '';
         $this->showAssignModal = true;
+    }
+
+    public function addTeacherToSemester(int $teacherId): void
+    {
+        if (!$this->activeSemesterId) return;
+        
+        $teacher = Teacher::find($teacherId);
+        if (!$teacher) return;
+        
+        foreach ($this->workloadState[$this->activeSemesterId] as $assignment) {
+            if ($assignment['teacher_id'] == $teacherId) {
+                session()->flash('error', 'Преподаватель уже назначен на этот семестр');
+                $this->showAssignModal = false;
+                return;
+            }
+        }
+        
+        $sem = CurriculumSemester::find($this->activeSemesterId);
+        $currentSum = 0;
+        foreach ($this->workloadState[$this->activeSemesterId] as $item) {
+            $currentSum += (int)($item['hours'] ?? 0);
+        }
+        $remaining = $sem->hours_total - $currentSum;
+        
+        $this->workloadState[$this->activeSemesterId][] = [
+            'teacher_id' => $teacher->id,
+            'teacher_name' => $teacher->short_name,
+            'hours' => (string)max(0, $remaining),
+        ];
+        
+        $this->showAssignModal = false;
+        $this->teacherSearch = '';
+    }
+
+    public function removeTeacherFromSemester(int $semesterId, int $index): void
+    {
+        if (isset($this->workloadState[$semesterId][$index])) {
+            unset($this->workloadState[$semesterId][$index]);
+            $this->workloadState[$semesterId] = array_values($this->workloadState[$semesterId]);
+        }
+    }
+
+    public function updateSortOrder(int $semesterId, array $orderedIndices): void
+    {
+        $newState = [];
+        foreach ($orderedIndices as $index) {
+            if (isset($this->workloadState[$semesterId][$index])) {
+                $newState[] = $this->workloadState[$semesterId][$index];
+            }
+        }
+        $this->workloadState[$semesterId] = $newState;
+    }
+
+    public function saveWorkload(): void
+    {
+        $tdIds = TeacherDiscipline::where('discipline_id', $this->assignDisciplineId)
+            ->where('academic_year_id', $this->plan->academic_year_id)
+            ->whereNull('group_id')
+            ->pluck('id');
+            
+        TeacherDisciplineSemester::whereIn('teacher_discipline_id', $tdIds)->delete();
+        TeacherDiscipline::whereIn('id', $tdIds)->delete();
+        
+        foreach ($this->workloadState as $semId => $assignments) {
+            foreach ($assignments as $index => $data) {
+                $td = TeacherDiscipline::firstOrCreate([
+                    'teacher_id' => $data['teacher_id'],
+                    'discipline_id' => $this->assignDisciplineId,
+                    'academic_year_id' => $this->plan->academic_year_id,
+                    'group_id' => null,
+                ], ['is_primary' => $index === 0, 'planned_hours' => 0]);
+                
+                TeacherDisciplineSemester::create([
+                    'teacher_discipline_id' => $td->id,
+                    'curriculum_semester_id' => $semId,
+                    'planned_hours' => (int)$data['hours'],
+                    'sort_order' => $index + 1,
+                    'is_active' => true,
+                ]);
+            }
+        }
+        
+        $newTdIds = TeacherDiscipline::where('discipline_id', $this->assignDisciplineId)
+            ->where('academic_year_id', $this->plan->academic_year_id)
+            ->pluck('id');
+            
+        foreach ($newTdIds as $id) {
+            $sum = TeacherDisciplineSemester::where('teacher_discipline_id', $id)->sum('planned_hours');
+            TeacherDiscipline::where('id', $id)->update(['planned_hours' => $sum]);
+        }
+        
+        $this->closeAssignModal();
+        $this->loadPlanData($this->plan);
+        session()->flash('message', 'Нагрузка успешно сохранена.');
     }
 
     public function closeAssignModal(): void
     {
         $this->showAssignModal = false;
+        $this->showWorkloadModal = false;
         $this->assignDisciplineId = null;
-        $this->assignTeacherId = null;
-        $this->assignGroupId = null;
+        $this->activeSemesterId = null;
         $this->teacherSearch = '';
     }
 
     public function selectAndAssign(int $teacherId): void
     {
-        $this->assignTeacherId = $teacherId;
-        $td = TeacherDiscipline::firstOrCreate([
-            'teacher_id' => $this->assignTeacherId,
-            'discipline_id' => $this->assignDisciplineId,
-            'group_id' => null,
-            'academic_year_id' => $this->plan->academic_year_id,
-        ], ['is_primary' => true, 'planned_hours' => 0]);
-
-        $semesters = CurriculumSemester::where('discipline_id', $this->assignDisciplineId)->get();
-        $totalHours = 0;
-        foreach ($semesters as $sem) {
-            TeacherDisciplineSemester::firstOrCreate(['teacher_discipline_id' => $td->id, 'curriculum_semester_id' => $sem->id], ['planned_hours' => $sem->hours_total, 'is_active' => true]);
-            $totalHours += $sem->hours_total;
+        if ($this->showWorkloadModal) {
+            $this->addTeacherToSemester($teacherId);
+        } else {
+            $existingCount = TeacherDiscipline::where('discipline_id', $this->assignDisciplineId)
+                ->where('academic_year_id', $this->plan->academic_year_id)
+                ->count();
+                
+            if ($existingCount === 0) {
+                $semesters = CurriculumSemester::where('discipline_id', $this->assignDisciplineId)->get();
+                $td = TeacherDiscipline::create([
+                    'teacher_id' => $teacherId,
+                    'discipline_id' => $this->assignDisciplineId,
+                    'academic_year_id' => $this->plan->academic_year_id,
+                    'group_id' => null,
+                    'is_primary' => true,
+                    'planned_hours' => $semesters->sum('hours_total')
+                ]);
+                
+                foreach ($semesters as $sem) {
+                    TeacherDisciplineSemester::create([
+                        'teacher_discipline_id' => $td->id,
+                        'curriculum_semester_id' => $sem->id,
+                        'planned_hours' => $sem->hours_total,
+                        'sort_order' => 1,
+                        'is_active' => true
+                    ]);
+                }
+                $this->showAssignModal = false;
+                $this->loadPlanData($this->plan);
+            } else {
+                $this->openWorkloadManager($this->assignDisciplineId, $this->assignDisciplineName);
+                $this->addTeacherToSemester($teacherId);
+            }
         }
-        $td->update(['planned_hours' => $totalHours]);
-        $this->closeAssignModal();
-        $this->loadPlanData($this->plan);
-        session()->flash('message', 'Преподаватель успешно назначен на дисциплину.');
     }
 
     public function removeAssignment(int $teacherDisciplineId): void
@@ -146,6 +264,44 @@ class ShowPlan extends Component
         TeacherDiscipline::where('id', $teacherDisciplineId)->delete();
         $this->loadPlanData($this->plan);
         session()->flash('message', 'Назначение удалено.');
+    }
+
+    public function openExamModal(int $course, int $semester): void
+    {
+        $this->examCourse = $course;
+        $this->examSemester = $semester;
+        
+        $existing = \App\Models\CurriculumPractice::where('curriculum_plan_id', $this->plan->id)
+            ->where('course_number', $course)
+            ->where('symbol', 'Э')
+            ->where('type', 'exam_session')
+            ->first();
+            
+        $this->examStartDate = $existing?->start_date?->format('Y-m-d');
+        $this->examEndDate = $existing?->end_date?->format('Y-m-d');
+        $this->showExamModal = true;
+    }
+
+    public function saveExamDates(): void
+    {
+        $this->validate([
+            'examStartDate' => 'required|date',
+            'examEndDate' => 'required|date|after_or_equal:examStartDate',
+        ]);
+
+        \App\Models\CurriculumPractice::updateOrCreate([
+            'curriculum_plan_id' => $this->plan->id,
+            'course_number' => $this->examCourse,
+            'symbol' => 'Э',
+            'type' => 'exam_session',
+        ], [
+            'start_date' => $this->examStartDate,
+            'end_date' => $this->examEndDate,
+        ]);
+
+        $this->showExamModal = false;
+        $this->loadPlanData($this->plan);
+        session()->flash('message', 'Даты сессии успешно сохранены.');
     }
 
     public function isNonSchedulable(bool $isSchedulable): bool

@@ -60,7 +60,7 @@
                 <p class="px-3 text-[10px] font-semibold uppercase tracking-wider text-gray-500 mb-2">Навигация</p>
 
                 <x-nav-link href="{{ route('dashboard') }}" :active="request()->routeIs('dashboard')">
-                    Дашборд
+                    Панель управления
                 </x-nav-link>
 
                 <div class="my-3 border-t border-gray-800"></div>
@@ -235,9 +235,11 @@
                                 style="display: none;">
                                 <div class="px-4 py-2.5 border-b border-gray-100 dark:border-gray-700">
                                     <p class="text-sm font-medium text-gray-900 dark:text-white">
-                                        {{ auth()->user()?->name ?? 'Гость' }}</p>
+                                        {{ auth()->user()?->name ?? 'Гость' }}
+                                    </p>
                                     <p class="text-xs text-gray-500 dark:text-gray-400">
-                                        {{ auth()->user()?->email ?? '' }}</p>
+                                        {{ auth()->user()?->email ?? '' }}
+                                    </p>
                                 </div>
                                 <a href="#"
                                     class="flex items-center gap-2.5 px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors">

@@ -79,7 +79,9 @@ class ConflictCheckerService
             }
             // Аудитории
             foreach ($dayLessons->groupBy('room_id') as $roomId => $roomLessons) {
-                $this->checkRoomMultiGroup($roomLessons, $date, (int) $roomId, $versionId, $conflicts);
+                if ($roomId) {
+                    $this->checkRoomMultiGroup($roomLessons, $date, (int) $roomId, $versionId, $conflicts);
+                }
             }
             // ── НОВОЕ: конфликты корпусов ──
             $this->checkBuildingConflicts($dayLessons, $date, $versionId, $conflicts);

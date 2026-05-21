@@ -82,7 +82,24 @@
         </div>
     </div>
 
+    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
+        <h3 class="font-semibold text-lg mb-4">Настройки нагрузки</h3>
+        <div class="max-w-xs">
+            @if (isset($settings['weekly_hours_total']))
+                <label class="block text-sm font-medium mb-1">{{ $settings['weekly_hours_total']['label'] }}</label>
+                <p class="text-xs text-gray-500 mb-2">{{ $settings['weekly_hours_total']['description'] }}</p>
+                <div class="flex items-center gap-3">
+                    <input type="number" wire:model.live="settings.weekly_hours_total.value" 
+                        wire:change="save"
+                        class="w-24 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-2">
+                    <span class="text-sm text-gray-500">часов в неделю</span>
+                </div>
+            @endif
+        </div>
+    </div>
+
     {{-- Working Days --}}
+
     @php
         $dayLabels = [1 => 'Пн', 2 => 'Вт', 3 => 'Ср', 4 => 'Чт', 5 => 'Пт', 6 => 'Сб', 7 => 'Вс'];
     @endphp

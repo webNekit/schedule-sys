@@ -12,9 +12,11 @@ class TeacherDisciplineSemester extends Model
     protected $fillable = [
         'teacher_discipline_id',
         'curriculum_semester_id',
+        'group_id',
         'planned_hours',
         'actual_hours',
         'is_active',
+        'sort_order',
     ];
 
     protected function casts(): array
@@ -23,6 +25,7 @@ class TeacherDisciplineSemester extends Model
             'planned_hours' => 'integer',
             'actual_hours' => 'integer',
             'is_active' => 'boolean',
+            'sort_order' => 'integer',
         ];
     }
 
@@ -34,5 +37,10 @@ class TeacherDisciplineSemester extends Model
     public function curriculumSemester(): BelongsTo
     {
         return $this->belongsTo(CurriculumSemester::class);
+    }
+
+    public function group(): BelongsTo
+    {
+        return $this->belongsTo(Group::class);
     }
 }

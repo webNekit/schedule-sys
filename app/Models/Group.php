@@ -147,14 +147,24 @@ class Group extends Model
         return max(1, $course);
     }
 
-    public function getCurrentSemester(): int
+    public function getCurrentSemester(?Carbon $date = null): int
     {
-        $now = Carbon::now();
-        $yearStart = $this->academicYear?->date_start
-            ? Carbon::parse($this->academicYear->date_start)
-            : Carbon::createFromDate($now->year, 9, 1);
+        $date = $date ?? Carbon::now();
+        
+        // Пытаемся найти учебный год, который охватывает данную дату.
+        // Если привязанный к группе год не подходит, ищем в базе текущий или подходящий по датам.
+        $academicYear = $this->academicYear;
+        if (! $academicYear || $date->lessThan(Carbon::parse($academicYear->date_start)) || $date->greaterThan(Carbon::parse($academicYear->date_end))) {
+            $academicYear = AcademicYear::where('date_start', '<=', $date->toDateString())
+                ->where('date_end', '>=', $date->toDateString())
+                ->first() ?? AcademicYear::where('is_current', true)->first() ?? $this->academicYear;
+        }
 
-        $isFirstSemester = $now->lessThan($yearStart->copy()->addMonths(6));
+        $yearStart = $academicYear?->date_start
+            ? Carbon::parse($academicYear->date_start)
+            : Carbon::createFromDate($date->year, 9, 1);
+
+        $isFirstSemester = $date->lessThan($yearStart->copy()->addMonths(6));
 
         return $isFirstSemester
             ? $this->current_course * 2 - 1
@@ -210,6 +220,18 @@ class Group extends Model
         return [];
     }
 
+    public function getWeeklyHours(): int
+    {
+        $setting = SystemSetting::where('key', 'weekly_hours_total')->first();
+
+        return $setting ? (int) $setting->value : 36;
+    }
+
+    public function getWeeklyPairs(): int
+    {
+        return (int) ceil($this->getWeeklyHours() / 2);
+    }
+
     public function promote(): void
     {
         $this->increment('current_course');
@@ -222,15 +244,36 @@ class Group extends Model
 
     public function isOnPractice(Carbon $date): bool
     {
+        return $this->getCalendarBlock($date) !== null;
+    }
+
+    public function getCalendarBlock(Carbon $date): ?CurriculumPractice
+    {
         $assignment = $this->curriculumAssignments()->where('is_active', true)->first();
         if (! $assignment) {
-            return false;
+            return null;
         }
 
-        return CurriculumPractice::where('curriculum_plan_id', $assignment->curriculum_plan_id)
+        $practices = CurriculumPractice::where('curriculum_plan_id', $assignment->curriculum_plan_id)
             ->where('course_number', $this->current_course)
-            ->where('start_date', '<=', $date->format('Y-m-d'))
-            ->where('end_date', '>=', $date->format('Y-m-d'))
-            ->exists();
+            ->get();
+
+        foreach ($practices as $p) {
+            $pStart = Carbon::parse($p->start_date);
+            $pEnd = Carbon::parse($p->end_date);
+
+            $pYearOffset = ($pStart->month < 9) ? $pStart->year - 1 : $pStart->year;
+            $dYearOffset = ($date->month < 9) ? $date->year - 1 : $date->year;
+            $yearDiff = $dYearOffset - $pYearOffset;
+
+            $normalizedStart = $pStart->copy()->addYears($yearDiff);
+            $normalizedEnd = $pEnd->copy()->addYears($yearDiff);
+
+            if ($date->between($normalizedStart, $normalizedEnd)) {
+                return $p;
+            }
+        }
+
+        return null;
     }
 }

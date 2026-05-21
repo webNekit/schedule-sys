@@ -1,4 +1,6 @@
 <div class="space-y-6">
+    <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.2/Sortable.min.js"></script>
+
     <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between">
         <div>
             <div class="flex items-center gap-3">
@@ -29,235 +31,162 @@
     </div>
 
     <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div class="rounded-xl bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 px-5 py-4">
+        <div class="rounded-xl bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 px-5 py-4 shadow-sm">
             <p class="text-xs font-medium text-gray-400 uppercase tracking-wider">Специальность</p>
             <p class="mt-1 text-base font-semibold text-gray-900 dark:text-white">{{ $plan->specialty?->short_name ?? '—' }}</p>
         </div>
-        <div class="rounded-xl bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 px-5 py-4">
+        <div class="rounded-xl bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 px-5 py-4 shadow-sm">
             <p class="text-xs font-medium text-gray-400 uppercase tracking-wider">Учебный год</p>
-            <p class="mt-1 text-base font-semibold text-gray-900 dark:text-white">Учебный год {{ $plan->academicYear?->name ?? '—' }}</p>
+            <p class="mt-1 text-base font-semibold text-gray-900 dark:text-white">{{ $plan->academicYear?->name ?? '—' }}</p>
         </div>
-        <div class="rounded-xl bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 px-5 py-4">
+        <div class="rounded-xl bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 px-5 py-4 shadow-sm">
             <p class="text-xs font-medium text-gray-400 uppercase tracking-wider">Всего часов</p>
-            <p class="mt-1 text-base font-semibold text-gray-900 dark:text-white">{{ number_format((float)$plan->total_hours, 0, '.', ' ') }}</p>
+            <p class="mt-1 text-base font-semibold text-emerald-600">{{ number_format((float)$plan->total_hours, 0, '.', ' ') }}</p>
         </div>
     </div>
 
-    @if($plan->practices && $plan->practices->isNotEmpty())
-    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
-        <div class="flex items-center justify-between mb-5">
-            <h3 class="font-bold text-gray-900 dark:text-white text-lg">Календарный график практик</h3>
-            <div class="flex items-center gap-4 text-xs font-medium">
-                <span class="flex items-center gap-1.5 text-indigo-600"><span class="w-2.5 h-2.5 rounded-full bg-indigo-500"></span>Учебная (У)</span>
-                <span class="flex items-center gap-1.5 text-pink-600"><span class="w-2.5 h-2.5 rounded-full bg-pink-500"></span>Производственная (П)</span>
-                <span class="flex items-center gap-1.5 text-amber-600"><span class="w-2.5 h-2.5 rounded-full bg-amber-500"></span>Преддипломная (Пд)</span>
-                <span class="flex items-center gap-1.5 text-red-600"><span class="w-2.5 h-2.5 rounded-full bg-red-500"></span>Подг./Сдача ГИА (Гп/Дп)</span>
-            </div>
+    @if (session('message'))
+        <div class="p-3 bg-emerald-50 dark:bg-emerald-900/30 border border-emerald-200 dark:border-emerald-800 rounded-lg text-sm text-emerald-700 dark:text-emerald-300">
+            {{ session('message') }}
         </div>
-
-        <div class="flex flex-wrap gap-3">
-            @foreach($plan->practices->sortBy(['course_number', 'start_date']) as $practice)
-                @php
-                    $type = $practice->type;
-                    $sym = mb_strtolower(trim((string)$practice->symbol));
-                    
-                    if ($type === 'edu_practice' || $sym === 'у') {
-                        $colorClass = 'bg-indigo-50/50 border-indigo-200 text-indigo-800';
-                        $label = 'Учебная (У)';
-                    } elseif ($type === 'prod_practice' || $sym === 'п' || $sym === 'пп') {
-                        $colorClass = 'bg-pink-50/50 border-pink-200 text-pink-800';
-                        $label = 'Производственная (П)';
-                    } elseif ($type === 'pre_diploma' || $sym === 'пд') {
-                        $colorClass = 'bg-amber-50/50 border-amber-200 text-amber-800';
-                        $label = 'Преддипломная (ПД)';
-                    } elseif ($sym === 'гп') {
-                        $colorClass = 'bg-red-50/50 border-red-200 text-red-800';
-                        $label = 'Подготовка ГИА (ГП)';
-                    } elseif ($sym === 'дп') {
-                        $colorClass = 'bg-red-50/50 border-red-200 text-red-800';
-                        $label = 'Сдача ГИА (ДП)';
-                    } else {
-                        $colorClass = 'bg-red-50/50 border-red-200 text-red-800';
-                        $label = mb_strtoupper($practice->symbol);
-                    }
-                @endphp
-                <div class="inline-flex flex-col px-4 py-2.5 rounded-xl text-sm border {{ $colorClass }}">
-                    <span class="font-bold mb-1">{{ $practice->course_number }} курс • {{ $label }}</span>
-                    <span class="opacity-80 font-medium tracking-wide">
-                        {{ \Carbon\Carbon::parse($practice->start_date)->format('d.m.Y') }} — 
-                        {{ \Carbon\Carbon::parse($practice->end_date)->format('d.m.Y') }}
-                    </span>
-                </div>
-            @endforeach
-        </div>
-    </div>
     @endif
 
-    {{-- Экзаменационные сессии --}}
-    @php
-        $examSemesters = $plan->disciplines
-            ->flatMap(fn($d) => $d->semesters)
-            ->filter(fn($s) => $s->exam_hours > 0)
-            ->groupBy('course_number')
-            ->sortKeys();
-    @endphp
-    @if($examSemesters->isNotEmpty())
-    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-5">
-        <div class="flex items-center justify-between mb-4">
-            <h3 class="font-semibold text-gray-900 dark:text-white text-lg">Экзаменационные сессии</h3>
-            <div class="flex items-center gap-3 text-xs font-medium">
-                <span class="flex items-center gap-1.5 text-purple-700 dark:text-purple-400"><span class="w-2.5 h-2.5 rounded-full bg-purple-500"></span>Экзамен</span>
-                <span class="flex items-center gap-1.5 text-rose-700 dark:text-rose-400"><span class="w-2.5 h-2.5 rounded-full bg-rose-500"></span>Диф. зачёт</span>
-                <span class="flex items-center gap-1.5 text-yellow-700 dark:text-yellow-400"><span class="w-2.5 h-2.5 rounded-full bg-yellow-500"></span>Зачёт</span>
+    {{-- График учебного процесса --}}
+    <div class="rounded-xl bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 overflow-hidden shadow-sm">
+        <div class="px-5 py-4 border-b border-gray-100 dark:border-gray-700 bg-gray-50/50 flex items-center justify-between">
+            <h3 class="font-bold text-gray-900 dark:text-white">Календарный график учебного процесса</h3>
+            <div class="flex items-center gap-4 text-[10px] font-bold uppercase tracking-widest">
+                <span class="flex items-center gap-1.5 text-indigo-600"><span class="w-2 h-2 rounded-full bg-indigo-500"></span>Учебная</span>
+                <span class="flex items-center gap-1.5 text-pink-600"><span class="w-2 h-2 rounded-full bg-pink-500"></span>Производственная</span>
+                <span class="flex items-center gap-1.5 text-amber-600"><span class="w-2 h-2 rounded-full bg-amber-500"></span>Преддипломная</span>
+                <span class="flex items-center gap-1.5 text-purple-600"><span class="w-2 h-2 rounded-full bg-purple-500"></span>Сессия</span>
+                <span class="flex items-center gap-1.5 text-red-600"><span class="w-2 h-2 rounded-full bg-red-500"></span>ГИА</span>
             </div>
         </div>
-        <div class="flex flex-wrap gap-3">
-            @foreach($examSemesters as $course => $sems)
-                @php
-                    $courseSems = $sems->pluck('semester_number')->unique()->sort();
-                @endphp
-                @foreach($courseSems as $semNum)
-                    @php
-                        $semSems = $sems->filter(fn($s) => $s->semester_number === $semNum);
-                        $hasExam = $semSems->contains(fn($s) => $s->controlForm?->code === 'exam' || $s->controlForm?->is_exam_session);
-                        $hasDiff = $semSems->contains(fn($s) => $s->controlForm?->code === 'diff_test');
-                        $hasTest = $semSems->contains(fn($s) => $s->controlForm?->code === 'test');
-                        $blockColor = match (true) {
-                            $hasExam => 'bg-purple-50/50 border-purple-200 text-purple-800 dark:bg-purple-900/20 dark:border-purple-800 dark:text-purple-300',
-                            $hasDiff => 'bg-rose-50/50 border-rose-200 text-rose-800 dark:bg-rose-900/20 dark:border-rose-800 dark:text-rose-300',
-                            default => 'bg-yellow-50/50 border-yellow-200 text-yellow-800 dark:bg-yellow-900/20 dark:border-yellow-800 dark:text-yellow-300',
-                        };
-                        $examNames = $semSems->filter(fn($s) => $s->controlForm?->code === 'exam' || $s->controlForm?->is_exam_session)->pluck('discipline.short_name');
-                        $diffNames = $semSems->filter(fn($s) => $s->controlForm?->code === 'diff_test')->pluck('discipline.short_name');
-                        $testNames = $semSems->filter(fn($s) => $s->controlForm?->code === 'test')->pluck('discipline.short_name');
-                        $parts = [];
-                        if ($examNames->isNotEmpty()) $parts[] = 'Экзамены: '.$examNames->implode(', ');
-                        if ($diffNames->isNotEmpty()) $parts[] = 'Диф. зачёты: '.$diffNames->implode(', ');
-                        if ($testNames->isNotEmpty()) $parts[] = 'Зачёты: '.$testNames->implode(', ');
-                    @endphp
-                    <div class="inline-flex flex-col px-4 py-2.5 rounded-xl text-sm border {{ $blockColor }}">
-                        <span class="font-bold mb-0.5">{{ $course }} курс • {{ $semNum }} семестр</span>
-                        <span class="text-xs opacity-80">{!! implode('<br>', $parts) !!}</span>
-                    </div>
-                @endforeach
-            @endforeach
-        </div>
-    </div>
-    @endif
-
-    <div class="rounded-xl bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 overflow-hidden">
-        <div class="p-4 border-b border-gray-100 dark:border-gray-700">
-            <div class="flex flex-col sm:flex-row gap-3">
-                <select wire:model.live="courseFilter" class="w-full sm:w-auto rounded-lg border border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-700 px-3 py-2 text-sm focus:border-emerald-500 focus:ring-1 outline-none">
-                    <option value="">Все курсы</option>
-                    @foreach($this->availableCourses as $course)
-                        <option value="{{ $course }}">{{ $course }} курс</option>
-                    @endforeach
-                </select>
-                <select wire:model.live="semesterFilter" class="w-full sm:w-auto rounded-lg border border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-700 px-3 py-2 text-sm focus:border-emerald-500 focus:ring-1 outline-none">
-                    <option value="">Все семестры</option>
-                    @foreach($this->availableSemesters as $semester)
-                        <option value="{{ $semester }}">{{ $semester }} семестр</option>
-                    @endforeach
-                </select>
-                <select wire:model.live="teacherFilter" class="w-full sm:w-auto rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-2 text-sm focus:border-emerald-500 focus:ring-1 outline-none">
-                    <option value="">Все преподаватели</option>
-                    @foreach($this->teachersForFilter as $t)
-                        <option value="{{ $t->id }}">{{ $t->short_name }}</option>
-                    @endforeach
-                </select>
-                <div class="flex-1 relative">
-                    <svg class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
-                    <input type="text" wire:model.live="disciplineSearch" placeholder="Поиск дисциплины..." class="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 pl-10 pr-4 py-2 text-sm focus:border-emerald-500 focus:ring-1 outline-none">
-                </div>
-            </div>
-        </div>
-
         <div class="overflow-x-auto">
-            <table class="w-full text-sm">
+            <table class="w-full text-xs">
                 <thead>
-                    <tr class="border-b border-gray-200 dark:border-gray-700 bg-white">
-                        <th class="text-left px-4 py-3 font-medium text-gray-500 w-10">#</th>
-                        <th class="text-left px-4 py-3 font-medium text-gray-500 min-w-[300px]">Дисциплина</th>
-                        <th class="text-center px-2 py-3 font-medium text-gray-500 w-12">Курс</th>
-                        <th class="text-center px-2 py-3 font-medium text-gray-500 w-12">Сем</th>
-                        <th class="text-center px-2 py-3 font-medium text-gray-500 w-12">Лекц</th>
-                        <th class="text-center px-2 py-3 font-medium text-gray-500 w-12">Прак</th>
-                        <th class="text-center px-2 py-3 font-medium text-gray-500 w-12">Лаб</th>
-                        <th class="text-center px-2 py-3 font-medium text-gray-500 w-12">СРС</th>
-                        <th class="text-center px-2 py-3 font-medium text-gray-500 w-16">Всего</th>
-                        <th class="text-center px-3 py-3 font-medium text-gray-500 w-24">Контроль</th>
-                        <th class="text-left px-4 py-3 font-medium text-gray-500 min-w-[220px]">Преподаватель / Группа</th>
+                    <tr class="bg-gray-50/80 dark:bg-gray-800/80 border-b border-gray-200 dark:border-gray-700 text-gray-500 font-medium">
+                        <th class="px-5 py-3 text-left w-10">#</th>
+                        <th class="px-2 py-3 text-center w-20">Курс</th>
+                        <th class="px-4 py-3 text-left min-w-[200px]">Вид деятельности</th>
+                        <th class="px-4 py-3 text-center w-48">Период</th>
+                        <th class="px-4 py-3 text-center w-24">Символ</th>
+                        <th class="px-4 py-3 text-right w-32">Действие</th>
                     </tr>
                 </thead>
                 <tbody class="divide-y divide-gray-100 dark:divide-gray-700">
-                    @forelse($semesters as $semester)
-                        @php
-                            $d = $semester->discipline;
-                            $teacherAssignments = $d->teacherDisciplines;
-                            $isNonSchedulable = $this->isNonSchedulable((bool)$d->is_schedulable);
-                            $isTrueHeader = empty($semester->hours_total) || preg_match('/^ПМ\.\d+$/ui', $d->code) || in_array($d->code, ['ОП', 'ОГСЭ', 'ЕН', 'ОД']);
-                        @endphp
-                        <tr class="{{ $isNonSchedulable ? 'bg-gray-50/60 font-medium' : 'hover:bg-gray-50/40' }}">
-                            <td class="px-4 py-3 text-gray-400 text-xs">{{ $loop->index + 1 }}</td>
+                    @php
+                        $calendarRows = collect();
+                        
+                        // Добавляем практики
+                        foreach($plan->practices as $p) {
+                            if ($p->type === 'exam_session') continue; // Обрабатываем сессии отдельно
+                            
+                            $type = $p->type;
+                            $sym = mb_strtolower(trim((string)$p->symbol));
+                            $color = 'text-gray-600';
+                            $label = $p->name ?: 'Практика';
+                            
+                            if ($type === 'edu_practice' || $sym === 'у') {
+                                $color = 'text-indigo-600 bg-indigo-50 dark:bg-indigo-900/20';
+                                $label = 'Учебная практика';
+                            } elseif ($type === 'prod_practice' || $sym === 'п' || $sym === 'пп') {
+                                $color = 'text-pink-600 bg-pink-50 dark:bg-pink-900/20';
+                                $label = 'Производственная практика';
+                            } elseif ($type === 'pre_diploma' || $sym === 'пд') {
+                                $color = 'text-amber-600 bg-amber-50 dark:bg-amber-900/20';
+                                $label = 'Преддипломная практика';
+                            } elseif ($sym === 'гп' || $sym === 'дп') {
+                                $color = 'text-red-600 bg-red-50 dark:bg-red-900/20';
+                                $label = 'Государственная итоговая аттестация';
+                            }
+                            
+                            $calendarRows->push([
+                                'id' => $p->id,
+                                'course' => $p->course_number,
+                                'semester' => null,
+                                'label' => $label,
+                                'start' => $p->start_date,
+                                'end' => $p->end_date,
+                                'symbol' => mb_strtoupper($p->symbol),
+                                'color' => $color,
+                                'type' => 'practice',
+                                'sort' => $p->course_number . '_' . $p->start_date
+                            ]);
+                        }
+                        
+                        // Добавляем сессии
+                        $examSemesters = $plan->disciplines
+                            ->flatMap(fn($d) => $d->semesters)
+                            ->filter(fn($s) => $s->exam_hours > 0)
+                            ->groupBy(fn($s) => $s->course_number . '_' . $s->semester_number);
+                            
+                        foreach($examSemesters as $key => $sems) {
+                            $first = $sems->first();
+                            $existingExam = $plan->practices->where('type', 'exam_session')
+                                ->where('course_number', $first->course_number)
+                                ->where('symbol', 'Э') // Можно добавить семестр в модель практики если нужно, но пока по курсу/символу
+                                ->first();
+
+                            $calendarRows->push([
+                                'id' => $existingExam?->id,
+                                'course' => $first->course_number,
+                                'semester' => $first->semester_number,
+                                'label' => 'Экзаменационная сессия (' . $first->semester_number . ' семестр)',
+                                'start' => $existingExam?->start_date,
+                                'end' => $existingExam?->end_date,
+                                'symbol' => 'Э',
+                                'color' => 'text-purple-600 bg-purple-50 dark:bg-purple-900/20',
+                                'hours' => $sems->sum('exam_hours'),
+                                'type' => 'exam',
+                                'sort' => $first->course_number . '_exam_' . $first->semester_number
+                            ]);
+                        }
+                        
+                        $sortedRows = $calendarRows->sortBy('sort');
+                    @endphp
+                    
+                    @forelse($sortedRows as $row)
+                        <tr class="hover:bg-gray-50/50 dark:hover:bg-gray-700/20 transition-colors">
+                            <td class="px-5 py-3 text-gray-400 font-mono">{{ $loop->index + 1 }}</td>
+                            <td class="px-2 py-3 text-center">
+                                <span class="px-2 py-1 rounded-lg bg-gray-100 dark:bg-gray-700 font-bold text-gray-700 dark:text-gray-300">
+                                    {{ $row['course'] }} курс
+                                </span>
+                            </td>
                             <td class="px-4 py-3">
-                                <div>
-                                    <p class="text-gray-900 dark:text-white {{ $isNonSchedulable && $isTrueHeader ? 'font-bold' : '' }}">{{ $d->name }}</p>
-                                    @if($d->code)
-                                        <p class="text-[11px] text-gray-400 mt-0.5 font-mono uppercase tracking-widest">{{ $d->code }}</p>
+                                <div class="flex items-center gap-2">
+                                    <span class="px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-widest {{ $row['color'] }}">
+                                        {{ $row['label'] }}
+                                    </span>
+                                    @if(isset($row['hours']))
+                                        <span class="text-[10px] text-gray-400 font-bold">({{ $row['hours'] }} ч.)</span>
                                     @endif
                                 </div>
                             </td>
-                            
-                            @if($isNonSchedulable)
-                                <td colspan="6"></td>
-                                <td class="px-2 py-3 text-center">
-                                    @if($isTrueHeader)
-                                        <span class="text-xs text-gray-400 block whitespace-nowrap">Всего по циклу:</span>
-                                    @else
-                                        <span class="text-[10px] uppercase tracking-wide text-amber-500 block whitespace-nowrap">Вне сетки пар</span>
-                                    @endif
-                                    <span class="font-bold text-gray-900">{{ $semester->hours_total }} ч.</span>
-                                </td>
-                                <td colspan="2"></td>
-                            @else
-                                <td class="px-2 py-3 text-center text-gray-600">{{ $semester->course_number }}</td>
-                                <td class="px-2 py-3 text-center font-bold text-gray-900">{{ $semester->semester_number }}</td>
-                                <td class="px-2 py-3 text-center text-gray-600">{{ $semester->hours_lecture ?: '—' }}</td>
-                                <td class="px-2 py-3 text-center text-gray-600">{{ $semester->hours_practice ?: '—' }}</td>
-                                <td class="px-2 py-3 text-center text-gray-600">{{ $semester->hours_lab ?: '—' }}</td>
-                                <td class="px-2 py-3 text-center text-gray-600">{{ $semester->hours_self_study ?: '—' }}</td>
-                                <td class="px-2 py-3 text-center font-bold text-emerald-600">{{ $semester->hours_total ?: '—' }}</td>
-                                
-                                <td class="px-3 py-3 text-center">
-                                    @if($semester->controlForm)
-                                        <span class="inline-flex items-center px-2 py-1 rounded text-xs font-medium {{ $semester->controlForm->is_exam_session ? 'bg-red-100 text-red-700' : 'bg-purple-100 text-purple-700' }}">
-                                            {{ $semester->controlForm->short_name ?? $semester->controlForm->name }}
-                                        </span>
-                                    @else
-                                        <span class="text-gray-300">—</span>
-                                    @endif
-                                </td>
-                                
-                                <td class="px-4 py-3">
-                                    <div class="flex flex-wrap items-center gap-1.5">
-                                        @foreach($teacherAssignments as $td)
-                                            <span class="inline-flex items-center gap-1 px-2 py-1 rounded-full border border-gray-200 text-[11px] text-gray-700">
-                                                <span class="font-medium">{{ $td->teacher?->short_name ?? '?' }}</span>
-                                                <button wire:click="removeAssignment({{ $td->id }})" wire:confirm="Отвязать преподавателя?" class="ml-1 text-gray-400 hover:text-red-500">✕</button>
-                                            </span>
-                                        @endforeach
-                                        
-                                        <button wire:click="openAssignModal({{ $d->id }}, '{{ addslashes($d->name) }}')" class="inline-flex items-center justify-center w-6 h-6 rounded-full bg-emerald-50 text-emerald-600 border border-emerald-200 hover:bg-emerald-500 hover:text-white transition-colors" title="Назначить преподавателя">
-                                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
-                                        </button>
-                                    </div>
-                                </td>
-                            @endif
+                            <td class="px-4 py-3 text-center text-gray-600 dark:text-gray-400 font-medium">
+                                @if($row['start'] && $row['end'])
+                                    {{ \Carbon\Carbon::parse($row['start'])->format('d.m.Y') }} — {{ \Carbon\Carbon::parse($row['end'])->format('d.m.Y') }}
+                                @else
+                                    <span class="text-gray-300 italic">даты не назначены</span>
+                                @endif
+                            </td>
+                            <td class="px-4 py-3 text-center">
+                                <span class="font-black text-gray-900 dark:text-white">{{ $row['symbol'] }}</span>
+                            </td>
+                            <td class="px-4 py-3 text-right">
+                                @if($row['type'] === 'exam')
+                                    <button wire:click="openExamModal({{ $row['course'] }}, {{ $row['semester'] }})" 
+                                        class="px-3 py-1 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-lg text-[10px] font-bold uppercase hover:bg-emerald-600 hover:text-white transition-all">
+                                        {{ $row['start'] ? 'Изменить' : 'Назначить даты' }}
+                                    </button>
+                                @endif
+                            </td>
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="11" class="px-6 py-12 text-center text-gray-400">Нет дисциплин по фильтрам</td>
+                            <td colspan="6" class="px-5 py-8 text-center text-gray-400 italic">График учебного процесса не заполнен</td>
                         </tr>
                     @endforelse
                 </tbody>
@@ -265,30 +194,273 @@
         </div>
     </div>
 
-    @if($showAssignModal)
-        <div class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40" wire:click.self="closeAssignModal">
-            <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-xl w-full max-w-md overflow-hidden">
-                <div class="p-5 border-b border-gray-200">
-                    <h3 class="text-lg font-semibold">{{ $assignDisciplineName }}</h3>
+    {{-- Список дисциплин --}}
+    <div class="rounded-xl bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 overflow-hidden shadow-sm">
+        <div class="p-4 border-b border-gray-100 dark:border-gray-700 bg-gray-50/50">
+            <div class="flex flex-col sm:flex-row gap-3">
+                <select wire:model.live="courseFilter" class="w-full sm:w-auto rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 px-3 py-2 text-sm focus:border-emerald-500 outline-none">
+                    <option value="">Все курсы</option>
+                    @foreach($this->availableCourses as $course)
+                        <option value="{{ $course }}">{{ $course }} курс</option>
+                    @endforeach
+                </select>
+                <select wire:model.live="semesterFilter" class="w-full sm:w-auto rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 px-3 py-2 text-sm focus:border-emerald-500 outline-none">
+                    <option value="">Все семестры</option>
+                    @foreach($this->availableSemesters as $semester)
+                        <option value="{{ $semester }}">{{ $semester }} семестр</option>
+                    @endforeach
+                </select>
+                <div class="flex-1 relative">
+                    <input type="text" wire:model.live="disciplineSearch" placeholder="Поиск дисциплины..." class="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 pl-4 pr-4 py-2 text-sm focus:border-emerald-500 outline-none">
                 </div>
-                <div class="p-5 space-y-4">
-                    <div class="relative">
-                        <svg class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
-                        <input type="text" wire:model.live.debounce.500ms="teacherSearch" placeholder="Поиск преподавателя..." autofocus
-                            class="w-full rounded-lg border border-gray-300 pl-10 pr-4 py-2.5 text-sm focus:border-emerald-500 focus:ring-1 outline-none">
+            </div>
+        </div>
+
+        <div class="overflow-x-auto">
+            <table class="w-full text-sm">
+                <thead>
+                    <tr class="border-b border-gray-200 dark:border-gray-700 bg-gray-50/50">
+                        <th class="text-left px-4 py-3 font-medium text-gray-500 w-10">#</th>
+                        <th class="text-left px-4 py-3 font-medium text-gray-500 min-w-[300px]">Дисциплина</th>
+                        <th class="text-center px-2 py-3 font-medium text-gray-500 w-16">Курс/Сем</th>
+                        <th class="text-center px-2 py-3 font-medium text-gray-500 w-16">Всего (Дисц)</th>
+                        <th class="text-center px-2 py-3 font-medium text-gray-500 w-12 text-[10px]">Лекц</th>
+                        <th class="text-center px-2 py-3 font-medium text-gray-500 w-12 text-[10px]">Прак</th>
+                        <th class="text-center px-2 py-3 font-medium text-gray-500 w-12 text-[10px]">Лаб</th>
+                        <th class="text-center px-2 py-3 font-medium text-gray-500 w-12 text-[10px]">СРС</th>
+                        <th class="text-center px-2 py-3 font-medium text-gray-500 w-16 font-bold">Семестр</th>
+                        <th class="text-center px-3 py-3 font-medium text-gray-500 w-24">Контроль</th>
+                        <th class="text-left px-4 py-3 font-medium text-gray-500 min-w-[220px]">Нагрузка (Преподаватели)</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-100 dark:divide-gray-700">
+                    @forelse($semesters as $semester)
+                        @php
+                            $d = $semester->discipline;
+                            $totalDisciplineHours = $d->semesters->sum('hours_total');
+                            $semesterAssignments = \App\Models\TeacherDisciplineSemester::where('curriculum_semester_id', $semester->id)
+                                ->whereHas('teacherDiscipline', fn($q) => $q->where('academic_year_id', $plan->academic_year_id))
+                                ->with('teacherDiscipline.teacher')
+                                ->orderBy('sort_order')
+                                ->get();
+                            $isNonSchedulable = $this->isNonSchedulable((bool)$d->is_schedulable);
+                        @endphp
+                        <tr class="hover:bg-gray-50/40 dark:hover:bg-gray-700/30 transition-colors {{ $isNonSchedulable ? 'bg-gray-50/20' : '' }}">
+                            <td class="px-4 py-3 text-gray-400 text-xs">{{ $loop->index + 1 }}</td>
+                            <td class="px-4 py-3">
+                                <div>
+                                    <p class="text-gray-900 dark:text-white font-medium">{{ $d->name }}</p>
+                                    @if($d->code)
+                                        <p class="text-[10px] text-gray-400 mt-0.5 font-mono uppercase tracking-widest">{{ $d->code }}</p>
+                                    @endif
+                                </div>
+                            </td>
+                            
+                            <td class="px-2 py-3 text-center text-gray-500 text-xs">{{ $semester->course_number }} / {{ $semester->semester_number }}</td>
+                            <td class="px-2 py-3 text-center font-bold text-gray-900 dark:text-white">{{ $totalDisciplineHours }}</td>
+                            
+                            @if($isNonSchedulable)
+                                <td colspan="4" class="text-center text-[10px] text-gray-400 uppercase italic">вне сетки</td>
+                                <td class="px-2 py-3 text-center font-bold text-gray-700">{{ $semester->hours_total }}</td>
+                            @else
+                                <td class="px-2 py-3 text-center text-gray-600 dark:text-gray-400">{{ $semester->hours_lecture ?: '—' }}</td>
+                                <td class="px-2 py-3 text-center text-gray-600 dark:text-gray-400">{{ $semester->hours_practice ?: '—' }}</td>
+                                <td class="px-2 py-3 text-center text-gray-600 dark:text-gray-400">{{ $semester->hours_lab ?: '—' }}</td>
+                                <td class="px-2 py-3 text-center text-gray-600 dark:text-gray-400">{{ $semester->hours_self_study ?: '—' }}</td>
+                                <td class="px-2 py-3 text-center font-bold text-emerald-600">{{ $semester->hours_total }}</td>
+                            @endif
+
+                            <td class="px-3 py-3 text-center">
+                                @if($semester->controlForm)
+                                    <span class="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-tight {{ $semester->controlForm->is_exam_session ? 'bg-red-100 text-red-700' : 'bg-emerald-50 text-emerald-600' }}">
+                                        {{ $semester->controlForm->short_name ?? $semester->controlForm->name }}
+                                    </span>
+                                @endif
+                            </td>
+                            
+                            <td class="px-4 py-3">
+                                <div class="flex items-center gap-3">
+                                    <div class="flex flex-wrap gap-1">
+                                        @foreach($semesterAssignments as $a)
+                                            <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-emerald-50 dark:bg-emerald-900/30 border border-emerald-100 dark:border-emerald-800 text-[10px] text-emerald-700 dark:text-emerald-300 font-bold" title="{{ $a->teacherDiscipline->teacher?->full_name }}">
+                                                {{ $a->teacherDiscipline->teacher?->short_name }} ({{ $a->conducted_hours }}/{{ $a->planned_hours }}ч)
+                                            </span>
+                                        @endforeach
+                                    </div>
+                                    
+                                    <button wire:click="openWorkloadManager({{ $d->id }}, '{{ addslashes($d->name) }}')" 
+                                        class="shrink-0 inline-flex items-center justify-center w-7 h-7 rounded-full bg-indigo-50 text-indigo-600 border border-indigo-200 hover:bg-indigo-600 hover:text-white transition-all shadow-sm" 
+                                        title="Управление нагрузкой">
+                                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4"></path></svg>
+                                    </button>
+                                </div>
+                            </td>
+                        </tr>
+                    @empty
+                        <tr><td colspan="11" class="px-6 py-12 text-center text-gray-400 italic font-medium">Дисциплины не найдены</td></tr>
+                    @endforelse
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    {{-- Exam Dates Modal --}}
+    @if($showExamModal)
+        <div class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-900/60 backdrop-blur-sm" wire:click.self="$set('showExamModal', false)">
+            <div class="bg-white dark:bg-gray-800 rounded-3xl shadow-2xl w-full max-w-md overflow-hidden border border-white/10">
+                <div class="px-6 py-4 border-b border-gray-100 dark:border-gray-700 flex items-center justify-between bg-purple-50 dark:bg-purple-900/20">
+                    <h3 class="text-sm font-black text-purple-700 dark:text-purple-400 uppercase tracking-widest">Назначение дат сессии</h3>
+                    <button wire:click="$set('showExamModal', false)" class="text-gray-400 hover:text-gray-900 transition-colors"><svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg></button>
+                </div>
+                <div class="p-6 space-y-4">
+                    <div class="bg-gray-50 dark:bg-gray-900/50 p-3 rounded-xl border border-gray-100 dark:border-gray-700 text-xs font-bold text-gray-500">
+                        {{ $examCourse }} курс • {{ $examSemester }} семестр
                     </div>
-                    <div class="max-h-64 overflow-y-auto -mx-5 -mb-5 divide-y divide-gray-100">
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5">Начало</label>
+                            <input type="date" wire:model="examStartDate" class="w-full rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 px-4 py-2.5 text-xs font-bold focus:border-purple-500 outline-none transition-all">
+                        </div>
+                        <div>
+                            <label class="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5">Конец</label>
+                            <input type="date" wire:model="examEndDate" class="w-full rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 px-4 py-2.5 text-xs font-bold focus:border-purple-500 outline-none transition-all">
+                        </div>
+                    </div>
+                    @error('examEndDate') <p class="text-[10px] text-red-500 font-bold uppercase">{{ $message }}</p> @enderror
+                </div>
+                <div class="px-6 py-4 bg-gray-50 dark:bg-gray-900/50 border-t border-gray-100 dark:border-gray-700 flex justify-end gap-3">
+                    <button wire:click="$set('showExamModal', false)" class="text-[10px] font-black text-gray-400 hover:text-gray-900 uppercase">Отмена</button>
+                    <button wire:click="saveExamDates" class="px-6 py-2.5 bg-purple-600 text-white rounded-xl text-[10px] font-black uppercase tracking-widest shadow-lg shadow-purple-600/30 hover:bg-purple-700 transition-all">Сохранить</button>
+                </div>
+            </div>
+        </div>
+    @endif
+
+    {{-- Workload Manager Modal --}}
+    @if($showWorkloadModal)
+        <div class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-900/60 backdrop-blur-sm" wire:click.self="closeAssignModal">
+            <div class="bg-white dark:bg-gray-800 rounded-3xl shadow-2xl w-full max-w-5xl overflow-hidden flex flex-col max-h-[90vh] border border-white/10">
+                <div class="px-8 py-6 border-b border-gray-100 dark:border-gray-700 flex items-center justify-between">
+                    <div>
+                        <h3 class="text-sm font-black text-gray-400 uppercase tracking-widest">Управление нагрузкой</h3>
+                        <p class="text-xl font-bold text-gray-900 dark:text-white mt-1">{{ $assignDisciplineName }}</p>
+                    </div>
+                    <button wire:click="closeAssignModal" class="text-gray-400 hover:text-gray-900 transition-colors"><svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg></button>
+                </div>
+
+                <div class="flex-1 flex overflow-hidden">
+                    <div class="w-64 border-r border-gray-100 dark:border-gray-700 bg-gray-50/30 dark:bg-gray-900/30 p-4 space-y-2 overflow-y-auto">
+                        @foreach($plan->disciplines->find($assignDisciplineId)->semesters->sortBy('semester_number') as $sem)
+                            <button wire:click="selectSemester({{ $sem->id }})" 
+                                class="w-full text-left px-4 py-3 rounded-2xl transition-all font-bold text-xs
+                                {{ $activeSemesterId === $sem->id ? 'bg-emerald-600 text-white shadow-lg' : 'text-gray-400 hover:bg-white dark:hover:bg-gray-700' }}">
+                                {{ $sem->semester_number }} семестр
+                            </button>
+                        @endforeach
+                    </div>
+
+                    <div class="flex-1 bg-white dark:bg-gray-800 p-8 overflow-y-auto custom-scrollbar">
+                        @if($activeSemesterId)
+                            @php
+                                $curSem = \App\Models\CurriculumSemester::find($activeSemesterId);
+                                $assignments = $this->workloadState[$activeSemesterId] ?? [];
+                                $totalAssigned = 0;
+                                foreach($assignments as $a) $totalAssigned += (int)($a['hours'] ?? 0);
+                                $remaining = $curSem->hours_total - $totalAssigned;
+                            @endphp
+
+                            <div class="space-y-8">
+                                <div class="grid grid-cols-3 gap-6">
+                                    <div class="bg-gray-50 dark:bg-gray-900/50 p-4 rounded-2xl border border-gray-100 dark:border-gray-700">
+                                        <p class="text-[9px] font-black text-gray-400 uppercase tracking-widest">План семестра</p>
+                                        <p class="text-2xl font-bold mt-1">{{ $curSem->hours_total }} ч.</p>
+                                    </div>
+                                    <div class="bg-emerald-50/50 dark:bg-emerald-900/10 p-4 rounded-2xl border border-emerald-100/50 dark:border-emerald-500/20">
+                                        <p class="text-[9px] font-black text-emerald-600 uppercase tracking-widest">Распределено</p>
+                                        <p class="text-2xl font-bold mt-1 text-emerald-600">{{ $totalAssigned }} ч.</p>
+                                    </div>
+                                    <div class="flex items-center justify-end">
+                                        <button wire:click="openAssignModal" class="px-6 py-3 bg-gray-900 dark:bg-white dark:text-gray-900 text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:scale-105 active:scale-95 transition-all shadow-xl">
+                                            + СОТРУДНИК
+                                        </button>
+                                    </div>
+                                </div>
+
+                                <div class="space-y-3" x-data="{ init() { 
+                                    new Sortable($refs.list, { 
+                                        animation: 150, handle: '.drag', ghostClass: 'opacity-10', 
+                                        onEnd: (e) => { 
+                                            let ids = Array.from($refs.list.children).map(el => el.getAttribute('data-index'));
+                                            @this.updateSortOrder({{ $activeSemesterId }}, ids);
+                                        } 
+                                    }); 
+                                }}">
+                                    <div x-ref="list" class="space-y-2">
+                                        @foreach($assignments as $idx => $data)
+                                            <div wire:key="teacher-row-{{ $activeSemesterId }}-{{ $idx }}" 
+                                                data-index="{{ $idx }}" 
+                                                class="flex items-center gap-4 p-4 border-2 border-gray-50 dark:border-gray-700 rounded-2xl bg-white dark:bg-gray-800 hover:border-emerald-500/30 transition-all group">
+                                                <div class="drag cursor-grab active:cursor-grabbing text-gray-200 hover:text-emerald-500 transition-colors"><svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M4 8h16M4 16h16"/></svg></div>
+                                                <div class="w-8 h-8 rounded-xl bg-gray-900 text-white flex items-center justify-center font-bold text-sm">{{ $idx + 1 }}</div>
+                                                <div class="flex-1">
+                                                    <p class="text-xs font-bold text-gray-900 dark:text-white uppercase">{{ $data['teacher_name'] }}</p>
+                                                </div>
+                                                <div class="flex items-center gap-2 bg-gray-50 dark:bg-gray-900 px-4 py-2 rounded-xl border border-gray-100 dark:border-gray-700">
+                                                    <input type="number" 
+                                                        wire:model.live.debounce.300ms="workloadState.{{ $activeSemesterId }}.{{ $idx }}.hours" 
+                                                        class="w-16 bg-transparent border-none text-right font-black text-lg p-0 focus:ring-0 text-emerald-600"
+                                                        min="0" step="1">
+                                                    <span class="text-[10px] font-black text-gray-400 uppercase tracking-widest">ЧАСОВ</span>
+                                                </div>
+                                                <button wire:click="removeTeacherFromSemester({{ $activeSemesterId }}, {{ $idx }})" class="p-2 text-gray-200 hover:text-red-500 transition-colors"><svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg></button>
+                                            </div>
+                                        @endforeach
+                                    </div>
+                                </div>
+                            </div>
+                        @endif
+                    </div>
+                </div>
+
+                <div class="px-8 py-6 bg-gray-50 dark:bg-gray-900/50 border-t border-gray-100 dark:border-gray-700 flex justify-end gap-4">
+                    <button wire:click="closeAssignModal" class="text-xs font-bold text-gray-400 hover:text-gray-900 uppercase">Отмена</button>
+                    <button wire:click="saveWorkload" class="px-10 py-4 bg-emerald-600 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-lg shadow-emerald-600/30 hover:bg-emerald-700 transition-all">СОХРАНИТЬ</button>
+                </div>
+            </div>
+        </div>
+    @endif
+
+    {{-- Teacher Selection Overlay --}}
+    @if($showAssignModal)
+        <div class="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-gray-900/80 backdrop-blur-md" wire:click.self="$set('showAssignModal', false)">
+            <div class="bg-white dark:bg-gray-800 rounded-3xl shadow-2xl w-full max-w-md overflow-hidden border border-white/5">
+                <div class="p-6 border-b border-gray-50 dark:border-gray-700">
+                    <h3 class="text-xs font-black uppercase tracking-widest text-center">Выбор преподавателя</h3>
+                </div>
+                <div class="p-6 space-y-4">
+                    <input type="text" wire:model.live.debounce.300ms="teacherSearch" placeholder="ПОИСК..." autofocus
+                        class="w-full rounded-xl border border-gray-100 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 px-4 py-3 text-xs font-bold focus:border-emerald-500 outline-none">
+                    
+                    <div class="max-h-64 overflow-y-auto space-y-1 custom-scrollbar">
                         @forelse($searchableTeachers as $teacher)
-                            <button type="button" wire:click="selectAndAssign({{ $teacher->id }})" class="w-full text-left px-5 py-2.5 text-sm hover:bg-emerald-50">
-                                <div class="font-medium text-gray-900">{{ $teacher->last_name }} {{ $teacher->first_name }} {{ $teacher->middle_name }}</div>
-                                <div class="text-xs text-gray-500">{{ $teacher->position?->name ?? '—' }}</div>
+                            <button type="button" wire:click="selectAndAssign({{ $teacher->id }})" 
+                                class="w-full text-left px-4 py-3 rounded-xl hover:bg-emerald-50 dark:hover:bg-emerald-900/20 transition-all flex items-center justify-between group">
+                                <div class="text-xs font-bold text-gray-900 dark:text-white uppercase">{{ $teacher->last_name }} {{ $teacher->first_name }}</div>
+                                <svg class="w-4 h-4 text-gray-200 group-hover:text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M9 5l7 7-7 7"/></svg>
                             </button>
                         @empty
-                            <div class="px-5 py-8 text-center text-sm text-gray-400">Преподаватели не найдены</div>
+                            <div class="py-10 text-center text-[10px] font-bold text-gray-300 uppercase">Никого не найдено</div>
                         @endforelse
                     </div>
                 </div>
             </div>
         </div>
     @endif
+
+    <style>
+        .custom-scrollbar::-webkit-scrollbar { width: 3px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #10b981; border-radius: 20px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+        .drag { touch-action: none; }
+    </style>
 </div>

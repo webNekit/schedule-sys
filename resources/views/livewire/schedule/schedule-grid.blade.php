@@ -148,16 +148,28 @@
         <div
             class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
             <div
-                class="px-4 py-3 bg-gray-50 dark:bg-gray-900/50 border-b border-gray-200 dark:border-gray-700 font-semibold">
-                @if ($viewMode === 'group')
-                    {{ $entity?->name ?? 'Группа #' . $entityId }}
-                @elseif ($viewMode === 'teacher')
-                    {{ $entity?->last_name ?? 'Преподаватель' }} {{ $entity?->first_name ?? '' }}
-                @elseif ($viewMode === 'department')
-                    {{ $entity?->name ?? 'Группа #' . $entityId }}
-                @else
-                    {{ $entity?->name ?? 'Аудитория #' . $entityId }}
-                @endif
+                class="px-4 py-3 bg-gray-50 dark:bg-gray-900/50 border-b border-gray-200 dark:border-gray-700 font-semibold flex items-center justify-between">
+                <div>
+                    @if ($viewMode === 'group' || $viewMode === 'department')
+                        @php
+                            $targetHours = $entity instanceof \App\Models\Group ? $entity->getWeeklyHours() : 0;
+                            $actualHours = $lessons->count() * 2;
+                            $hourStatusClass = $actualHours === $targetHours ? 'text-emerald-600' : ($actualHours > $targetHours ? 'text-amber-600' : 'text-red-600');
+                        @endphp
+                        <div class="flex items-center gap-3">
+                            <span>{{ $entity?->name ?? 'Группа #' . $entityId }}</span>
+                            @if ($targetHours > 0)
+                                <span class="text-xs font-medium px-2 py-0.5 bg-white dark:bg-gray-800 rounded border border-gray-200 dark:border-gray-700 shadow-sm">
+                                    Нагрузка: <span class="{{ $hourStatusClass }} font-bold">{{ $actualHours }}</span> / {{ $targetHours }} ч.
+                                </span>
+                            @endif
+                        </div>
+                    @elseif ($viewMode === 'teacher')
+                        {{ $entity?->last_name ?? 'Преподаватель' }} {{ $entity?->first_name ?? '' }}
+                    @else
+                        {{ $entity?->name ?? 'Аудитория #' . $entityId }}
+                    @endif
+                </div>
             </div>
             <div class="overflow-x-auto">
                 <table class="w-full text-sm">
@@ -181,9 +193,43 @@
                                     @php
                                         $date = Carbon\Carbon::parse($weekStart)->addDays($dayOffset)->format('Y-m-d');
                                         $cellLessons = array_filter($lessons->toArray(), fn($l) => $l['date'] === $date && $l['lesson_number'] === $lessonNum);
+                                        
+                                        $practiceInfo = null;
+                                        if (($viewMode === 'group' || $viewMode === 'department') && isset($practiceData[$entityId])) {
+                                            $practiceInfo = collect($practiceData[$entityId])->first(function($p) use ($date) {
+                                                return $date >= $p['start'] && $date <= $p['end'];
+                                            });
+                                        }
                                     @endphp
                                     <td
-                                        class="px-3 py-2 border-l border-gray-100 dark:border-gray-700 align-top min-w-[140px] relative">
+                                        class="px-3 py-2 border-l border-gray-100 dark:border-gray-700 align-top min-w-[140px] relative {{ $practiceInfo ? 'bg-indigo-50/20 dark:bg-indigo-900/10' : '' }}">
+                                        @if ($practiceInfo && $lessonNum === 1)
+                                            @php
+                                                $pSym = mb_strtolower(trim($practiceInfo['symbol']));
+                                                $pType = $practiceInfo['type'];
+                                                $pLabel = match(true) {
+                                                    $pType === 'edu_practice' || $pSym === 'у' => 'УЧЕБНАЯ ПРАКТИКА',
+                                                    $pType === 'prod_practice' || $pSym === 'п' || $pSym === 'пп' => 'ПРОИЗВОДСТВЕННАЯ ПРАКТИКА',
+                                                    $pType === 'pre_diploma' || $pSym === 'пд' => 'ПРЕДДИПЛОМНАЯ ПРАКТИКА',
+                                                    $pType === 'exam_session' || $pSym === 'э' => 'ЭКЗАМЕНАЦИОННАЯ СЕССИЯ',
+                                                    $pSym === 'гп' => 'ПОДГОТОВКА ГИА',
+                                                    $pSym === 'дп' => 'СДАЧА ГИА',
+                                                    default => 'ПРАКТИКА (' . mb_strtoupper($pSym) . ')',
+                                                };
+                                                $pColor = match(true) {
+                                                    str_contains($pLabel, 'УЧЕБНАЯ') => 'text-indigo-600 bg-indigo-100',
+                                                    str_contains($pLabel, 'ПРОИЗВОДСТВЕННАЯ') => 'text-pink-600 bg-pink-100',
+                                                    str_contains($pLabel, 'ПРЕДДИПЛОМНАЯ') => 'text-amber-600 bg-amber-100',
+                                                    str_contains($pLabel, 'СЕССИЯ') => 'text-purple-600 bg-purple-100',
+                                                    str_contains($pLabel, 'ГИА') => 'text-red-600 bg-red-100',
+                                                    default => 'text-gray-600 bg-gray-100',
+                                                };
+                                            @endphp
+                                            <div class="absolute inset-x-0 top-0 z-10 px-1 py-0.5 text-[9px] font-bold text-center uppercase tracking-tighter {{ $pColor }} rounded-b shadow-sm">
+                                                {{ $pLabel }}
+                                            </div>
+                                        @endif
+
                                         @foreach ($cellLessons as $lesson)
                                             @php
                                                 $isHl = in_array($lesson['id'], $highlightedLessonIds);
@@ -195,26 +241,28 @@
                                                 };
                                                 $discCode = trim($lesson['discipline']['code'] ?? '');
                                                 $discName = trim($lesson['discipline']['name'] ?? '—');
+                                                $ltCode = $lesson['lesson_type']['code'] ?? '';
                                                 $isMdk = preg_match('/^МДК/ui', $discCode);
-                                                $isPractice = preg_match('/^(УП|ПП|ПДП|ГИА)/ui', $discCode);
-                                                $isExam = !$isPractice && (preg_match('/^Э/ui', $discCode) || mb_strpos(mb_strtolower($discName), 'экзамен') !== false);
+                                                $isPractice = $ltCode === 'edu_practice' || $ltCode === 'prod_practice' || preg_match('/^(УП|ПП|ПДП|ГИА|ГП|ДП)/ui', $discCode);
+                                                $isExam = !$isPractice && ($ltCode === 'exam' || $ltCode === 'test' || $ltCode === 'diff_test' || preg_match('/^Э/ui', $discCode) || mb_strpos(mb_strtolower($discName), 'экзамен') !== false);
+                                                
                                                 $lessonTypeColor = match (true) {
-                                                    preg_match('/^УП/ui', $discCode) => 'border-l-indigo-400 bg-indigo-50/40 dark:bg-indigo-900/15',
-                                                    preg_match('/^ПП/ui', $discCode) => 'border-l-pink-400 bg-pink-50/40 dark:bg-pink-900/15',
-                                                    preg_match('/^ПДП/ui', $discCode) => 'border-l-amber-400 bg-amber-50/40 dark:bg-amber-900/15',
-                                                    preg_match('/^ГИА/ui', $discCode) => 'border-l-red-400 bg-red-50/40 dark:bg-red-900/15',
-                                                    $isExam => 'border-l-purple-400 bg-purple-50/40 dark:bg-purple-900/15',
-                                                    default => $isMdk ? 'border-l-teal-300 bg-teal-50/30 dark:bg-teal-900/10' : 'bg-gray-50 dark:bg-gray-900/50',
+                                                    $ltCode === 'edu_practice' || preg_match('/^УП/ui', $discCode) => 'border-l-indigo-500 bg-indigo-100/50 dark:bg-indigo-900/30 border-l-4',
+                                                    $ltCode === 'prod_practice' || preg_match('/^ПП/ui', $discCode) => 'border-l-pink-500 bg-pink-100/50 dark:bg-pink-900/30 border-l-4',
+                                                    preg_match('/^ПДП/ui', $discCode) => 'border-l-amber-500 bg-amber-100/50 dark:bg-amber-900/30 border-l-4',
+                                                    preg_match('/^(ГИА|ГП|ДП)/ui', $discCode) => 'border-l-red-600 bg-red-100/50 dark:bg-red-900/30 border-l-4',
+                                                    $ltCode === 'exam' || $isExam => 'border-l-purple-600 bg-purple-100/50 dark:bg-purple-900/30 border-l-4',
+                                                    default => $isMdk ? 'border-l-teal-400 bg-teal-50/40 dark:bg-teal-900/20 border-l-2' : 'bg-gray-50 dark:bg-gray-900/50 border-gray-200 dark:border-gray-700',
                                                 };
                                             @endphp
                                             <div class="group relative mb-0.5 p-1.5 pl-2 rounded text-xs leading-tight transition-all duration-300 border cursor-pointer {{ $lessonTypeColor }} {{ $isHl ? '!bg-red-100 dark:!bg-red-900/40 !border-red-500 dark:!border-red-600 ring-2 ring-red-400' : $conflictClasses }}"
                                                 wire:click="editLesson({{ $lesson['id'] }})" @if($isHl) data-hl="true" @endif
                                                 @if($conflictType)
                                                 title="Конфликт: {{ $conflictType == 'error' ? 'Ошибка' : 'Предупреждение' }}" @endif>
-                                                <div class="font-medium text-gray-900 dark:text-white">
-                                                    @if($isMdk || $isPractice)
+                                                <div class="font-bold text-gray-900 dark:text-white">
+                                                    @if($isMdk || $isPractice || $isExam)
                                                         <span title="{{ $discName }}"
-                                                            class="border-b border-dashed border-gray-400 cursor-help">{{ $discCode }}</span>
+                                                            class="border-b border-dashed border-gray-400 cursor-help">{{ $discCode ?: $discName }}</span>
                                                     @else
                                                         <span title="{{ $discCode }}">{{ $discName }}</span>
                                                     @endif

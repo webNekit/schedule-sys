@@ -30,7 +30,7 @@ class ScheduleLessonObserver
 
         // Если назначили нового препода, создаем ему часы
         if (! $isCancelled && (! $tracking || $tracking->teacher_id !== $lesson->teacher_id)) {
-            $semesterId = $this->resolveSemesterId($lesson->discipline_id, $lesson->date, $version->academic_year_id);
+            $semesterId = $this->resolveSemesterId($lesson->group_id, $lesson->discipline_id, $lesson->date);
             if ($semesterId) {
                 HoursTracking::create([
                     'group_id' => $lesson->group_id,
@@ -54,13 +54,21 @@ class ScheduleLessonObserver
         HoursTracking::where('schedule_lesson_id', $lesson->id)->update(['is_cancelled' => true, 'notes' => 'Пара удалена']);
     }
 
-    private function resolveSemesterId(?int $disciplineId, mixed $date, ?int $academicYearId): ?int
+    private function resolveSemesterId(?int $groupId, ?int $disciplineId, mixed $date): ?int
     {
-        if (! $disciplineId) {
+        if (! $groupId || ! $disciplineId) {
             return null;
         }
-        $query = CurriculumSemester::where('discipline_id', $disciplineId);
 
-        return $query->first()?->id;
+        $group = \App\Models\Group::find($groupId);
+        if (! $group) {
+            return null;
+        }
+
+        $semesterNum = $group->getCurrentSemester($date instanceof \Carbon\Carbon ? $date : \Carbon\Carbon::parse($date));
+
+        return CurriculumSemester::where('discipline_id', $disciplineId)
+            ->where('semester_number', $semesterNum)
+            ->first()?->id;
     }
 }

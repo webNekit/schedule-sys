@@ -18,6 +18,51 @@ class Index extends Component
 
     public string $statusFilter = '';
 
+    public array $selectedVersions = [];
+
+    public bool $selectAll = false;
+
+    public function updatedSelectAll(bool $value): void
+    {
+        if ($value) {
+            $this->selectedVersions = ScheduleVersion::query()
+                ->when($this->search, fn($q) => $q->where('name', 'like', '%'.$this->search.'%'))
+                ->when($this->statusFilter, fn($q) => $q->where('status', $this->statusFilter))
+                ->pluck('id')
+                ->map(fn($id) => (string)$id)
+                ->toArray();
+        } else {
+            $this->selectedVersions = [];
+        }
+    }
+
+    public function updatedSelectedVersions(): void
+    {
+        $this->selectAll = false;
+    }
+
+    public function deleteSelected(): void
+    {
+        if (empty($this->selectedVersions)) {
+            return;
+        }
+
+        $versions = ScheduleVersion::whereIn('id', $this->selectedVersions)->get();
+        
+        foreach ($versions as $version) {
+            foreach ($version->lessons as $lesson) {
+                $lesson->delete();
+            }
+            $version->delete();
+        }
+
+        $count = count($this->selectedVersions);
+        $this->selectedVersions = [];
+        $this->selectAll = false;
+
+        session()->flash('message', "Удалено версий расписания: {$count}");
+    }
+
     public function updatedSearch(): void
     {
         $this->resetPage();
@@ -78,8 +123,12 @@ class Index extends Component
     public function deleteVersion(int $id): void
     {
         $version = ScheduleVersion::findOrFail($id);
-        $version->lessons()->delete();
+        foreach ($version->lessons as $lesson) {
+            $lesson->delete();
+        }
         $version->delete();
+
+        $this->selectedVersions = array_diff($this->selectedVersions, [(string)$id, $id]);
 
         session()->flash('message', 'Расписание удалено.');
     }

@@ -22,7 +22,7 @@
         </div>
     @endif
 
-    <div class="rounded-xl bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 overflow-hidden">
+    <div class="rounded-xl bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 overflow-hidden shadow-sm">
         <div class="p-4 border-b border-gray-100 dark:border-gray-700">
             <div class="flex flex-col sm:flex-row gap-3">
                 <div class="flex-1">
@@ -56,10 +56,10 @@
                             <svg class="w-4 h-4 text-gray-400 transition-transform {{ ($expandedDepartments[$department->id] ?? false) ? 'rotate-90' : '' }}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
                             </svg>
-                            <div class="w-8 h-8 rounded-lg bg-indigo-50 dark:bg-indigo-900/30 flex items-center justify-center text-sm font-bold text-indigo-600 dark:text-indigo-400">К</div>
+                            <div class="w-8 h-8 rounded-lg bg-emerald-50 dark:bg-emerald-900/30 flex items-center justify-center text-sm font-bold text-emerald-600 dark:text-emerald-400">К</div>
                             <div class="flex-1">
                                 <p class="font-medium text-gray-900 dark:text-white">{{ $department->name }}</p>
-                                <p class="text-xs text-gray-400 dark:text-gray-500">{{ $department->short_name ?? '' }} • {{ $deptSpecialties->count() }} {{ Str::plural('специальность', $deptSpecialties->count()) }}</p>
+                                <p class="text-xs text-gray-400 dark:text-gray-500">{{ $department->short_name ?? '' }} • {{ $deptSpecialties->count() }} специальностей</p>
                             </div>
                         </button>
 
@@ -75,7 +75,7 @@
                                             </svg>
                                             <div class="flex-1">
                                                 <p class="text-sm font-medium text-gray-900 dark:text-white">{{ $specialty->name }}</p>
-                                                <p class="text-xs text-gray-400 dark:text-gray-500">{{ $specialty->code ?? '' }} • {{ $specialtyPlans->count() }} {{ Str::plural('план', $specialtyPlans->count()) }}</p>
+                                                <p class="text-xs text-gray-400 dark:text-gray-500">{{ $specialty->code ?? '' }} • {{ $specialtyPlans->count() }} планов</p>
                                             </div>
                                         </button>
 
@@ -103,7 +103,7 @@
                                                             </div>
                                                         </a>
                                                         <button wire:click.stop="deletePlan({{ $plan->id }})"
-                                                            wire:confirm="Удалить учебный план? Все связанные с ним дисциплины будут скрыты."
+                                                            wire:confirm="Удалить учебный план? Это действие нельзя отменить."
                                                             class="shrink-0 p-1.5 rounded-lg text-red-400 hover:text-white hover:bg-red-500 transition-colors opacity-0 group-hover:opacity-100"
                                                             title="Удалить план">
                                                             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -125,8 +125,8 @@
                     </div>
                 @endif
             @empty
-                <div class="text-center py-12">
-                    <p class="text-gray-400 dark:text-gray-500">Учебные планы не найдены</p>
+                <div class="text-center py-12 text-gray-400 dark:text-gray-500 italic">
+                    Учебные планы не найдены
                 </div>
             @endforelse
         </div>

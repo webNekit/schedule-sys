@@ -11,6 +11,11 @@
             <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">Версии расписания и управление</p>
         </div>
         <div class="mt-4 sm:mt-0 flex items-center gap-2">
+            @if(!empty($selectedVersions))
+                <button wire:click="deleteSelected" wire:confirm="Удалить выбранные версии ({{ count($selectedVersions) }})? Это действие нельзя отменить." class="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-red-600 hover:bg-red-700 text-white text-sm font-medium transition-colors">
+                    Удалить выбранные ({{ count($selectedVersions) }})
+                </button>
+            @endif
             <a href="{{ route('schedule.generate') }}" class="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium transition-colors">
                 Генерация
             </a>
@@ -47,6 +52,9 @@
             <table class="w-full text-sm">
                 <thead>
                     <tr class="border-b border-gray-100 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-800/50">
+                        <th class="px-6 py-3 text-left">
+                            <input type="checkbox" wire:model.live="selectAll" class="rounded border-gray-300 text-emerald-600 focus:ring-emerald-500">
+                        </th>
                         <th class="text-left px-6 py-3 font-medium text-gray-500 dark:text-gray-400">Название</th>
                         <th class="text-left px-6 py-3 font-medium text-gray-500 dark:text-gray-400">Отделение</th>
                         <th class="text-left px-6 py-3 font-medium text-gray-500 dark:text-gray-400">Учебный год</th>
@@ -57,7 +65,10 @@
                 </thead>
                 <tbody class="divide-y divide-gray-100 dark:divide-gray-700">
                     @forelse($versions as $version)
-                        <tr class="hover:bg-gray-50/50 dark:hover:bg-gray-700/30 transition-colors">
+                        <tr class="hover:bg-gray-50/50 dark:hover:bg-gray-700/30 transition-colors {{ in_array($version->id, $selectedVersions) ? 'bg-emerald-50/30 dark:bg-emerald-900/10' : '' }}">
+                            <td class="px-6 py-4">
+                                <input type="checkbox" wire:model.live="selectedVersions" value="{{ $version->id }}" class="rounded border-gray-300 text-emerald-600 focus:ring-emerald-500">
+                            </td>
                             <td class="px-6 py-4">
                                 <div class="flex items-center gap-3">
                                     <div class="w-8 h-8 rounded-lg bg-cyan-50 dark:bg-cyan-900/30 flex items-center justify-center text-sm font-bold text-cyan-600 dark:text-cyan-400">Р</div>

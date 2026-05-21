@@ -19,20 +19,33 @@ class DayShare extends Component
 
     public array $scheduleData = [];
 
+    public array $practiceData = [];
+
+    public ?int $versionId = null;
+
     public function mount(): void
     {
         $this->departmentId = (int) request()->query('department', 0);
         $this->date = request()->query('date', Carbon::now()->format('Y-m-d'));
+        $this->versionId = request()->query('version') ? (int) request()->query('version') : null;
         $this->loadDay();
     }
 
     public function loadDay(): void
     {
-        $latestVersion = ScheduleVersion::latest()->first();
+        $version = null;
+        if ($this->versionId) {
+            $version = ScheduleVersion::find($this->versionId);
+        }
+        
+        if (! $version) {
+            $version = ScheduleVersion::where('status', 'published')->latest()->first() 
+                      ?? ScheduleVersion::latest()->first();
+        }
 
         $query = ScheduleLesson::with(['group', 'discipline', 'teacher', 'room.building', 'lessonType'])
             ->whereDate('date', $this->date)
-            ->when($latestVersion, fn ($q) => $q->where('version_id', $latestVersion->id));
+            ->when($version, fn ($q) => $q->where('version_id', $version->id));
 
         if ($this->departmentId > 0) {
             $groupIds = Group::where('department_id', $this->departmentId)->pluck('id');
@@ -49,6 +62,53 @@ class DayShare extends Component
 
             return $data;
         })->values()->toArray();
+
+        // Load practice data
+        $this->practiceData = [];
+        $groupIds = $this->departmentId > 0 
+            ? Group::where('department_id', $this->departmentId)->pluck('id')->toArray()
+            : Group::active()->pluck('id')->toArray();
+
+        if (!empty($groupIds)) {
+            $allPractices = \App\Models\CurriculumPractice::whereIn('curriculum_plan_id', function($q) use ($groupIds) {
+                    $q->select('curriculum_plan_id')
+                      ->from('group_curriculum_assignments')
+                      ->whereIn('group_id', $groupIds)
+                      ->where('is_active', true);
+                })
+                ->get();
+
+            $checkDate = \Carbon\Carbon::parse($this->date);
+
+            foreach ($allPractices as $p) {
+                $targetGroupIds = \App\Models\GroupCurriculumAssignment::where('curriculum_plan_id', $p->curriculum_plan_id)
+                    ->whereIn('group_id', $groupIds)
+                    ->pluck('group_id');
+                
+                foreach ($targetGroupIds as $gid) {
+                    $group = Group::find($gid);
+                    if ($group && $group->current_course === $p->course_number) {
+                        // Year-agnostic check
+                        $pStart = \Carbon\Carbon::parse($p->start_date);
+                        $pEnd = \Carbon\Carbon::parse($p->end_date);
+                        
+                        $pYearOffset = ($pStart->month < 9) ? $pStart->year - 1 : $pStart->year;
+                        $dYearOffset = ($checkDate->month < 9) ? $checkDate->year - 1 : $checkDate->year;
+                        $yearDiff = $dYearOffset - $pYearOffset;
+                        
+                        $normalizedStart = $pStart->copy()->addYears($yearDiff);
+                        $normalizedEnd = $pEnd->copy()->addYears($yearDiff);
+
+                        if ($checkDate->between($normalizedStart, $normalizedEnd)) {
+                            $this->practiceData[$gid] = [
+                                'symbol' => $p->symbol,
+                                'type' => $p->type,
+                            ];
+                        }
+                    }
+                }
+            }
+        }
     }
 
     public function render()

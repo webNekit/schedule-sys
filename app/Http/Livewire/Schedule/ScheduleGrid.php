@@ -36,6 +36,8 @@ class ScheduleGrid extends Component
 
     public array $scheduleData = [];
 
+    public array $practiceData = [];
+
     public bool $editing = false;
 
     public ?int $editingLessonId = null;
@@ -148,7 +150,8 @@ class ScheduleGrid extends Component
     {
         $weekStart = Carbon::parse($this->weekStart);
         $weekEnd = $weekStart->copy()->endOfWeek(Carbon::SUNDAY);
-        $lessons = ScheduleLesson::with([
+        
+        $lessonsQuery = ScheduleLesson::with([
             'group',
             'discipline',
             'teacher',
@@ -157,26 +160,20 @@ class ScheduleGrid extends Component
         ])
             ->where('date', '>=', $weekStart->format('Y-m-d'))
             ->where('date', '<=', $weekEnd->format('Y-m-d'))
-            ->when($this->versionId !== null, fn ($q) => $q->where('version_id', $this->versionId))
-            ->when(
-                $this->viewMode === 'group' && $this->viewId > 0,
-                fn ($q) => $q->where('group_id', $this->viewId),
-            )
-            ->when(
-                $this->viewMode === 'teacher' && $this->viewId > 0,
-                fn ($q) => $q->where('teacher_id', $this->viewId),
-            )
-            ->when(
-                $this->viewMode === 'room' && $this->viewId > 0,
-                fn ($q) => $q->where('room_id', $this->viewId),
-            )
-            ->when(
-                $this->viewMode === 'department' && $this->viewId > 0,
-                fn ($q) => $q->whereIn('group_id', Group::where('department_id', $this->viewId)->pluck('id')),
-            )
-            ->orderBy('date')
-            ->orderBy('lesson_number')
-            ->get();
+            ->when($this->versionId !== null, fn ($q) => $q->where('version_id', $this->versionId));
+
+        if ($this->viewMode === 'group' && $this->viewId > 0) {
+            $lessonsQuery->where('group_id', $this->viewId);
+        } elseif ($this->viewMode === 'teacher' && $this->viewId > 0) {
+            $lessonsQuery->where('teacher_id', $this->viewId);
+        } elseif ($this->viewMode === 'room' && $this->viewId > 0) {
+            $lessonsQuery->where('room_id', $this->viewId);
+        } elseif ($this->viewMode === 'department' && $this->viewId > 0) {
+            $lessonsQuery->whereIn('group_id', Group::where('department_id', $this->viewId)->pluck('id'));
+        }
+
+        $lessons = $lessonsQuery->orderBy('date')->orderBy('lesson_number')->get();
+        
         $this->scheduleData = $lessons->map(function ($lesson) {
             $data = $lesson->toArray();
             $data['date'] = $lesson->date instanceof Carbon
@@ -185,6 +182,53 @@ class ScheduleGrid extends Component
 
             return $data;
         })->values()->toArray();
+
+        // Load Practice data for groups
+        $this->practiceData = [];
+        if ($this->viewMode === 'group' || $this->viewMode === 'department') {
+            $groupIds = [];
+            if ($this->viewMode === 'group') {
+                $groupIds = $this->viewId > 0 ? [$this->viewId] : Group::active()->pluck('id')->toArray();
+            } else {
+                $groupIds = $this->viewId > 0 
+                    ? Group::where('department_id', $this->viewId)->pluck('id')->toArray() 
+                    : Group::active()->pluck('id')->toArray();
+            }
+
+            $groups = Group::whereIn('id', $groupIds)->get();
+            foreach ($groups as $group) {
+                $assignment = $group->curriculumAssignments()->where('is_active', true)->first();
+                if ($assignment) {
+                    $allPractices = \App\Models\CurriculumPractice::where('curriculum_plan_id', $assignment->curriculum_plan_id)
+                        ->where('course_number', $group->current_course)
+                        ->get();
+                    
+                    foreach ($allPractices as $p) {
+                        $pStart = \Carbon\Carbon::parse($p->start_date);
+                        $pEnd = \Carbon\Carbon::parse($p->end_date);
+                        
+                        $pYearOffset = ($pStart->month < 9) ? $pStart->year - 1 : $pStart->year;
+                        $dYearOffset = ($weekStart->month < 9) ? $weekStart->year - 1 : $weekStart->year;
+                        $yearDiff = $dYearOffset - $pYearOffset;
+                        
+                        $normalizedStart = $pStart->copy()->addYears($yearDiff);
+                        $normalizedEnd = $pEnd->copy()->addYears($yearDiff);
+
+                        // Check if normalized practice overlaps with the current week
+                        if ($normalizedStart->format('Y-m-d') <= $weekEnd->format('Y-m-d') && 
+                            $normalizedEnd->format('Y-m-d') >= $weekStart->format('Y-m-d')) {
+                            
+                            $this->practiceData[$group->id][] = [
+                                'start' => $normalizedStart->format('Y-m-d'),
+                                'end' => $normalizedEnd->format('Y-m-d'),
+                                'symbol' => $p->symbol,
+                                'type' => $p->type,
+                            ];
+                        }
+                    }
+                }
+            }
+        }
     }
 
     public function previousWeek(): void

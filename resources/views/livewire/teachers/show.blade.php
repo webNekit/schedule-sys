@@ -180,9 +180,10 @@
                                     <tr class="border-b border-gray-100 dark:border-gray-700 bg-gray-50/80 dark:bg-gray-800/80">
                                         <th class="text-left px-4 py-2.5 font-medium text-gray-500 dark:text-gray-400">Группа</th>
                                         <th class="text-left px-4 py-2.5 font-medium text-gray-500 dark:text-gray-400">Дисциплина</th>
-                                        <th class="text-center px-3 py-2.5 font-medium text-gray-500 dark:text-gray-400 w-24">1 полугодие (ч.)</th>
-                                        <th class="text-center px-3 py-2.5 font-medium text-gray-500 dark:text-gray-400 w-24">2 полугодие (ч.)</th>
+                                        <th class="text-center px-3 py-2.5 font-medium text-gray-500 dark:text-gray-400 w-24">1 пол. (ч.)</th>
+                                        <th class="text-center px-3 py-2.5 font-medium text-gray-500 dark:text-gray-400 w-24">2 пол. (ч.)</th>
                                         <th class="text-center px-3 py-2.5 font-medium text-gray-500 dark:text-gray-400 w-20">План (ч.)</th>
+                                        <th class="text-center px-3 py-2.5 font-medium text-gray-500 dark:text-gray-400 w-24">Выдано (ч.)</th>
                                         <th class="text-center px-3 py-2.5 font-medium text-gray-500 dark:text-gray-400 w-24">Осталось (ч.)</th>
                                     </tr>
                                 </thead>
@@ -210,14 +211,11 @@
                                             <td class="px-3 py-2.5 text-center font-medium text-gray-900 dark:text-white">{{ $h1 ?: '—' }}</td>
                                             <td class="px-3 py-2.5 text-center font-medium text-gray-900 dark:text-white">{{ $h2 ?: '—' }}</td>
                                             <td class="px-3 py-2.5 text-center font-semibold text-gray-900 dark:text-white">{{ $totalPlanned }}</td>
+                                            <td class="px-3 py-2.5 text-center font-medium text-emerald-600 dark:text-emerald-400">{{ $totalConducted ?: '0' }}</td>
                                             <td class="px-3 py-2.5 text-center">
-                                                @if($hasPublishedSchedule)
-                                                    <span class="font-semibold {{ $remaining > 0 ? 'text-amber-600 dark:text-amber-400' : 'text-emerald-600 dark:text-emerald-400' }}">
-                                                        {{ $remaining }}
-                                                    </span>
-                                                @else
-                                                    <span class="text-gray-400">—</span>
-                                                @endif
+                                                <span class="font-semibold {{ $remaining > 0 ? 'text-amber-600 dark:text-amber-400' : 'text-emerald-600 dark:text-emerald-400' }}">
+                                                    {{ $remaining }}
+                                                </span>
                                             </td>
                                         </tr>
                                     @endforeach
