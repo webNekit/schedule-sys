@@ -59,7 +59,13 @@ class ScheduleGeneratorService
             while ($current->lessThanOrEqualTo($weekEnd)) {
                 $dayOfWeek = (int) $current->format('N');
 
-                // Если группа на практике/сессии - ставим специальную метку-урок, чтобы в расписании было видно
+                // 1. Сначала проверяем, является ли день рабочим для группы (учитываем праздники и график 5/6 дней)
+                if (! in_array($dayOfWeek, $workingDays, true) || $this->isNonWorkingDay($current)) {
+                    $current->addDay();
+                    continue;
+                }
+
+                // 2. Только если день рабочий - проверяем на практику или экзамен
                 if ($this->groupOnPracticeOrExam($group, $current, $version->id)) {
                     $block = $group->getCalendarBlock($current);
                     
@@ -99,12 +105,7 @@ class ScheduleGeneratorService
                     }
 
                     $current->addDay();
-                    continue;
-                }
-
-                // Если выходной или нерабочий день - полностью пропускаем день
-                if (! in_array($dayOfWeek, $workingDays, true) || $this->isNonWorkingDay($current)) {
-                    $current->addDay();
+                    $dayIndex++;
                     continue;
                 }
 

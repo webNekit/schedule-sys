@@ -225,6 +225,11 @@ class ShowPlan extends Component
         if ($this->showWorkloadModal) {
             $this->addTeacherToSemester($teacherId);
         } else {
+            if (!$this->assignDisciplineId) {
+                session()->flash('error', 'Дисциплина не выбрана');
+                return;
+            }
+
             $existingCount = TeacherDiscipline::where('discipline_id', $this->assignDisciplineId)
                 ->where('academic_year_id', $this->plan->academic_year_id)
                 ->count();

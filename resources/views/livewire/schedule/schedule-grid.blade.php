@@ -197,7 +197,7 @@
                                         $practiceInfo = null;
                                         if (($viewMode === 'group' || $viewMode === 'department') && isset($practiceData[$entityId])) {
                                             $practiceInfo = collect($practiceData[$entityId])->first(function($p) use ($date) {
-                                                return $date >= $p['start'] && $date <= $p['end'];
+                                                return $p['date'] === $date;
                                             });
                                         }
                                     @endphp
@@ -208,20 +208,20 @@
                                                 $pSym = mb_strtolower(trim($practiceInfo['symbol']));
                                                 $pType = $practiceInfo['type'];
                                                 $pLabel = match(true) {
-                                                    $pType === 'edu_practice' || $pSym === 'у' => 'УЧЕБНАЯ ПРАКТИКА',
-                                                    $pType === 'prod_practice' || $pSym === 'п' || $pSym === 'пп' => 'ПРОИЗВОДСТВЕННАЯ ПРАКТИКА',
-                                                    $pType === 'pre_diploma' || $pSym === 'пд' => 'ПРЕДДИПЛОМНАЯ ПРАКТИКА',
-                                                    $pType === 'exam_session' || $pSym === 'э' => 'ЭКЗАМЕНАЦИОННАЯ СЕССИЯ',
-                                                    $pSym === 'гп' => 'ПОДГОТОВКА ГИА',
-                                                    $pSym === 'дп' => 'СДАЧА ГИА',
-                                                    default => 'ПРАКТИКА (' . mb_strtoupper($pSym) . ')',
+                                                    $pType === 'edu_practice' || $pSym === 'у' => 'Учебная практика',
+                                                    $pType === 'prod_practice' || $pSym === 'п' || $pSym === 'пп' => 'Производственная практика',
+                                                    $pType === 'pre_diploma' || $pSym === 'пд' => 'Преддипломная практика',
+                                                    $pType === 'exam_session' || $pSym === 'э' => 'Экзаменационная сессия',
+                                                    $pSym === 'гп' => 'Подготовка к ГИА',
+                                                    $pSym === 'дп' => 'Сдача ГИА',
+                                                    default => 'Практика (' . mb_strtoupper($pSym) . ')',
                                                 };
                                                 $pColor = match(true) {
-                                                    str_contains($pLabel, 'УЧЕБНАЯ') => 'text-indigo-600 bg-indigo-100',
-                                                    str_contains($pLabel, 'ПРОИЗВОДСТВЕННАЯ') => 'text-pink-600 bg-pink-100',
-                                                    str_contains($pLabel, 'ПРЕДДИПЛОМНАЯ') => 'text-amber-600 bg-amber-100',
-                                                    str_contains($pLabel, 'СЕССИЯ') => 'text-purple-600 bg-purple-100',
-                                                    str_contains($pLabel, 'ГИА') => 'text-red-600 bg-red-100',
+                                                    mb_stripos($pLabel, 'Учебная') !== false => 'text-indigo-600 bg-indigo-100',
+                                                    mb_stripos($pLabel, 'Производственная') !== false => 'text-pink-600 bg-pink-100',
+                                                    mb_stripos($pLabel, 'Преддипломная') !== false => 'text-amber-600 bg-amber-100',
+                                                    mb_stripos($pLabel, 'сессия') !== false => 'text-purple-600 bg-purple-100',
+                                                    mb_stripos($pLabel, 'ГИА') !== false => 'text-red-600 bg-red-100',
                                                     default => 'text-gray-600 bg-gray-100',
                                                 };
                                             @endphp
@@ -259,36 +259,48 @@
                                                 wire:click="editLesson({{ $lesson['id'] }})" @if($isHl) data-hl="true" @endif
                                                 @if($conflictType)
                                                 title="Конфликт: {{ $conflictType == 'error' ? 'Ошибка' : 'Предупреждение' }}" @endif>
-                                                <div class="font-bold text-gray-900 dark:text-white">
-                                                    @if($isMdk || $isPractice || $isExam)
-                                                        <span title="{{ $discName }}"
-                                                            class="border-b border-dashed border-gray-400 cursor-help">{{ $discCode ?: $discName }}</span>
-                                                    @else
-                                                        <span title="{{ $discCode }}">{{ $discName }}</span>
-                                                    @endif
-                                                </div>
-                                                <div class="text-gray-500 mt-0.5">
-                                                    @if ($viewMode === 'teacher')
-                                                        {{ $lesson['group']['name'] ?? '' }}
-                                                    @else
-                                                        @php
-                                                            $tLn = $lesson['teacher']['last_name'] ?? '';
-                                                            $tFn = $lesson['teacher']['first_name'] ?? '';
-                                                            $tMn = $lesson['teacher']['middle_name'] ?? '';
-                                                            $tFi = $tFn ? mb_substr($tFn, 0, 1) . '.' : '';
-                                                            $tMi = $tMn ? mb_substr($tMn, 0, 1) . '.' : '';
-                                                        @endphp
-                                                        {{ $tLn }} {{ $tFi }}{{ $tMi }}
-                                                    @endif
-                                                </div>
-                                                <div class="text-[10px] text-gray-400">
-                                                    @if ($viewMode !== 'room')
-                                                        №{{ $lesson['room']['number'] ?? $lesson['room']['name'] ?? '' }}
-                                                        @if (!empty($lesson['room']['building']))
-                                                            · {{ $lesson['room']['building']['short_name'] ?? $lesson['room']['building']['name'] ?? '' }}
+                                                
+                                                @php
+                                                    $isIndicator = ($lesson['is_auto_generated'] ?? false) && 
+                                                                  ($isPractice || $isExam) && 
+                                                                  empty($lesson['teacher_id']) && 
+                                                                  empty($lesson['room_id']);
+                                                @endphp
+
+                                                @if(!$isIndicator)
+                                                    <div class="font-bold text-gray-900 dark:text-white">
+                                                        @if($isMdk || $isPractice || $isExam)
+                                                            <span title="{{ $discName }}"
+                                                                class="border-b border-dashed border-gray-400 cursor-help">{{ $discCode ?: $discName }}</span>
+                                                        @else
+                                                            <span title="{{ $discCode }}">{{ $discName }}</span>
                                                         @endif
-                                                    @endif
-                                                </div>
+                                                    </div>
+                                                    <div class="text-gray-500 mt-0.5">
+                                                        @if ($viewMode === 'teacher')
+                                                            {{ $lesson['group']['name'] ?? '' }}
+                                                        @else
+                                                            @php
+                                                                $tLn = $lesson['teacher']['last_name'] ?? '';
+                                                                $tFn = $lesson['teacher']['first_name'] ?? '';
+                                                                $tMn = $lesson['teacher']['middle_name'] ?? '';
+                                                                $tFi = $tFn ? mb_substr($tFn, 0, 1) . '.' : '';
+                                                                $tMi = $tMn ? mb_substr($tMn, 0, 1) . '.' : '';
+                                                            @endphp
+                                                            {{ $tLn }} {{ $tFi }}{{ $tMi }}
+                                                        @endif
+                                                    </div>
+                                                    <div class="text-[10px] text-gray-400">
+                                                        @if ($viewMode !== 'room')
+                                                            №{{ $lesson['room']['number'] ?? $lesson['room']['name'] ?? '' }}
+                                                            @if (!empty($lesson['room']['building']))
+                                                                · {{ $lesson['room']['building']['short_name'] ?? $lesson['room']['building']['name'] ?? '' }}
+                                                            @endif
+                                                        @endif
+                                                    </div>
+                                                @else
+                                                    <div class="h-4"></div>
+                                                @endif
                                                 <button wire:click.stop="deleteLesson({{ $lesson['id'] }})"
                                                     wire:confirm="Удалить занятие?"
                                                     class="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-red-500 text-white text-[8px] flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity z-20">✕</button>

@@ -8,11 +8,13 @@ use App\Models\AcademicYear;
 use App\Models\CurriculumDiscipline;
 use App\Models\Department;
 use App\Models\Group;
+use App\Models\Holiday;
 use App\Models\Room;
 use App\Models\ScheduleLesson;
 use App\Models\ScheduleVersion;
 use App\Models\Teacher;
 use App\Models\TeacherRoom;
+use App\Models\Vacation;
 use App\Services\Export\ExcelExportService;
 use App\Services\Schedule\ConflictCheckerService;
 use Carbon\Carbon;
@@ -218,12 +220,22 @@ class ScheduleGrid extends Component
                         if ($normalizedStart->format('Y-m-d') <= $weekEnd->format('Y-m-d') && 
                             $normalizedEnd->format('Y-m-d') >= $weekStart->format('Y-m-d')) {
                             
-                            $this->practiceData[$group->id][] = [
-                                'start' => $normalizedStart->format('Y-m-d'),
-                                'end' => $normalizedEnd->format('Y-m-d'),
-                                'symbol' => $p->symbol,
-                                'type' => $p->type,
-                            ];
+                            // Respect working days of the group for the overlay
+                            $workingDays = $group->getWorkingDays();
+                            $pStartClamped = $normalizedStart->copy()->max($weekStart);
+                            $pEndClamped = $normalizedEnd->copy()->min($weekEnd);
+                            
+                            $curr = $pStartClamped->copy();
+                            while ($curr->lessThanOrEqualTo($pEndClamped)) {
+                                if (in_array((int)$curr->format('N'), $workingDays, true) && !$this->isNonWorkingDay($curr)) {
+                                    $this->practiceData[$group->id][] = [
+                                        'date' => $curr->format('Y-m-d'),
+                                        'symbol' => $p->symbol,
+                                        'type' => $p->type,
+                                    ];
+                                }
+                                $curr->addDay();
+                            }
                         }
                     }
                 }
@@ -247,6 +259,17 @@ class ScheduleGrid extends Component
             ->startOfWeek(Carbon::MONDAY)
             ->format('Y-m-d');
         $this->loadWeek();
+    }
+
+    private function isNonWorkingDay(Carbon $date): bool
+    {
+        if (Holiday::where('date', $date->toDateString())->exists()) {
+            return true;
+        }
+
+        return Vacation::where('start_date', '<=', $date->toDateString())
+            ->where('end_date', '>=', $date->toDateString())
+            ->exists();
     }
 
     public ?int $editDisciplineId = 0;
@@ -581,7 +604,15 @@ class ScheduleGrid extends Component
     public function openShareModal(): void
     {
         $this->shareViewMode = $this->viewMode;
-        $this->shareViewId = $this->viewId > 0 ? $this->viewId : 1;
+        
+        if ($this->viewMode === 'department' && $this->viewId > 0) {
+            $this->shareViewId = $this->viewId;
+        } elseif ($this->viewMode === 'group' && $this->viewId > 0) {
+            $this->shareViewId = Group::find($this->viewId)?->department_id ?? 1;
+        } else {
+            $this->shareViewId = Department::first()?->id ?? 1;
+        }
+
         $this->shareLink = null;
         $this->showShareModal = true;
     }
@@ -602,6 +633,7 @@ class ScheduleGrid extends Component
             $this->shareLink = route('schedule.day', [
                 'department' => $this->shareViewId,
                 'date' => $date,
+                'version' => $versionId,
             ]);
         } else {
             $this->shareLink = route('schedule.shared', [

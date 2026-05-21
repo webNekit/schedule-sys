@@ -6,8 +6,10 @@ namespace App\Http\Livewire\Schedule;
 
 use App\Models\Department;
 use App\Models\Group;
+use App\Models\Holiday;
 use App\Models\ScheduleLesson;
 use App\Models\ScheduleVersion;
+use App\Models\Vacation;
 use Carbon\Carbon;
 use Livewire\Component;
 
@@ -26,6 +28,9 @@ class DayShare extends Component
     public function mount(): void
     {
         $this->departmentId = (int) request()->query('department', 0);
+        if ($this->departmentId === 0) {
+            $this->departmentId = Department::first()?->id ?? 0;
+        }
         $this->date = request()->query('date', Carbon::now()->format('Y-m-d'));
         $this->versionId = request()->query('version') ? (int) request()->query('version') : null;
         $this->loadDay();
@@ -100,15 +105,29 @@ class DayShare extends Component
                         $normalizedEnd = $pEnd->copy()->addYears($yearDiff);
 
                         if ($checkDate->between($normalizedStart, $normalizedEnd)) {
-                            $this->practiceData[$gid] = [
-                                'symbol' => $p->symbol,
-                                'type' => $p->type,
-                            ];
+                            $workingDays = $group->getWorkingDays();
+                            if (in_array((int)$checkDate->format('N'), $workingDays, true) && !$this->isNonWorkingDay($checkDate)) {
+                                $this->practiceData[$gid] = [
+                                    'symbol' => $p->symbol,
+                                    'type' => $p->type,
+                                ];
+                            }
                         }
                     }
                 }
             }
         }
+    }
+
+    private function isNonWorkingDay(Carbon $date): bool
+    {
+        if (Holiday::where('date', $date->toDateString())->exists()) {
+            return true;
+        }
+
+        return Vacation::where('start_date', '<=', $date->toDateString())
+            ->where('end_date', '>=', $date->toDateString())
+            ->exists();
     }
 
     public function render()
