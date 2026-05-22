@@ -199,7 +199,7 @@ class ScheduleGrid extends Component
 
             $groups = Group::whereIn('id', $groupIds)->get();
             foreach ($groups as $group) {
-                $assignment = $group->curriculumAssignments()->where('is_active', true)->first();
+                $assignment = $group->getCurriculumAssignmentForDate(Carbon::parse($this->weekStart));
                 if ($assignment) {
                     $allPractices = \App\Models\CurriculumPractice::where('curriculum_plan_id', $assignment->curriculum_plan_id)
                         ->where('course_number', $group->current_course)
@@ -678,18 +678,20 @@ class ScheduleGrid extends Component
     public function getDisciplinesProperty(): mixed
     {
         $query = CurriculumDiscipline::where('is_schedulable', true)->orderBy('name');
+        $referenceDate = $this->editDate ? Carbon::parse($this->editDate) : Carbon::parse($this->weekStart);
+
         if ($this->editGroupId > 0) {
-            $group = Group::with('curriculumAssignments.curriculumPlan')->find($this->editGroupId);
+            $group = Group::find($this->editGroupId);
             if ($group) {
-                $assignment = $group->curriculumAssignments->where('is_active', true)->first();
+                $assignment = $group->getCurriculumAssignmentForDate($referenceDate);
                 if ($assignment) {
                     $query->where('curriculum_plan_id', $assignment->curriculum_plan_id);
                 }
             }
         } elseif ($this->viewMode === 'group' && $this->viewId > 0) {
-            $group = Group::with('curriculumAssignments.curriculumPlan')->find($this->viewId);
+            $group = Group::find($this->viewId);
             if ($group) {
-                $assignment = $group->curriculumAssignments->where('is_active', true)->first();
+                $assignment = $group->getCurriculumAssignmentForDate($referenceDate);
                 if ($assignment) {
                     $query->where('curriculum_plan_id', $assignment->curriculum_plan_id);
                 }

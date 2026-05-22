@@ -94,6 +94,28 @@ class Group extends Model
             ->withTimestamps();
     }
 
+    public function getCurriculumAssignmentForDate(?Carbon $date = null): ?GroupCurriculumAssignment
+    {
+        $date = $date ?? Carbon::now();
+        
+        $academicYear = AcademicYear::where('date_start', '<=', $date->toDateString())
+            ->where('date_end', '>=', $date->toDateString())
+            ->first() ?? AcademicYear::where('is_current', true)->first();
+
+        if ($academicYear) {
+            $assignment = $this->curriculumAssignments()
+                ->where('academic_year_id', $academicYear->id)
+                ->where('is_active', true)
+                ->first();
+            
+            if ($assignment) {
+                return $assignment;
+            }
+        }
+
+        return $this->curriculumAssignments()->where('is_active', true)->first();
+    }
+
     public function dayBuildings(): HasMany
     {
         return $this->hasMany(GroupDayBuilding::class);
@@ -249,7 +271,7 @@ class Group extends Model
 
     public function getCalendarBlock(Carbon $date): ?CurriculumPractice
     {
-        $assignment = $this->curriculumAssignments()->where('is_active', true)->first();
+        $assignment = $this->getCurriculumAssignmentForDate($date);
         if (! $assignment) {
             return null;
         }

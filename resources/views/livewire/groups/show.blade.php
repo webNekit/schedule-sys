@@ -51,42 +51,64 @@
         @endif
     </div>
 
-    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-5">
-        <div class="flex items-center justify-between mb-4">
-            <h3 class="font-semibold text-gray-900 dark:text-white text-lg">Учебные планы</h3>
-            <button wire:click="openCurriculumForm" class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300 text-sm font-medium hover:bg-emerald-100 dark:hover:bg-emerald-900/40 transition-colors">
+    {{-- Учебные планы в стиле Аккордеона (Always Open) --}}
+    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
+        <div class="p-6 border-b border-gray-100 dark:border-gray-700 flex items-center justify-between bg-gray-50/30 dark:bg-gray-900/30">
+            <div>
+                <h3 class="font-bold text-gray-900 dark:text-white text-lg">Учебные планы по годам</h3>
+                <p class="text-[10px] text-gray-400 mt-1 uppercase tracking-widest font-black italic">Режим аккордеона (развернут)</p>
+            </div>
+            <button wire:click="openCurriculumForm" class="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-emerald-600 text-white text-sm font-bold hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-600/20">
                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
                 Привязать план
             </button>
         </div>
 
         @if($assignments->isNotEmpty())
-            <div class="space-y-2">
-                @foreach($assignments as $assignment)
-                    @php
-                        $plan = $assignment->curriculumPlan;
-                    @endphp
-                    <div class="flex items-center gap-4 p-3 rounded-lg border bg-emerald-50 dark:bg-emerald-900/20 border-emerald-200 dark:border-emerald-800">
-                        <div class="flex-1 min-w-0">
-                            <p class="font-semibold text-emerald-900 dark:text-emerald-100 truncate">{{ $plan->name }}</p>
+            <div class="divide-y divide-gray-100 dark:divide-gray-700">
+                @foreach($assignments->sortByDesc('academicYear.year_start')->groupBy(fn($a) => $a->academicYear?->name ?? 'Без года') as $yearName => $yearAssignments)
+                    @php $isCurrentYear = $yearAssignments->first()->academicYear?->is_current; @endphp
+                    <div class="group">
+                        <div class="px-6 py-4 flex items-center justify-between bg-white dark:bg-gray-800 border-l-4 {{ $isCurrentYear ? 'border-l-emerald-500 bg-emerald-50/10' : 'border-l-transparent' }}">
+                            <div class="flex items-center gap-3">
+                                <h4 class="text-sm font-black uppercase tracking-widest {{ $isCurrentYear ? 'text-emerald-600' : 'text-gray-500' }}">{{ $yearName }}</h4>
+                                @if($isCurrentYear)
+                                    <span class="px-2 py-0.5 rounded text-[8px] font-black bg-emerald-100 text-emerald-700 uppercase tracking-tighter">Активный год</span>
+                                @endif
+                            </div>
+                            <svg class="w-5 h-5 text-gray-300 rotate-180" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
                         </div>
-                        <div class="flex-shrink-0 flex items-center gap-2">
-                            <button wire:click="removeCurriculum({{ $assignment->id }})"
-                                    wire:confirm="Отвязать учебный план?"
-                                    class="p-1.5 rounded-lg text-emerald-400 hover:text-red-500 hover:bg-red-100 dark:hover:bg-red-900/30 transition-colors"
-                                    title="Отвязать план">
-                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
-                            </button>
+                        
+                        <div class="px-6 pb-6 pt-2 space-y-2">
+                            @foreach($yearAssignments as $assignment)
+                                @php $plan = $assignment->curriculumPlan; @endphp
+                                <a href="{{ route('curriculum.show', $plan) }}" wire:navigate class="relative flex items-center gap-4 p-4 rounded-2xl border {{ $isCurrentYear && ($activeAssignment->id === $assignment->id) ? 'bg-emerald-50/30 border-emerald-200' : 'bg-gray-50/50 border-gray-100 dark:bg-gray-900/50 dark:border-gray-800' }} hover:border-emerald-500/50 transition-all group/plan">
+                                    <div class="w-10 h-10 rounded-xl bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 flex items-center justify-center {{ $isCurrentYear ? 'text-emerald-600' : 'text-gray-400' }} shadow-sm">
+                                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+                                    </div>
+                                    <div class="flex-1 min-w-0">
+                                        <p class="font-bold text-gray-900 dark:text-white truncate text-sm group-hover/plan:text-emerald-600 transition-colors">{{ $plan->name }}</p>
+                                        <div class="flex items-center gap-2 mt-1">
+                                            <span class="text-[9px] text-gray-400 font-bold uppercase tracking-wider">Курс: {{ $assignment->course_number ?? '—' }}</span>
+                                            <span class="w-1 h-1 rounded-full bg-gray-300"></span>
+                                            <span class="text-[9px] text-gray-400 font-bold uppercase tracking-wider">Версия: {{ $plan->version ?? '1.0' }}</span>
+                                        </div>
+                                    </div>
+                                    <div class="flex-shrink-0">
+                                        <button wire:click.prevent.stop="removeCurriculum({{ $assignment->id }})"
+                                                wire:confirm="Отвязать учебный план?"
+                                                class="p-2 rounded-xl text-gray-300 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-all">
+                                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                                        </button>
+                                    </div>
+                                </a>
+                            @endforeach
                         </div>
                     </div>
                 @endforeach
             </div>
         @else
-            <div class="text-center py-8">
-                <svg class="w-12 h-12 mx-auto text-gray-300 dark:text-gray-600 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
-                <p class="text-sm text-gray-500 dark:text-gray-400">Учебные планы не привязаны</p>
-                <p class="text-xs text-gray-400 dark:text-gray-500 mt-1">Привяжите учебный план для группы</p>
-            </div>
+            <div class="p-12 text-center text-gray-400 italic font-medium">Планы не назначены</div>
         @endif
     </div>
 
@@ -106,8 +128,11 @@
     </div>
 
     <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
-        <div class="p-4 border-b border-gray-100 dark:border-gray-700">
-            <h3 class="font-semibold text-gray-900 dark:text-white">Дисциплины по семестрам</h3>
+        <div class="p-4 border-b border-gray-100 dark:border-gray-700 flex items-center justify-between bg-gray-50/50 dark:bg-gray-900/50">
+            <h3 class="font-bold text-gray-900 dark:text-white uppercase tracking-widest text-xs">Дисциплины из плана на {{ $currentYear?->name }} год</h3>
+            @if($activeAssignment)
+                <span class="text-[10px] font-black bg-emerald-600 text-white px-2 py-1 rounded uppercase tracking-tighter">Актуально: {{ $activeAssignment->curriculumPlan->name }}</span>
+            @endif
         </div>
 
         @if($disciplines->isNotEmpty())
@@ -309,15 +334,31 @@
                     <p class="text-sm text-gray-500 dark:text-gray-400 mb-3">
                         Специальность: <span class="font-medium text-gray-900 dark:text-white">{{ $group->specialty?->name ?? '—' }}</span>
                     </p>
-                    <label class="block text-sm font-medium mb-1">Учебный план <span class="text-red-500">*</span></label>
-                    <select wire:model="selectedPlanIdForForm" class="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-2">
-                        <option value="">Выберите план</option>
-                        @foreach($plansForSpecialty as $plan)
-                            <option value="{{ $plan->id }}">{{ $plan->name }}</option>
-                        @endforeach
-                    </select>
-                    <p class="text-xs text-gray-400 mt-1">Выберите план для специальности</p>
-                    @error('selectedPlanIdForForm') <p class="text-xs text-red-600 mt-1">{{ $message }}</p> @enderror
+                    
+                    <div class="space-y-4">
+                        <div>
+                            <label class="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">Учебный год <span class="text-red-500">*</span></label>
+                            <select wire:model="selectedYearIdForForm" class="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-2 text-sm">
+                                <option value="">Выберите год</option>
+                                @foreach($academicYears as $year)
+                                    <option value="{{ $year->id }}">{{ $year->name }} {{ $year->is_current ? '(Текущий)' : '' }}</option>
+                                @endforeach
+                            </select>
+                            @error('selectedYearIdForForm') <p class="text-xs text-red-600 mt-1">{{ $message }}</p> @enderror
+                        </div>
+
+                        <div>
+                            <label class="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">Учебный план <span class="text-red-500">*</span></label>
+                            <select wire:model="selectedPlanIdForForm" class="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-2 text-sm">
+                                <option value="">Выберите план</option>
+                                @foreach($plansForSpecialty as $plan)
+                                    <option value="{{ $plan->id }}">{{ $plan->name }}</option>
+                                @endforeach
+                            </select>
+                            <p class="text-xs text-gray-400 mt-1">Выберите план для специальности</p>
+                            @error('selectedPlanIdForForm') <p class="text-xs text-red-600 mt-1">{{ $message }}</p> @enderror
+                        </div>
+                    </div>
                 </div>
                     <div class="flex justify-end gap-3 pt-4 border-t border-gray-200 dark:border-gray-700">
                         <button type="button" wire:click="$set('showCurriculumForm', false)" class="px-4 py-2 text-sm text-gray-600 dark:text-gray-400 hover:text-gray-800 transition">Отмена</button>

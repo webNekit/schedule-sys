@@ -49,6 +49,8 @@ class Show extends Component
 
     public ?int $selectedPlanIdForForm = null;
 
+    public ?int $selectedYearIdForForm = null;
+
     public bool $showBuildingForm = false;
 
     public ?int $selectedBuildingId = null;
@@ -113,6 +115,7 @@ class Show extends Component
     {
         $this->selectedSpecialtyId = $this->group->specialty_id;
         $this->selectedPlanIdForForm = null;
+        $this->selectedYearIdForForm = AcademicYear::where('is_current', true)->first()?->id;
         $this->showCurriculumForm = true;
     }
 
@@ -120,11 +123,14 @@ class Show extends Component
     {
         $this->validate([
             'selectedPlanIdForForm' => 'required|integer|exists:curriculum_plans,id',
+            'selectedYearIdForForm' => 'required|integer|exists:academic_years,id',
         ]);
 
         GroupCurriculumAssignment::create([
             'group_id' => $this->group->id,
+            'academic_year_id' => $this->selectedYearIdForForm,
             'curriculum_plan_id' => $this->selectedPlanIdForForm,
+            'course_number' => $this->group->current_course,
             'assigned_at' => now(),
             'assigned_by' => auth()->id(),
             'is_active' => true,
@@ -132,6 +138,7 @@ class Show extends Component
 
         $this->showCurriculumForm = false;
         $this->selectedPlanIdForForm = null;
+        $this->selectedYearIdForForm = null;
         $this->group->load('curriculumAssignments.curriculumPlan');
     }
 
@@ -184,15 +191,21 @@ class Show extends Component
     #[Layout('components.layouts.app')]
     public function render()
     {
+        $currentYear = AcademicYear::where('is_current', true)->first();
+        
         $assignments = $this->group->curriculumAssignments()
-            ->with(['curriculumPlan.disciplines.semesters'])
+            ->with(['curriculumPlan.disciplines.semesters', 'academicYear'])
             ->get();
+
+        // Фильтруем дисциплины и семестры: показываем только те, что относятся к ТЕКУЩЕМУ учебному году
+        $activeAssignment = $assignments->where('academic_year_id', $currentYear?->id)->first() 
+                          ?? $assignments->where('is_active', true)->first();
 
         $disciplines = collect();
         $semesters = collect();
 
-        foreach ($assignments as $assignment) {
-            $plan = $assignment->curriculumPlan;
+        if ($activeAssignment) {
+            $plan = $activeAssignment->curriculumPlan;
             foreach ($plan->disciplines as $discipline) {
                 foreach ($discipline->semesters as $semester) {
                     $semesters->push($semester);
@@ -250,6 +263,8 @@ class Show extends Component
 
         return view('livewire.groups.show', [
             'assignments' => $assignments,
+            'activeAssignment' => $activeAssignment,
+            'currentYear' => $currentYear,
             'disciplines' => $disciplines,
             'semesters' => $semesters,
             'courses' => $courses,

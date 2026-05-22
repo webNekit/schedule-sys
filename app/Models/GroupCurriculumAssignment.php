@@ -11,6 +11,7 @@ class GroupCurriculumAssignment extends Model
 {
     protected $fillable = [
         'group_id',
+        'academic_year_id',
         'curriculum_plan_id',
         'course_number',
         'assigned_at',
@@ -24,12 +25,18 @@ class GroupCurriculumAssignment extends Model
         return [
             'is_active' => 'boolean',
             'assigned_at' => 'datetime',
+            'academic_year_id' => 'integer',
         ];
     }
 
     public function group(): BelongsTo
     {
         return $this->belongsTo(Group::class);
+    }
+
+    public function academicYear(): BelongsTo
+    {
+        return $this->belongsTo(AcademicYear::class);
     }
 
     public function curriculumPlan(): BelongsTo

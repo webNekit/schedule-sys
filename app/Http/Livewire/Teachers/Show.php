@@ -385,12 +385,27 @@ class Show extends Component
                 ->groupBy('floor');
         }
 
+        $totalHoursSem1 = 0;
+        $totalHoursSem2 = 0;
+        foreach ($workloads as $td) {
+            $totalHoursSem1 += $td->semesters
+                ->where('curriculumSemester.semester_in_course', 1)
+                ->sum('planned_hours');
+            $totalHoursSem2 += $td->semesters
+                ->where('curriculumSemester.semester_in_course', 2)
+                ->sum('planned_hours');
+        }
+        $totalHoursGrand = $totalHoursSem1 + $totalHoursSem2;
+
         return view('livewire.teachers.show', [
             'disciplines' => $disciplines,
             'groups' => $groups,
             'workloads' => $workloads,
             'hasPublishedSchedule' => $hasPublishedSchedule,
             'conductedMap' => $conductedMap,
+            'totalHoursSem1' => $totalHoursSem1,
+            'totalHoursSem2' => $totalHoursSem2,
+            'totalHoursGrand' => $totalHoursGrand,
             'currentAcademicYear' => $currentAcademicYear,
             'departments' => Department::active()->orderBy('name')->get(),
             'positions' => TeacherPosition::orderBy('name')->get(),

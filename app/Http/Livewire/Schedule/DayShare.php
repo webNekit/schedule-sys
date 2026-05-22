@@ -70,49 +70,39 @@ class DayShare extends Component
 
         // Load practice data
         $this->practiceData = [];
-        $groupIds = $this->departmentId > 0 
-            ? Group::where('department_id', $this->departmentId)->pluck('id')->toArray()
-            : Group::active()->pluck('id')->toArray();
+        $checkDate = Carbon::parse($this->date);
+        
+        $groups = $this->departmentId > 0 
+            ? Group::where('department_id', $this->departmentId)->get()
+            : Group::active()->get();
 
-        if (!empty($groupIds)) {
-            $allPractices = \App\Models\CurriculumPractice::whereIn('curriculum_plan_id', function($q) use ($groupIds) {
-                    $q->select('curriculum_plan_id')
-                      ->from('group_curriculum_assignments')
-                      ->whereIn('group_id', $groupIds)
-                      ->where('is_active', true);
-                })
+        foreach ($groups as $group) {
+            $assignment = $group->getCurriculumAssignmentForDate($checkDate);
+            if (!$assignment) continue;
+
+            $practices = \App\Models\CurriculumPractice::where('curriculum_plan_id', $assignment->curriculum_plan_id)
+                ->where('course_number', $group->current_course)
                 ->get();
 
-            $checkDate = \Carbon\Carbon::parse($this->date);
-
-            foreach ($allPractices as $p) {
-                $targetGroupIds = \App\Models\GroupCurriculumAssignment::where('curriculum_plan_id', $p->curriculum_plan_id)
-                    ->whereIn('group_id', $groupIds)
-                    ->pluck('group_id');
+            foreach ($practices as $p) {
+                // Year-agnostic check
+                $pStart = Carbon::parse($p->start_date);
+                $pEnd = Carbon::parse($p->end_date);
                 
-                foreach ($targetGroupIds as $gid) {
-                    $group = Group::find($gid);
-                    if ($group && $group->current_course === $p->course_number) {
-                        // Year-agnostic check
-                        $pStart = \Carbon\Carbon::parse($p->start_date);
-                        $pEnd = \Carbon\Carbon::parse($p->end_date);
-                        
-                        $pYearOffset = ($pStart->month < 9) ? $pStart->year - 1 : $pStart->year;
-                        $dYearOffset = ($checkDate->month < 9) ? $checkDate->year - 1 : $checkDate->year;
-                        $yearDiff = $dYearOffset - $pYearOffset;
-                        
-                        $normalizedStart = $pStart->copy()->addYears($yearDiff);
-                        $normalizedEnd = $pEnd->copy()->addYears($yearDiff);
+                $pYearOffset = ($pStart->month < 9) ? $pStart->year - 1 : $pStart->year;
+                $dYearOffset = ($checkDate->month < 9) ? $checkDate->year - 1 : $checkDate->year;
+                $yearDiff = $dYearOffset - $pYearOffset;
+                
+                $normalizedStart = $pStart->copy()->addYears($yearDiff);
+                $normalizedEnd = $pEnd->copy()->addYears($yearDiff);
 
-                        if ($checkDate->between($normalizedStart, $normalizedEnd)) {
-                            $workingDays = $group->getWorkingDays();
-                            if (in_array((int)$checkDate->format('N'), $workingDays, true) && !$this->isNonWorkingDay($checkDate)) {
-                                $this->practiceData[$gid] = [
-                                    'symbol' => $p->symbol,
-                                    'type' => $p->type,
-                                ];
-                            }
-                        }
+                if ($checkDate->between($normalizedStart, $normalizedEnd)) {
+                    $workingDays = $group->getWorkingDays();
+                    if (in_array((int)$checkDate->format('N'), $workingDays, true) && !$this->isNonWorkingDay($checkDate)) {
+                        $this->practiceData[$group->id] = [
+                            'symbol' => $p->symbol,
+                            'type' => $p->type,
+                        ];
                     }
                 }
             }

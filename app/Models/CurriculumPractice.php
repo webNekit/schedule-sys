@@ -11,6 +11,7 @@ class CurriculumPractice extends Model
 {
     protected $fillable = [
         'curriculum_plan_id',
+        'teacher_id',
         'course_number',
         'type',
         'symbol',
@@ -22,6 +23,7 @@ class CurriculumPractice extends Model
     {
         return [
             'course_number' => 'integer',
+            'teacher_id' => 'integer',
             'start_date' => 'date',
             'end_date' => 'date',
         ];
@@ -30,5 +32,10 @@ class CurriculumPractice extends Model
     public function curriculumPlan(): BelongsTo
     {
         return $this->belongsTo(CurriculumPlan::class);
+    }
+
+    public function teacher(): BelongsTo
+    {
+        return $this->belongsTo(Teacher::class);
     }
 }

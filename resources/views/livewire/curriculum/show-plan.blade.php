@@ -181,6 +181,20 @@
                                         class="px-3 py-1 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-lg text-[10px] font-bold uppercase hover:bg-emerald-600 hover:text-white transition-all">
                                         {{ $row['start'] ? 'Изменить' : 'Назначить даты' }}
                                     </button>
+                                @elseif($row['type'] === 'practice')
+                                    <div class="flex flex-col items-end gap-1">
+                                        @php 
+                                            $practice = $plan->practices->find($row['id']);
+                                            $pTeacher = $practice?->teacher;
+                                        @endphp
+                                        @if($pTeacher)
+                                            <span class="text-[10px] font-bold text-emerald-600 mb-1">{{ $pTeacher->short_name }}</span>
+                                        @endif
+                                        <button wire:click="openPracticeTeacherModal({{ $row['id'] }})" 
+                                            class="px-3 py-1 bg-indigo-50 text-indigo-700 border border-indigo-200 rounded-lg text-[10px] font-bold uppercase hover:bg-indigo-600 hover:text-white transition-all">
+                                            {{ $pTeacher ? 'Сменить преп.' : 'Назначить преп.' }}
+                                        </button>
+                                    </div>
                                 @endif
                             </td>
                         </tr>
@@ -279,21 +293,25 @@
                             </td>
                             
                             <td class="px-4 py-3">
-                                <div class="flex items-center gap-3">
-                                    <div class="flex flex-wrap gap-1">
-                                        @foreach($semesterAssignments as $a)
-                                            <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-emerald-50 dark:bg-emerald-900/30 border border-emerald-100 dark:border-emerald-800 text-[10px] text-emerald-700 dark:text-emerald-300 font-bold" title="{{ $a->teacherDiscipline->teacher?->full_name }}">
-                                                {{ $a->teacherDiscipline->teacher?->short_name }} ({{ $a->conducted_hours }}/{{ $a->planned_hours }}ч)
-                                            </span>
-                                        @endforeach
+                                @if(!$isNonSchedulable)
+                                    <div class="flex items-center gap-3">
+                                        <div class="flex flex-wrap gap-1">
+                                            @foreach($semesterAssignments as $a)
+                                                <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-emerald-50 dark:bg-emerald-900/30 border border-emerald-100 dark:border-emerald-800 text-[10px] text-emerald-700 dark:text-emerald-300 font-bold" title="{{ $a->teacherDiscipline->teacher?->full_name }}">
+                                                    {{ $a->teacherDiscipline->teacher?->short_name }} ({{ $a->conducted_hours }}/{{ $a->planned_hours }}ч)
+                                                </span>
+                                            @endforeach
+                                        </div>
+                                        
+                                        <button wire:click="openWorkloadManager({{ $d->id }}, '{{ addslashes($d->name) }}')" 
+                                            class="shrink-0 inline-flex items-center justify-center w-7 h-7 rounded-full bg-indigo-50 text-indigo-600 border border-indigo-200 hover:bg-indigo-600 hover:text-white transition-all shadow-sm" 
+                                            title="Управление нагрузкой">
+                                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4"></path></svg>
+                                        </button>
                                     </div>
-                                    
-                                    <button wire:click="openWorkloadManager({{ $d->id }}, '{{ addslashes($d->name) }}')" 
-                                        class="shrink-0 inline-flex items-center justify-center w-7 h-7 rounded-full bg-indigo-50 text-indigo-600 border border-indigo-200 hover:bg-indigo-600 hover:text-white transition-all shadow-sm" 
-                                        title="Управление нагрузкой">
-                                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4"></path></svg>
-                                    </button>
-                                </div>
+                                @else
+                                    <div class="text-[10px] text-gray-400 uppercase italic font-medium">назначение не требуется</div>
+                                @endif
                             </td>
                         </tr>
                     @empty
@@ -331,6 +349,41 @@
                 <div class="px-6 py-4 bg-gray-50 dark:bg-gray-900/50 border-t border-gray-100 dark:border-gray-700 flex justify-end gap-3">
                     <button wire:click="$set('showExamModal', false)" class="text-[10px] font-black text-gray-400 hover:text-gray-900 uppercase">Отмена</button>
                     <button wire:click="saveExamDates" class="px-6 py-2.5 bg-purple-600 text-white rounded-xl text-[10px] font-black uppercase tracking-widest shadow-lg shadow-purple-600/30 hover:bg-purple-700 transition-all">Сохранить</button>
+                </div>
+            </div>
+        </div>
+    @endif
+
+    {{-- Practice Teacher Modal --}}
+    @if($showPracticeTeacherModal)
+        <div class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-900/60 backdrop-blur-sm" wire:click.self="$set('showPracticeTeacherModal', false)">
+            <div class="bg-white dark:bg-gray-800 rounded-3xl shadow-2xl w-full max-w-md overflow-hidden border border-white/10">
+                <div class="px-6 py-4 border-b border-gray-100 dark:border-gray-700 flex items-center justify-between bg-indigo-50 dark:bg-indigo-900/20">
+                    <h3 class="text-sm font-black text-indigo-700 dark:text-indigo-400 uppercase tracking-widest">Назначение преподавателя на практику</h3>
+                    <button wire:click="$set('showPracticeTeacherModal', false)" class="text-gray-400 hover:text-gray-900 transition-colors"><svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg></button>
+                </div>
+                <div class="p-6 space-y-4">
+                    @php 
+                        $selectedP = $plan->practices->find($selectedPracticeId);
+                    @endphp
+                    @if($selectedP)
+                        <div class="bg-gray-50 dark:bg-gray-900/50 p-3 rounded-xl border border-gray-100 dark:border-gray-700 text-xs font-bold text-gray-500">
+                            {{ $selectedP->course_number }} курс • {{ $selectedP->name ?: 'Практика' }}
+                        </div>
+                    @endif
+                    <div>
+                        <label class="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5">Выберите преподавателя</label>
+                        <select wire:model="practiceTeacherId" class="w-full rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 px-4 py-2.5 text-xs font-bold focus:border-indigo-500 outline-none transition-all">
+                            <option value="">Без преподавателя</option>
+                            @foreach($allTeachers as $t)
+                                <option value="{{ $t->id }}">{{ $t->full_name }}</option>
+                            @endforeach
+                        </select>
+                    </div>
+                </div>
+                <div class="px-6 py-4 bg-gray-50 dark:bg-gray-900/50 border-t border-gray-100 dark:border-gray-700 flex justify-end gap-3">
+                    <button wire:click="$set('showPracticeTeacherModal', false)" class="text-[10px] font-black text-gray-400 hover:text-gray-900 uppercase">Отмена</button>
+                    <button wire:click="savePracticeTeacher" class="px-6 py-2.5 bg-indigo-600 text-white rounded-xl text-[10px] font-black uppercase tracking-widest shadow-lg shadow-indigo-600/30 hover:bg-indigo-700 transition-all">Сохранить</button>
                 </div>
             </div>
         </div>

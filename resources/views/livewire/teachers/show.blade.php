@@ -170,9 +170,25 @@
             @else
                 <div class="space-y-4">
                     <div class="flex items-center justify-between">
-                        <h4 class="font-semibold">Нагрузка на {{ $currentAcademicYear?->name ?? 'текущий год' }}</h4>
+                        <h4 class="font-semibold text-gray-900 dark:text-white">Нагрузка на {{ $currentAcademicYear?->name ?? 'текущий год' }}</h4>
                         <button wire:click="openDisciplineForm" class="text-sm text-emerald-600 hover:text-emerald-800">+ Назначить дисциплину</button>
                     </div>
+
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-3 mb-4">
+                        <div class="bg-gray-50/50 dark:bg-gray-900/30 rounded-xl p-3 border border-gray-100 dark:border-gray-700">
+                            <p class="text-[10px] font-black text-gray-400 uppercase tracking-widest">1 семестр</p>
+                            <p class="text-xl font-bold text-gray-900 dark:text-white mt-0.5">{{ $totalHoursSem1 }} <span class="text-xs font-normal text-gray-400">ч.</span></p>
+                        </div>
+                        <div class="bg-gray-50/50 dark:bg-gray-900/30 rounded-xl p-3 border border-gray-100 dark:border-gray-700">
+                            <p class="text-[10px] font-black text-gray-400 uppercase tracking-widest">2 семестр</p>
+                            <p class="text-xl font-bold text-gray-900 dark:text-white mt-0.5">{{ $totalHoursSem2 }} <span class="text-xs font-normal text-gray-400">ч.</span></p>
+                        </div>
+                        <div class="bg-emerald-50/50 dark:bg-emerald-900/10 rounded-xl p-3 border border-emerald-100/50 dark:border-emerald-500/20">
+                            <p class="text-[10px] font-black text-emerald-600 uppercase tracking-widest">Всего за год</p>
+                            <p class="text-xl font-bold text-emerald-600 mt-0.5">{{ $totalHoursGrand }} <span class="text-xs font-normal opacity-60">ч.</span></p>
+                        </div>
+                    </div>
+
                     @if($workloads->isNotEmpty())
                         <div class="overflow-x-auto">
                             <table class="w-full text-sm">
@@ -226,6 +242,49 @@
                         <p class="text-gray-500 mt-2">Нет назначенных дисциплин</p>
                     @endif
                 </div>
+
+                @php
+                    $teacherPractices = \App\Models\CurriculumPractice::where('teacher_id', $teacher->id)
+                        ->with('curriculumPlan.groupAssignments.group')
+                        ->get();
+                @endphp
+
+                @if($teacherPractices->isNotEmpty())
+                    <div class="mt-6 space-y-3">
+                        <h4 class="font-semibold text-gray-900 dark:text-white flex items-center gap-2">
+                            <svg class="w-5 h-5 text-indigo-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/></svg>
+                            Ведение практик
+                        </h4>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                            @foreach($teacherPractices as $tp)
+                                @php
+                                    $tpGroup = $tp->curriculumPlan->groupAssignments->first()?->group;
+                                    $tpLabel = match($tp->type) {
+                                        'edu_practice' => 'Учебная практика',
+                                        'prod_practice' => 'Производственная практика',
+                                        'pre_diploma' => 'Преддипломная практика',
+                                        default => 'Практика',
+                                    };
+                                    $tpColor = $tp->type === 'edu_practice' ? 'border-indigo-200 bg-indigo-50/50 text-indigo-800' : 'border-pink-200 bg-pink-50/50 text-pink-800';
+                                @endphp
+                                <div class="p-3 rounded-xl border {{ $tpColor }}">
+                                    <div class="flex justify-between items-start">
+                                        <div>
+                                            <p class="text-[10px] font-black uppercase tracking-widest opacity-60">{{ $tpLabel }}</p>
+                                            <p class="font-bold text-sm mt-0.5">{{ $tpGroup?->name ?? 'Неизвестная группа' }}</p>
+                                        </div>
+                                        <span class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-white/50 border border-current">
+                                            {{ $tp->course_number }} курс
+                                        </span>
+                                    </div>
+                                    <p class="text-xs mt-2 font-medium opacity-80">
+                                        {{ $tp->start_date->format('d.m.Y') }} — {{ $tp->end_date->format('d.m.Y') }}
+                                    </p>
+                                </div>
+                            @endforeach
+                        </div>
+                    </div>
+                @endif
             @endif
         </div>
     </div>

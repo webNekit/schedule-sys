@@ -120,6 +120,11 @@ class Teacher extends Model
         return "{$this->last_name} {$fi}{$mi}";
     }
 
+    public function conductedPractices(): HasMany
+    {
+        return $this->hasMany(CurriculumPractice::class);
+    }
+
     /**
      * Проверяет, может ли преподаватель вести указанную пару в указанную дату.
      */
@@ -128,12 +133,35 @@ class Teacher extends Model
         $parsedDate = $date instanceof Carbon ? $date : Carbon::parse($date);
         $dayOfWeek = $parsedDate->dayOfWeekIso;
 
-        // 1. Проверка рабочих дней преподавателя
+        // 1. Проверка занятости на УЧЕБНОЙ практике (edu_practice)
+        $isOnEduPractice = $this->conductedPractices()
+            ->where('type', 'edu_practice')
+            ->get()
+            ->contains(function($p) use ($parsedDate) {
+                $pStart = Carbon::parse($p->start_date);
+                $pEnd = Carbon::parse($p->end_date);
+                
+                // Нормализация дат (учитываем учебный год)
+                $pYearOffset = ($pStart->month < 9) ? $pStart->year - 1 : $pStart->year;
+                $dYearOffset = ($parsedDate->month < 9) ? $parsedDate->year - 1 : $parsedDate->year;
+                $yearDiff = $dYearOffset - $pYearOffset;
+                
+                $normStart = $pStart->copy()->addYears($yearDiff);
+                $normEnd = $pEnd->copy()->addYears($yearDiff);
+                
+                return $parsedDate->between($normStart, $normEnd);
+            });
+
+        if ($isOnEduPractice) {
+            return false;
+        }
+
+        // 2. Проверка рабочих дней преподавателя
         if (is_array($this->working_days) && ! in_array($dayOfWeek, $this->working_days, true)) {
             return false;
         }
 
-        // 2. Проверка разрешенных пар (слотов) преподавателя
+        // 3. Проверка разрешенных пар (слотов) преподавателя
         if (is_array($this->working_lesson_numbers) && count($this->working_lesson_numbers) > 0) {
             if (isset($this->working_lesson_numbers[$dayOfWeek])) {
                 // Если структура ассоциативная по дням недели: ["1" => [3,4,5], "2" => [...]]
@@ -154,12 +182,12 @@ class Teacher extends Model
             }
         }
 
-        // 3. Проверка методического дня
+        // 4. Проверка методического дня
         if ($this->has_methodical_day && $this->methodical_day_of_week === $dayOfWeek) {
             return false;
         }
 
-        // 4. Проверка явных заявлений о недоступности (отгулы, больничные)
+        // 5. Проверка явных заявлений о недоступности (отгулы, больничные)
         $hasUnavailability = $this->unavailabilities()
             ->where('is_approved', true)
             ->where('date_from', '<=', $parsedDate->format('Y-m-d'))

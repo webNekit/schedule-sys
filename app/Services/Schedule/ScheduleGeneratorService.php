@@ -78,13 +78,14 @@ class ScheduleGeneratorService
                     // Ищем дисциплину для отображения
                     $discId = null;
                     if ($block?->type === 'exam_session') {
-                         $discId = CurriculumDiscipline::where('curriculum_plan_id', $group->curriculumAssignments()->where('is_active', true)->first()?->curriculum_plan_id)
+                         $assignment = $group->getCurriculumAssignmentForDate($current);
+                         $discId = CurriculumDiscipline::where('curriculum_plan_id', $assignment?->curriculum_plan_id)
                             ->where('name', 'like', '%сессия%')
                             ->first()?->id;
                     }
                     
                     if (!$discId) {
-                        $discId = $this->getPracticeDisciplineId($group);
+                        $discId = $this->getPracticeDisciplineId($group, $current);
                     }
 
                     if ($discId) {
@@ -504,16 +505,19 @@ class ScheduleGeneratorService
         return rand(1, 10) === 1; // 10% шанс
     }
 
-    private function getPracticeDisciplineId(Group $group): ?int
+    private function getPracticeDisciplineId(Group $group, ?Carbon $date = null): ?int
     {
-        return CurriculumDiscipline::whereHas('curriculumPlan.groupAssignments', fn ($q) => $q->where('group_id', $group->id))
+        $assignment = $group->getCurriculumAssignmentForDate($date);
+        if (!$assignment) return null;
+
+        return CurriculumDiscipline::where('curriculum_plan_id', $assignment->curriculum_plan_id)
             ->where('name', 'like', '%практика%')
             ->first()?->id;
     }
 
     private function pickDisciplineForGroup(Group $group, array $excludeIds = [], ?Carbon $date = null): ?CurriculumDiscipline
     {
-        $assignment = GroupCurriculumAssignment::where('group_id', $group->id)->where('is_active', true)->first();
+        $assignment = $group->getCurriculumAssignmentForDate($date);
         if (! $assignment) {
             return null;
         }
