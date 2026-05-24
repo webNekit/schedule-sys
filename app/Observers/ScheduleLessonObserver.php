@@ -3,8 +3,10 @@
 namespace App\Observers;
 
 use App\Models\CurriculumSemester;
+use App\Models\Group;
 use App\Models\HoursTracking;
 use App\Models\ScheduleLesson;
+use Carbon\Carbon;
 
 class ScheduleLessonObserver
 {
@@ -29,7 +31,7 @@ class ScheduleLessonObserver
         }
 
         // Если назначили нового препода, создаем ему часы
-        if (! $isCancelled && (! $tracking || $tracking->teacher_id !== $lesson->teacher_id)) {
+        if (! $isCancelled && $lesson->teacher_id && $lesson->group_id && $lesson->discipline_id && $lesson->lesson_type_id && $lesson->date && (! $tracking || $tracking->teacher_id !== $lesson->teacher_id)) {
             $semesterId = $this->resolveSemesterId($lesson->group_id, $lesson->discipline_id, $lesson->date);
             if ($semesterId) {
                 HoursTracking::create([
@@ -60,12 +62,12 @@ class ScheduleLessonObserver
             return null;
         }
 
-        $group = \App\Models\Group::find($groupId);
+        $group = Group::find($groupId);
         if (! $group) {
             return null;
         }
 
-        $semesterNum = $group->getCurrentSemester($date instanceof \Carbon\Carbon ? $date : \Carbon\Carbon::parse($date));
+        $semesterNum = $group->getCurrentSemester($date instanceof Carbon ? $date : Carbon::parse($date));
 
         return CurriculumSemester::where('discipline_id', $disciplineId)
             ->where('semester_number', $semesterNum)

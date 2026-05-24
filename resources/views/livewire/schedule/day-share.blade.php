@@ -38,20 +38,20 @@
                             $pSym = mb_strtolower(trim($practiceInfo['symbol']));
                             $pType = $practiceInfo['type'];
                             $pLabel = match(true) {
+                                $pSym === 'гп' => 'Подготовка к ГИА',
+                                $pSym === 'дп' => 'Сдача ГИА',
                                 $pType === 'edu_practice' || $pSym === 'у' => 'Учебная практика',
                                 $pType === 'prod_practice' || $pSym === 'п' || $pSym === 'пп' => 'Производственная практика',
                                 $pType === 'pre_diploma' || $pSym === 'пд' => 'Преддипломная практика',
                                 $pType === 'exam_session' || $pSym === 'э' => 'Экзаменационная сессия',
-                                $pSym === 'гп' => 'Подготовка к ГИА',
-                                $pSym === 'дп' => 'Сдача ГИА',
                                 default => 'Практика (' . mb_strtoupper($pSym) . ')',
                             };
                             $pColor = match(true) {
+                                mb_stripos($pLabel, 'ГИА') !== false => 'text-red-700 bg-red-100',
                                 mb_stripos($pLabel, 'Учебная') !== false => 'text-indigo-700 bg-indigo-100',
                                 mb_stripos($pLabel, 'Производственная') !== false => 'text-pink-700 bg-pink-100',
                                 mb_stripos($pLabel, 'Преддипломная') !== false => 'text-amber-700 bg-amber-100',
                                 mb_stripos($pLabel, 'сессия') !== false => 'text-purple-700 bg-purple-100',
-                                mb_stripos($pLabel, 'ГИА') !== false => 'text-red-700 bg-red-100',
                                 default => 'text-gray-700 bg-gray-100',
                             };
                         @endphp

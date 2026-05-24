@@ -324,31 +324,33 @@
 
     {{-- Exam Dates Modal --}}
     @if($showExamModal)
-        <div class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-900/60 backdrop-blur-sm" wire:click.self="$set('showExamModal', false)">
-            <div class="bg-white dark:bg-gray-800 rounded-3xl shadow-2xl w-full max-w-md overflow-hidden border border-white/10">
-                <div class="px-6 py-4 border-b border-gray-100 dark:border-gray-700 flex items-center justify-between bg-purple-50 dark:bg-purple-900/20">
-                    <h3 class="text-sm font-black text-purple-700 dark:text-purple-400 uppercase tracking-widest">Назначение дат сессии</h3>
-                    <button wire:click="$set('showExamModal', false)" class="text-gray-400 hover:text-gray-900 transition-colors"><svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg></button>
+        <div class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40" wire:click.self="$set('showExamModal', false)">
+            <div class="bg-white dark:bg-gray-800 rounded-xl shadow-xl w-full max-w-md overflow-hidden border border-gray-200 dark:border-gray-700">
+                <div class="px-6 py-4 border-b border-gray-100 dark:border-gray-700 flex items-center justify-between">
+                    <h3 class="text-lg font-semibold text-gray-900 dark:text-white">Назначение дат сессии</h3>
+                    <button wire:click="$set('showExamModal', false)" class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                    </button>
                 </div>
                 <div class="p-6 space-y-4">
-                    <div class="bg-gray-50 dark:bg-gray-900/50 p-3 rounded-xl border border-gray-100 dark:border-gray-700 text-xs font-bold text-gray-500">
+                    <div class="bg-emerald-50 dark:bg-emerald-900/20 p-3 rounded-lg border border-emerald-100 dark:border-emerald-800 text-sm font-medium text-emerald-700 dark:text-emerald-300">
                         {{ $examCourse }} курс • {{ $examSemester }} семестр
                     </div>
                     <div class="grid grid-cols-2 gap-4">
                         <div>
-                            <label class="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5">Начало</label>
-                            <input type="date" wire:model="examStartDate" class="w-full rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 px-4 py-2.5 text-xs font-bold focus:border-purple-500 outline-none transition-all">
+                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Начало</label>
+                            <input type="date" wire:model="examStartDate" class="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-2 text-sm focus:border-emerald-500 outline-none transition-colors">
                         </div>
                         <div>
-                            <label class="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5">Конец</label>
-                            <input type="date" wire:model="examEndDate" class="w-full rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 px-4 py-2.5 text-xs font-bold focus:border-purple-500 outline-none transition-all">
+                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Конец</label>
+                            <input type="date" wire:model="examEndDate" class="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-2 text-sm focus:border-emerald-500 outline-none transition-colors">
                         </div>
                     </div>
-                    @error('examEndDate') <p class="text-[10px] text-red-500 font-bold uppercase">{{ $message }}</p> @enderror
+                    @error('examEndDate') <p class="text-xs text-red-500">{{ $message }}</p> @enderror
                 </div>
-                <div class="px-6 py-4 bg-gray-50 dark:bg-gray-900/50 border-t border-gray-100 dark:border-gray-700 flex justify-end gap-3">
-                    <button wire:click="$set('showExamModal', false)" class="text-[10px] font-black text-gray-400 hover:text-gray-900 uppercase">Отмена</button>
-                    <button wire:click="saveExamDates" class="px-6 py-2.5 bg-purple-600 text-white rounded-xl text-[10px] font-black uppercase tracking-widest shadow-lg shadow-purple-600/30 hover:bg-purple-700 transition-all">Сохранить</button>
+                <div class="px-6 py-4 bg-gray-50 dark:bg-gray-700/50 border-t border-gray-100 dark:border-gray-700 flex justify-end gap-3">
+                    <button wire:click="$set('showExamModal', false)" class="px-4 py-2 text-sm font-medium text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200">Отмена</button>
+                    <button wire:click="saveExamDates" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-sm font-medium transition-colors shadow-sm">Сохранить</button>
                 </div>
             </div>
         </div>
@@ -356,24 +358,26 @@
 
     {{-- Practice Teacher Modal --}}
     @if($showPracticeTeacherModal)
-        <div class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-900/60 backdrop-blur-sm" wire:click.self="$set('showPracticeTeacherModal', false)">
-            <div class="bg-white dark:bg-gray-800 rounded-3xl shadow-2xl w-full max-w-md overflow-hidden border border-white/10">
-                <div class="px-6 py-4 border-b border-gray-100 dark:border-gray-700 flex items-center justify-between bg-indigo-50 dark:bg-indigo-900/20">
-                    <h3 class="text-sm font-black text-indigo-700 dark:text-indigo-400 uppercase tracking-widest">Назначение преподавателя на практику</h3>
-                    <button wire:click="$set('showPracticeTeacherModal', false)" class="text-gray-400 hover:text-gray-900 transition-colors"><svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg></button>
+        <div class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40" wire:click.self="$set('showPracticeTeacherModal', false)">
+            <div class="bg-white dark:bg-gray-800 rounded-xl shadow-xl w-full max-w-md overflow-hidden border border-gray-200 dark:border-gray-700">
+                <div class="px-6 py-4 border-b border-gray-100 dark:border-gray-700 flex items-center justify-between">
+                    <h3 class="text-lg font-semibold text-gray-900 dark:text-white">Назначение на практику</h3>
+                    <button wire:click="$set('showPracticeTeacherModal', false)" class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                    </button>
                 </div>
                 <div class="p-6 space-y-4">
                     @php 
                         $selectedP = $plan->practices->find($selectedPracticeId);
                     @endphp
                     @if($selectedP)
-                        <div class="bg-gray-50 dark:bg-gray-900/50 p-3 rounded-xl border border-gray-100 dark:border-gray-700 text-xs font-bold text-gray-500">
+                        <div class="bg-emerald-50 dark:bg-emerald-900/20 p-3 rounded-lg border border-emerald-100 dark:border-emerald-800 text-sm font-medium text-emerald-700 dark:text-emerald-300">
                             {{ $selectedP->course_number }} курс • {{ $selectedP->name ?: 'Практика' }}
                         </div>
                     @endif
                     <div>
-                        <label class="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5">Выберите преподавателя</label>
-                        <select wire:model="practiceTeacherId" class="w-full rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 px-4 py-2.5 text-xs font-bold focus:border-indigo-500 outline-none transition-all">
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Выберите преподавателя</label>
+                        <select wire:model="practiceTeacherId" class="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-2 text-sm focus:border-emerald-500 outline-none transition-colors">
                             <option value="">Без преподавателя</option>
                             @foreach($allTeachers as $t)
                                 <option value="{{ $t->id }}">{{ $t->full_name }}</option>
@@ -381,9 +385,9 @@
                         </select>
                     </div>
                 </div>
-                <div class="px-6 py-4 bg-gray-50 dark:bg-gray-900/50 border-t border-gray-100 dark:border-gray-700 flex justify-end gap-3">
-                    <button wire:click="$set('showPracticeTeacherModal', false)" class="text-[10px] font-black text-gray-400 hover:text-gray-900 uppercase">Отмена</button>
-                    <button wire:click="savePracticeTeacher" class="px-6 py-2.5 bg-indigo-600 text-white rounded-xl text-[10px] font-black uppercase tracking-widest shadow-lg shadow-indigo-600/30 hover:bg-indigo-700 transition-all">Сохранить</button>
+                <div class="px-6 py-4 bg-gray-50 dark:bg-gray-700/50 border-t border-gray-100 dark:border-gray-700 flex justify-end gap-3">
+                    <button wire:click="$set('showPracticeTeacherModal', false)" class="px-4 py-2 text-sm font-medium text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200">Отмена</button>
+                    <button wire:click="savePracticeTeacher" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-sm font-medium transition-colors shadow-sm">Сохранить</button>
                 </div>
             </div>
         </div>
@@ -391,28 +395,30 @@
 
     {{-- Workload Manager Modal --}}
     @if($showWorkloadModal)
-        <div class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-900/60 backdrop-blur-sm" wire:click.self="closeAssignModal">
-            <div class="bg-white dark:bg-gray-800 rounded-3xl shadow-2xl w-full max-w-5xl overflow-hidden flex flex-col max-h-[90vh] border border-white/10">
-                <div class="px-8 py-6 border-b border-gray-100 dark:border-gray-700 flex items-center justify-between">
+        <div class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40" wire:click.self="closeAssignModal">
+            <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-xl w-full max-w-5xl overflow-hidden flex flex-col max-h-[90vh] border border-gray-200 dark:border-gray-700">
+                <div class="px-6 py-4 border-b border-gray-100 dark:border-gray-700 flex items-center justify-between">
                     <div>
-                        <h3 class="text-sm font-black text-gray-400 uppercase tracking-widest">Управление нагрузкой</h3>
-                        <p class="text-xl font-bold text-gray-900 dark:text-white mt-1">{{ $assignDisciplineName }}</p>
+                        <h3 class="text-lg font-semibold text-gray-900 dark:text-white">{{ $assignDisciplineName }}</h3>
+                        <p class="text-xs text-gray-500 dark:text-gray-400 mt-0.5">Управление нагрузкой по семестрам</p>
                     </div>
-                    <button wire:click="closeAssignModal" class="text-gray-400 hover:text-gray-900 transition-colors"><svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg></button>
+                    <button wire:click="closeAssignModal" class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                    </button>
                 </div>
 
                 <div class="flex-1 flex overflow-hidden">
-                    <div class="w-64 border-r border-gray-100 dark:border-gray-700 bg-gray-50/30 dark:bg-gray-900/30 p-4 space-y-2 overflow-y-auto">
+                    <div class="w-56 border-r border-gray-100 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-900/50 p-3 space-y-1 overflow-y-auto">
                         @foreach($plan->disciplines->find($assignDisciplineId)->semesters->sortBy('semester_number') as $sem)
                             <button wire:click="selectSemester({{ $sem->id }})" 
-                                class="w-full text-left px-4 py-3 rounded-2xl transition-all font-bold text-xs
-                                {{ $activeSemesterId === $sem->id ? 'bg-emerald-600 text-white shadow-lg' : 'text-gray-400 hover:bg-white dark:hover:bg-gray-700' }}">
+                                class="w-full text-left px-4 py-2.5 rounded-lg transition-colors text-sm font-medium
+                                {{ $activeSemesterId === $sem->id ? 'bg-emerald-600 text-white shadow-sm' : 'text-gray-600 dark:text-gray-400 hover:bg-white dark:hover:bg-gray-800' }}">
                                 {{ $sem->semester_number }} семестр
                             </button>
                         @endforeach
                     </div>
 
-                    <div class="flex-1 bg-white dark:bg-gray-800 p-8 overflow-y-auto custom-scrollbar">
+                    <div class="flex-1 bg-white dark:bg-gray-800 p-6 overflow-y-auto">
                         @if($activeSemesterId)
                             @php
                                 $curSem = \App\Models\CurriculumSemester::find($activeSemesterId);
@@ -422,26 +428,47 @@
                                 $remaining = $curSem->hours_total - $totalAssigned;
                             @endphp
 
-                            <div class="space-y-8">
-                                <div class="grid grid-cols-3 gap-6">
-                                    <div class="bg-gray-50 dark:bg-gray-900/50 p-4 rounded-2xl border border-gray-100 dark:border-gray-700">
-                                        <p class="text-[9px] font-black text-gray-400 uppercase tracking-widest">План семестра</p>
-                                        <p class="text-2xl font-bold mt-1">{{ $curSem->hours_total }} ч.</p>
+                            <div class="space-y-6">
+                                <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+                                    <div class="bg-gray-50 dark:bg-gray-900/50 p-4 rounded-xl border border-gray-100 dark:border-gray-700">
+                                        <p class="text-[10px] font-bold text-gray-400 uppercase tracking-wider">План семестра</p>
+                                        <div class="mt-1 flex items-baseline gap-1">
+                                            <span class="text-xl font-bold text-gray-900 dark:text-white">{{ $curSem->hours_total }}</span>
+                                            <span class="text-xs text-gray-500">час.</span>
+                                        </div>
+                                        <div class="mt-2 grid grid-cols-2 gap-x-2 gap-y-1 text-[10px] text-gray-500">
+                                            <span>Лекции:</span> <span class="font-bold">{{ $curSem->hours_lecture ?: 0 }}</span>
+                                            <span>Практ:</span> <span class="font-bold">{{ $curSem->hours_practice ?: 0 }}</span>
+                                            <span>Лаб:</span> <span class="font-bold">{{ $curSem->hours_lab ?: 0 }}</span>
+                                            <span>СРС:</span> <span class="font-bold">{{ $curSem->hours_self_study ?: 0 }}</span>
+                                        </div>
                                     </div>
-                                    <div class="bg-emerald-50/50 dark:bg-emerald-900/10 p-4 rounded-2xl border border-emerald-100/50 dark:border-emerald-500/20">
-                                        <p class="text-[9px] font-black text-emerald-600 uppercase tracking-widest">Распределено</p>
-                                        <p class="text-2xl font-bold mt-1 text-emerald-600">{{ $totalAssigned }} ч.</p>
+                                    <div class="bg-emerald-50 dark:bg-emerald-900/10 p-4 rounded-xl border border-emerald-100 dark:border-emerald-800/30">
+                                        <p class="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-wider">Распределено</p>
+                                        <div class="mt-1 flex items-baseline gap-1">
+                                            <span class="text-xl font-bold text-emerald-600 dark:text-emerald-400">{{ $totalAssigned }}</span>
+                                            <span class="text-xs text-emerald-500/70">час.</span>
+                                        </div>
+                                    </div>
+                                    <div class="bg-gray-50 dark:bg-gray-900/50 p-4 rounded-xl border border-gray-100 dark:border-gray-700">
+                                        <p class="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Остаток</p>
+                                        <div class="mt-1 flex items-baseline gap-1">
+                                            <span class="text-xl font-bold {{ $remaining < 0 ? 'text-red-500' : ($remaining == 0 ? 'text-emerald-500' : 'text-gray-900 dark:text-white') }}">
+                                                {{ $remaining }}
+                                            </span>
+                                            <span class="text-xs text-gray-500">час.</span>
+                                        </div>
                                     </div>
                                     <div class="flex items-center justify-end">
-                                        <button wire:click="openAssignModal" class="px-6 py-3 bg-gray-900 dark:bg-white dark:text-gray-900 text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:scale-105 active:scale-95 transition-all shadow-xl">
-                                            + СОТРУДНИК
+                                        <button wire:click="openAssignModal" class="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-sm font-medium transition-colors shadow-sm">
+                                            + Преподаватель
                                         </button>
                                     </div>
                                 </div>
 
                                 <div class="space-y-3" x-data="{ init() { 
                                     new Sortable($refs.list, { 
-                                        animation: 150, handle: '.drag', ghostClass: 'opacity-10', 
+                                        animation: 150, handle: '.drag', ghostClass: 'bg-indigo-50', 
                                         onEnd: (e) => { 
                                             let ids = Array.from($refs.list.children).map(el => el.getAttribute('data-index'));
                                             @this.updateSortOrder({{ $activeSemesterId }}, ids);
@@ -452,32 +479,41 @@
                                         @foreach($assignments as $idx => $data)
                                             <div wire:key="teacher-row-{{ $activeSemesterId }}-{{ $idx }}" 
                                                 data-index="{{ $idx }}" 
-                                                class="flex items-center gap-4 p-4 border-2 border-gray-50 dark:border-gray-700 rounded-2xl bg-white dark:bg-gray-800 hover:border-emerald-500/30 transition-all group">
-                                                <div class="drag cursor-grab active:cursor-grabbing text-gray-200 hover:text-emerald-500 transition-colors"><svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M4 8h16M4 16h16"/></svg></div>
-                                                <div class="w-8 h-8 rounded-xl bg-gray-900 text-white flex items-center justify-center font-bold text-sm">{{ $idx + 1 }}</div>
-                                                <div class="flex-1">
-                                                    <p class="text-xs font-bold text-gray-900 dark:text-white uppercase">{{ $data['teacher_name'] }}</p>
+                                                class="flex items-center gap-4 p-3 border border-gray-200 dark:border-gray-700 rounded-xl bg-white dark:bg-gray-900 hover:border-emerald-500/30 transition-all group">
+                                                <div class="drag cursor-grab active:cursor-grabbing text-gray-300 hover:text-indigo-500 transition-colors">
+                                                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8h16M4 16h16"/></svg>
                                                 </div>
-                                                <div class="flex items-center gap-2 bg-gray-50 dark:bg-gray-900 px-4 py-2 rounded-xl border border-gray-100 dark:border-gray-700">
+                                                <div class="flex-1">
+                                                    <p class="text-sm font-semibold text-gray-900 dark:text-white">{{ $data['teacher_name'] }}</p>
+                                                </div>
+                                                <div class="flex items-center gap-2 bg-gray-50 dark:bg-gray-800 px-3 py-1.5 rounded-lg border border-gray-200 dark:border-gray-700 focus-within:border-emerald-500 transition-colors">
                                                     <input type="number" 
                                                         wire:model.live.debounce.300ms="workloadState.{{ $activeSemesterId }}.{{ $idx }}.hours" 
-                                                        class="w-16 bg-transparent border-none text-right font-black text-lg p-0 focus:ring-0 text-emerald-600"
+                                                        class="w-16 bg-transparent border-none text-right font-bold text-sm p-0 focus:ring-0 text-emerald-600"
                                                         min="0" step="1">
-                                                    <span class="text-[10px] font-black text-gray-400 uppercase tracking-widest">ЧАСОВ</span>
+                                                    <span class="text-[10px] font-bold text-gray-400 uppercase tracking-widest">час.</span>
                                                 </div>
-                                                <button wire:click="removeTeacherFromSemester({{ $activeSemesterId }}, {{ $idx }})" class="p-2 text-gray-200 hover:text-red-500 transition-colors"><svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg></button>
+                                                <button wire:click="removeTeacherFromSemester({{ $activeSemesterId }}, {{ $idx }})" class="p-2 text-gray-300 hover:text-red-500 transition-colors">
+                                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                                                </button>
                                             </div>
                                         @endforeach
                                     </div>
+                                    @if(empty($assignments))
+                                        <div class="py-12 text-center border-2 border-dashed border-gray-200 dark:border-gray-700 rounded-2xl">
+                                            <p class="text-gray-400 text-sm">Нагрузка не распределена</p>
+                                            <button wire:click="openAssignModal" class="mt-2 text-emerald-600 text-sm font-medium hover:underline">+ Добавить преподавателя</button>
+                                        </div>
+                                    @endif
                                 </div>
                             </div>
                         @endif
                     </div>
                 </div>
 
-                <div class="px-8 py-6 bg-gray-50 dark:bg-gray-900/50 border-t border-gray-100 dark:border-gray-700 flex justify-end gap-4">
-                    <button wire:click="closeAssignModal" class="text-xs font-bold text-gray-400 hover:text-gray-900 uppercase">Отмена</button>
-                    <button wire:click="saveWorkload" class="px-10 py-4 bg-emerald-600 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-lg shadow-emerald-600/30 hover:bg-emerald-700 transition-all">СОХРАНИТЬ</button>
+                <div class="px-6 py-4 bg-gray-50 dark:bg-gray-700/50 border-t border-gray-100 dark:border-gray-700 flex justify-end gap-3">
+                    <button wire:click="closeAssignModal" class="px-4 py-2 text-sm font-medium text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 uppercase">Отмена</button>
+                    <button wire:click="saveWorkload" class="px-6 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-sm font-medium transition-colors shadow-sm">Сохранить изменения</button>
                 </div>
             </div>
         </div>
@@ -485,24 +521,27 @@
 
     {{-- Teacher Selection Overlay --}}
     @if($showAssignModal)
-        <div class="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-gray-900/80 backdrop-blur-md" wire:click.self="$set('showAssignModal', false)">
-            <div class="bg-white dark:bg-gray-800 rounded-3xl shadow-2xl w-full max-w-md overflow-hidden border border-white/5">
-                <div class="p-6 border-b border-gray-50 dark:border-gray-700">
-                    <h3 class="text-xs font-black uppercase tracking-widest text-center">Выбор преподавателя</h3>
+        <div class="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/40" wire:click.self="$set('showAssignModal', false)">
+            <div class="bg-white dark:bg-gray-800 rounded-xl shadow-2xl w-full max-w-md overflow-hidden border border-gray-200 dark:border-gray-700">
+                <div class="px-6 py-4 border-b border-gray-100 dark:border-gray-700 flex items-center justify-between">
+                    <h3 class="text-lg font-semibold text-gray-900 dark:text-white">Выбор преподавателя</h3>
+                    <button wire:click="$set('showAssignModal', false)" class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                    </button>
                 </div>
                 <div class="p-6 space-y-4">
-                    <input type="text" wire:model.live.debounce.300ms="teacherSearch" placeholder="ПОИСК..." autofocus
-                        class="w-full rounded-xl border border-gray-100 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 px-4 py-3 text-xs font-bold focus:border-emerald-500 outline-none">
+                    <input type="text" wire:model.live.debounce.300ms="teacherSearch" placeholder="Поиск по фамилии..." autofocus
+                        class="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-700 px-4 py-2 text-sm focus:border-emerald-500 outline-none transition-colors">
                     
-                    <div class="max-h-64 overflow-y-auto space-y-1 custom-scrollbar">
+                    <div class="max-h-64 overflow-y-auto space-y-1 custom-scrollbar pr-2">
                         @forelse($searchableTeachers as $teacher)
                             <button type="button" wire:click="selectAndAssign({{ $teacher->id }})" 
-                                class="w-full text-left px-4 py-3 rounded-xl hover:bg-emerald-50 dark:hover:bg-emerald-900/20 transition-all flex items-center justify-between group">
-                                <div class="text-xs font-bold text-gray-900 dark:text-white uppercase">{{ $teacher->last_name }} {{ $teacher->first_name }}</div>
-                                <svg class="w-4 h-4 text-gray-200 group-hover:text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M9 5l7 7-7 7"/></svg>
+                                class="w-full text-left px-4 py-2 rounded-lg hover:bg-emerald-50 dark:hover:bg-emerald-900/20 transition-all flex items-center justify-between group">
+                                <div class="text-sm font-medium text-gray-900 dark:text-white">{{ $teacher->last_name }} {{ $teacher->first_name }}</div>
+                                <svg class="w-4 h-4 text-gray-300 group-hover:text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
                             </button>
                         @empty
-                            <div class="py-10 text-center text-[10px] font-bold text-gray-300 uppercase">Никого не найдено</div>
+                            <div class="py-10 text-center text-gray-400 text-sm">Преподаватели не найдены</div>
                         @endforelse
                     </div>
                 </div>

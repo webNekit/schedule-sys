@@ -10,11 +10,12 @@ use App\Models\Specialty;
 use Livewire\Attributes\Layout;
 use Livewire\Component;
 use Livewire\WithPagination;
+use Livewire\WithFileUploads;
 
 #[Layout('components.layouts.app')]
 class SpecialtyManager extends Component
 {
-    use WithPagination;
+    use WithPagination, WithFileUploads;
 
     public bool $showForm = false;
 
@@ -49,6 +50,46 @@ class SpecialtyManager extends Component
     public string $search = '';
 
     public string $departmentFilter = '';
+
+    // Импорт
+    public bool $showImportModal = false;
+    public $importFile;
+
+    public function openImportModal(): void
+    {
+        $this->importFile = null;
+        $this->showImportModal = true;
+    }
+
+    public function closeImportModal(): void
+    {
+        $this->showImportModal = false;
+        $this->importFile = null;
+    }
+
+    public function importExcel(\App\Services\Import\ExcelDictionaryImportService $importService): void
+    {
+        $this->validate([
+            'importFile' => 'required|file|mimes:xlsx,xls|max:10240',
+        ]);
+
+        $storedPath = $this->importFile->store('imports', 'local');
+        $fullPath = \Illuminate\Support\Facades\Storage::disk('local')->path($storedPath);
+
+        try {
+            $result = $importService->importSpecialties($fullPath);
+            $this->closeImportModal();
+
+            if ($result['imported'] > 0) {
+                session()->flash('message', "Импорт завершен. Добавлено/обновлено: {$result['imported']}.");
+            }
+            if (! empty($result['errors'])) {
+                session()->flash('error', 'Ошибки импорта: '.implode(' ', array_slice($result['errors'], 0, 3)).(count($result['errors']) > 3 ? '...' : ''));
+            }
+        } catch (\Exception $e) {
+            session()->flash('error', 'Ошибка при импорте: '.$e->getMessage());
+        }
+    }
 
     public function create(): void
     {

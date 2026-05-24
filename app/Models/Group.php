@@ -153,6 +153,10 @@ class Group extends Model
 
     public function getFullNameAttribute(): string
     {
+        if ($this->status === 'graduated') {
+            return "{$this->name} (выпущена)";
+        }
+
         return "{$this->name} ({$this->current_course} курс)";
     }
 
@@ -254,14 +258,31 @@ class Group extends Model
         return (int) ceil($this->getWeeklyHours() / 2);
     }
 
+    protected static function booted(): void
+    {
+        static::saving(function (Group $group) {
+            // Если курс установлен и он больше максимального для специальности - выпускаем
+            $maxCourses = $group->specialty?->max_courses ?? 4;
+            
+            if ($group->current_course > $maxCourses) {
+                $group->status = 'graduated';
+            } elseif ($group->status === 'graduated' && $group->current_course > 0 && $group->current_course <= $maxCourses) {
+                // Если мы вручную вернули курс назад (в диапазон обучения), сбрасываем статус на активный
+                $group->status = 'active';
+            }
+        });
+    }
+
     public function promote(): void
     {
-        $this->increment('current_course');
+        $this->current_course++;
+        $this->save();
     }
 
     public function graduate(): void
     {
-        $this->update(['status' => 'graduated']);
+        $this->status = 'graduated';
+        $this->save();
     }
 
     public function isOnPractice(Carbon $date): bool

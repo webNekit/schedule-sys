@@ -4,15 +4,75 @@
             <h2 class="text-2xl font-bold">Специальности</h2>
             <p class="text-sm text-gray-500">Управление специальностями (код, сроки обучения, бюджет/внебюджет)</p>
         </div>
-        <button wire:click="create"
-            class="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-sm transition">+
-            Создать</button>
+        <div class="flex items-center gap-2">
+            <button wire:click="openImportModal"
+                class="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-sm transition">
+                Импорт Excel
+            </button>
+            <button wire:click="create"
+                class="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-sm transition">+
+                Создать</button>
+        </div>
     </div>
 
     @if (session('message'))
         <div
             class="p-3 bg-emerald-50 dark:bg-emerald-900/30 border border-emerald-200 dark:border-emerald-800 rounded-lg text-sm text-emerald-700 dark:text-emerald-300">
             {{ session('message') }}
+        </div>
+    @endif
+    @if (session('error'))
+        <div
+            class="p-3 bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800 rounded-lg text-sm text-red-700 dark:text-red-300">
+            {{ session('error') }}
+        </div>
+    @endif
+
+    {{-- Модальное окно импорта --}}
+    @if ($showImportModal)
+        <div class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40" wire:click.self="closeImportModal">
+            <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
+                <div class="p-5 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center">
+                    <h3 class="text-lg font-semibold text-gray-900 dark:text-white">Импорт специальностей</h3>
+                    <button wire:click="closeImportModal" class="text-gray-400 hover:text-gray-600">✕</button>
+                </div>
+                <div class="p-6 space-y-6">
+                    <div class="text-sm text-gray-600 dark:text-gray-400 space-y-2">
+                        <p>Для корректного импорта специальностей, пожалуйста, используйте наш стандартный шаблон.</p>
+                        <p>Укажите код, название, сокращение и отделение. Система обновит данные, если код специальности уже существует.</p>
+                    </div>
+
+                    <div class="flex flex-col gap-3">
+                        <a href="{{ asset('template/specialties_template.xlsx') }}" download
+                            class="flex items-center justify-center gap-2 px-4 py-2.5 bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200 rounded-lg text-sm font-medium transition-colors">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                            </svg>
+                            Скачать шаблон
+                        </a>
+
+                        <div class="relative">
+                            <label class="flex flex-col items-center justify-center w-full px-4 py-6 border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-xl hover:border-indigo-500 dark:hover:border-indigo-400 transition-colors cursor-pointer group">
+                                <div class="flex flex-col items-center justify-center">
+                                    <svg class="w-8 h-8 text-gray-400 group-hover:text-indigo-500 transition-colors mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                                    </svg>
+                                    <p class="text-xs font-medium text-gray-600 dark:text-gray-400">Нажмите для выбора файла или перетащите</p>
+                                    <p class="text-[10px] text-gray-400 mt-1">Excel (.xlsx, .xls)</p>
+                                </div>
+                                <input type="file" wire:model="importFile" class="hidden" accept=".xlsx,.xls">
+                            </label>
+                            @error('importFile') <p class="text-xs text-red-600 mt-1">{{ $message }}</p> @enderror
+                        </div>
+
+                        <button type="button" wire:click="importExcel" wire:loading.attr="disabled"
+                            class="flex items-center justify-center px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-sm font-medium transition-colors disabled:opacity-50">
+                            <span wire:loading.remove wire:target="importExcel">Загрузить и импортировать</span>
+                            <span wire:loading wire:target="importExcel">Загрузка...</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
         </div>
     @endif
 

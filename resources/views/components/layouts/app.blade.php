@@ -32,138 +32,139 @@
 
         {{-- Sidebar (Увеличена ширина: w-72 вместо w-64) --}}
         <aside
-            class="fixed md:static inset-y-0 left-0 z-40 flex flex-col w-72 bg-gray-900 dark:bg-gray-950 border-r border-gray-800 transition-all duration-300 ease-in-out"
-            :class="sidebarOpen ? 'translate-x-0' : '-translate-x-full md:-translate-x-full'" x-cloak>
-            {{-- Logo --}}
-            <div class="flex items-center justify-between h-16 px-6 border-b border-gray-800 shrink-0">
-                <a href="{{ route('dashboard') }}" class="flex items-center gap-3">
-                    <div
-                        class="flex items-center justify-center w-8 h-8 rounded-lg bg-emerald-600 text-white text-sm font-bold">
-                        К</div>
-                    <div>
-                        <h1 class="text-base font-semibold text-white leading-tight">Колледж</h1>
-                        <p class="text-[10px] text-gray-400 leading-tight">Расписание занятий</p>
-                    </div>
-                </a>
-                <button @click="sidebarOpen = false"
-                    class="md:hidden p-1.5 rounded-lg text-gray-400 hover:text-white hover:bg-gray-800 transition-colors">
-                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                            d="M6 18L18 6M6 6l12 12" />
-                    </svg>
-                </button>
-            </div>
+            class="fixed md:static inset-y-0 left-0 z-40 flex flex-col bg-gray-900 dark:bg-gray-950 border-r border-gray-800 transition-all duration-300 ease-in-out overflow-hidden"
+            :class="sidebarOpen ? 'w-72 translate-x-0' : 'w-0 -translate-x-full md:translate-x-0 md:border-none'" x-cloak>
+            <div class="w-72 flex flex-col h-full shrink-0">
+                {{-- Logo --}}
+                <div class="flex items-center justify-between h-16 px-6 border-b border-gray-800 shrink-0">
+                    <a href="{{ route('dashboard') }}" class="flex items-center gap-3">
+                        <div
+                            class="flex items-center justify-center w-8 h-8 rounded-lg bg-emerald-600 text-white text-sm font-bold">
+                            К</div>
+                        <div>
+                            <h1 class="text-base font-semibold text-white leading-tight">Колледж</h1>
+                            <p class="text-[10px] text-gray-400 leading-tight">Расписание занятий</p>
+                        </div>
+                    </a>
+                    <button @click="sidebarOpen = false"
+                        class="md:hidden p-1.5 rounded-lg text-gray-400 hover:text-white hover:bg-gray-800 transition-colors">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                    </button>
+                </div>
 
-            {{-- Navigation --}}
-            <nav
-                class="flex-1 overflow-y-auto px-3 py-4 space-y-0.5 scrollbar-thin scrollbar-thumb-gray-700 scrollbar-track-transparent">
-                <p class="px-3 text-[10px] font-semibold uppercase tracking-wider text-gray-500 mb-2">Навигация</p>
+                {{-- Navigation --}}
+                <nav
+                    class="flex-1 overflow-y-auto px-3 py-4 space-y-0.5 scrollbar-thin scrollbar-thumb-gray-700 scrollbar-track-transparent">
+                    <p class="px-3 text-[10px] font-semibold uppercase tracking-wider text-gray-500 mb-2">Навигация</p>
 
-                <x-nav-link href="{{ route('dashboard') }}" :active="request()->routeIs('dashboard')">
-                    Панель управления
-                </x-nav-link>
+                    <x-nav-link href="{{ route('dashboard') }}" :active="request()->routeIs('dashboard')">
+                        Панель управления
+                    </x-nav-link>
 
-                <div class="my-3 border-t border-gray-800"></div>
-                <p class="px-3 text-[10px] font-semibold uppercase tracking-wider text-gray-500 mb-2">Справочная</p>
+                    <div class="my-3 border-t border-gray-800"></div>
+                    <p class="px-3 text-[10px] font-semibold uppercase tracking-wider text-gray-500 mb-2">Справочная</p>
 
-                <x-nav-link href="{{ route('groups.index') }}" :active="request()->routeIs('groups.*') && !request()->routeIs('teachers.*') && !request()->routeIs('rooms.*') && !request()->routeIs('curriculum.*') && !request()->routeIs('admin.specialties')">
-                    Группы
-                    @if(\App\Models\Group::count() > 0)
-                        <span
-                            class="ml-auto inline-flex items-center justify-center w-5 h-5 rounded-full text-[10px] font-medium bg-gray-700 text-gray-300">{{ \App\Models\Group::count() }}</span>
-                    @endif
-                </x-nav-link>
+                    <x-nav-link href="{{ route('groups.index') }}" :active="request()->routeIs('groups.*') && !request()->routeIs('teachers.*') && !request()->routeIs('rooms.*') && !request()->routeIs('curriculum.*') && !request()->routeIs('admin.specialties')">
+                        Группы
+                        @if(\App\Models\Group::count() > 0)
+                            <span
+                                class="ml-auto inline-flex items-center justify-center w-5 h-5 rounded-full text-[10px] font-medium bg-gray-700 text-gray-300">{{ \App\Models\Group::count() }}</span>
+                        @endif
+                    </x-nav-link>
 
-                <x-nav-link href="{{ route('teachers.index') }}" :active="request()->routeIs('teachers.*')">
-                    Преподаватели
-                    @if(\App\Models\Teacher::count() > 0)
-                        <span
-                            class="ml-auto inline-flex items-center justify-center w-5 h-5 rounded-full text-[10px] font-medium bg-gray-700 text-gray-300">{{ \App\Models\Teacher::count() }}</span>
-                    @endif
-                </x-nav-link>
+                    <x-nav-link href="{{ route('teachers.index') }}" :active="request()->routeIs('teachers.*')">
+                        Преподаватели
+                        @if(\App\Models\Teacher::count() > 0)
+                            <span
+                                class="ml-auto inline-flex items-center justify-center w-5 h-5 rounded-full text-[10px] font-medium bg-gray-700 text-gray-300">{{ \App\Models\Teacher::count() }}</span>
+                        @endif
+                    </x-nav-link>
 
-                <x-nav-link href="{{ route('rooms.index') }}" :active="request()->routeIs('rooms.*') && !request()->routeIs('rooms.manage')">
-                    Аудитории
-                </x-nav-link>
+                    <x-nav-link href="{{ route('rooms.index') }}" :active="request()->routeIs('rooms.*') && !request()->routeIs('rooms.manage')">
+                        Аудитории
+                    </x-nav-link>
 
-                <x-nav-link href="{{ route('admin.specialties') }}" :active="request()->routeIs('admin.specialties')">
-                    Специальности
-                </x-nav-link>
+                    <x-nav-link href="{{ route('admin.specialties') }}" :active="request()->routeIs('admin.specialties')">
+                        Специальности
+                    </x-nav-link>
 
-                <x-nav-link href="{{ route('admin.departments') }}" :active="request()->routeIs('admin.departments')">
-                    Кафедры
-                </x-nav-link>
+                    <x-nav-link href="{{ route('admin.departments') }}" :active="request()->routeIs('admin.departments')">
+                        Кафедры
+                    </x-nav-link>
 
-                <x-nav-link href="{{ route('admin.positions') }}" :active="request()->routeIs('admin.positions')">
-                    Должности
-                </x-nav-link>
+                    <x-nav-link href="{{ route('admin.positions') }}" :active="request()->routeIs('admin.positions')">
+                        Должности
+                    </x-nav-link>
 
-                <x-nav-link href="{{ route('admin.room-types') }}" :active="request()->routeIs('admin.room-types')">
-                    Типы аудиторий
-                </x-nav-link>
+                    <x-nav-link href="{{ route('admin.room-types') }}" :active="request()->routeIs('admin.room-types')">
+                        Типы аудиторий
+                    </x-nav-link>
 
-                <x-nav-link href="{{ route('curriculum.index') }}" :active="request()->routeIs('curriculum.*')">
-                    Учебные планы
-                </x-nav-link>
+                    <x-nav-link href="{{ route('curriculum.index') }}" :active="request()->routeIs('curriculum.*')">
+                        Учебные планы
+                    </x-nav-link>
 
-                <div class="my-3 border-t border-gray-800"></div>
-                <p class="px-3 text-[10px] font-semibold uppercase tracking-wider text-gray-500 mb-2">Расписание</p>
+                    <div class="my-3 border-t border-gray-800"></div>
+                    <p class="px-3 text-[10px] font-semibold uppercase tracking-wider text-gray-500 mb-2">Расписание</p>
 
-                <x-nav-link href="{{ route('schedule.index') }}" :active="request()->routeIs('schedule.index') || request()->routeIs('schedule.view') || request()->routeIs('schedule.generate')">
-                    Расписание
-                    @if(\App\Models\ScheduleVersion::count() > 0)
-                        <span
-                            class="ml-auto inline-flex items-center justify-center w-5 h-5 rounded-full text-[10px] font-medium bg-gray-700 text-gray-300">{{ \App\Models\ScheduleVersion::count() }}</span>
-                    @endif
-                </x-nav-link>
+                    <x-nav-link href="{{ route('schedule.index') }}" :active="request()->routeIs('schedule.index') || request()->routeIs('schedule.view') || request()->routeIs('schedule.generate')">
+                        Расписание
+                        @if(\App\Models\ScheduleVersion::count() > 0)
+                            <span
+                                class="ml-auto inline-flex items-center justify-center w-5 h-5 rounded-full text-[10px] font-medium bg-gray-700 text-gray-300">{{ \App\Models\ScheduleVersion::count() }}</span>
+                        @endif
+                    </x-nav-link>
 
-                <div class="my-3 border-t border-gray-800"></div>
-                <p class="px-3 text-[10px] font-semibold uppercase tracking-wider text-gray-500 mb-2">Управление</p>
+                    <div class="my-3 border-t border-gray-800"></div>
+                    <p class="px-3 text-[10px] font-semibold uppercase tracking-wider text-gray-500 mb-2">Управление</p>
 
-                <x-nav-link href="{{ route('rooms.manage') }}" :active="request()->routeIs('rooms.manage')">
-                    Корпуса и аудитории
-                </x-nav-link>
+                    <x-nav-link href="{{ route('rooms.manage') }}" :active="request()->routeIs('rooms.manage')">
+                        Корпуса и аудитории
+                    </x-nav-link>
 
-                <x-nav-link href="{{ route('curriculum.periods') }}" :active="request()->routeIs('curriculum.periods')">
-                    Периоды и каникулы
-                </x-nav-link>
+                    <x-nav-link href="{{ route('curriculum.periods') }}" :active="request()->routeIs('curriculum.periods')">
+                        Периоды и каникулы
+                    </x-nav-link>
 
-                <div class="my-3 border-t border-gray-800"></div>
-                <p class="px-3 text-[10px] font-semibold uppercase tracking-wider text-gray-500 mb-2">Администрирование
-                </p>
+                    <div class="my-3 border-t border-gray-800"></div>
+                    <p class="px-3 text-[10px] font-semibold uppercase tracking-wider text-gray-500 mb-2">Администрирование
+                    </p>
 
-                <x-nav-link href="{{ route('admin.roles') }}" :active="request()->routeIs('admin.roles')">
-                    Роли
-                </x-nav-link>
+                    <x-nav-link href="{{ route('admin.roles') }}" :active="request()->routeIs('admin.roles')">
+                        Роли
+                    </x-nav-link>
 
-                <x-nav-link href="{{ route('admin.users') }}" :active="request()->routeIs('admin.users')">
-                    Пользователи
-                </x-nav-link>
+                    <x-nav-link href="{{ route('admin.users') }}" :active="request()->routeIs('admin.users')">
+                        Пользователи
+                    </x-nav-link>
 
-                <x-nav-link href="{{ route('admin.delete-data') }}" :active="request()->routeIs('admin.delete-data')">
-                    Очистка данных
-                </x-nav-link>
+                    <x-nav-link href="{{ route('admin.delete-data') }}" :active="request()->routeIs('admin.delete-data')">
+                        Очистка данных
+                    </x-nav-link>
 
-                <x-nav-link href="{{ route('admin.settings') }}" :active="request()->routeIs('admin.settings')">
-                    Настройки
-                </x-nav-link>
-            </nav>
+                    <x-nav-link href="{{ route('admin.settings') }}" :active="request()->routeIs('admin.settings')">
+                        Настройки
+                    </x-nav-link>
+                </nav>
 
-            {{-- User info in sidebar --}}
-            <div class="p-4 border-t border-gray-800 shrink-0">
-                <div class="flex items-center gap-3 px-2">
-                    <div
-                        class="flex items-center justify-center w-8 h-8 rounded-full bg-emerald-600/20 text-emerald-400 text-xs font-semibold shrink-0">
-                        {{ substr(auth()->user()?->name ?? 'Г', 0, 1) }}
-                    </div>
-                    <div class="min-w-0 flex-1">
-                        <p class="text-sm font-medium text-white truncate">{{ auth()->user()?->name ?? 'Гость' }}</p>
-                        <p class="text-[11px] text-gray-400 truncate">{{ auth()->user()?->email ?? '' }}</p>
+                {{-- User info in sidebar --}}
+                <div class="p-4 border-t border-gray-800 shrink-0">
+                    <div class="flex items-center gap-3 px-2">
+                        <div
+                            class="flex items-center justify-center w-8 h-8 rounded-full bg-emerald-600/20 text-emerald-400 text-xs font-semibold shrink-0">
+                            {{ substr(auth()->user()?->name ?? 'Г', 0, 1) }}
+                        </div>
+                        <div class="min-w-0 flex-1">
+                            <p class="text-sm font-medium text-white truncate">{{ auth()->user()?->name ?? 'Гость' }}</p>
+                            <p class="text-[11px] text-gray-400 truncate">{{ auth()->user()?->email ?? '' }}</p>
+                        </div>
                     </div>
                 </div>
             </div>
         </aside>
-
         {{-- Main Content --}}
         <div class="flex-1 flex flex-col min-w-0 w-full">
             {{-- Top Bar --}}

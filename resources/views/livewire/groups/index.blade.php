@@ -152,23 +152,42 @@
                     <h3 class="text-lg font-semibold text-gray-900 dark:text-white">Импорт групп</h3>
                     <button wire:click="closeImportModal" class="text-gray-400 hover:text-gray-600">✕</button>
                 </div>
-                <form wire:submit="importExcel" class="p-6 space-y-4">
-                    <div>
-                        <label class="block text-sm font-medium mb-1">Выберите Excel-файл (.xlsx)</label>
-                        <input type="file" wire:model="importFile" accept=".xlsx,.xls" required
-                            class="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-2 text-sm">
-                        @error('importFile') <p class="text-xs text-red-600 mt-1">{{ $message }}</p> @enderror
+                <div class="p-6 space-y-6">
+                    <div class="text-sm text-gray-600 dark:text-gray-400 space-y-2">
+                        <p>Для корректного импорта групп, пожалуйста, используйте наш стандартный шаблон.</p>
+                        <p>Заполните все необходимые поля: название, специальность, курс и отделение. Система автоматически создаст новые группы или обновит существующие по их названию.</p>
                     </div>
-                    <div class="pt-4 flex justify-end gap-3 border-t border-gray-200 dark:border-gray-700">
-                        <button type="button" wire:click="closeImportModal"
-                            class="px-4 py-2 text-sm text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-lg transition">Отмена</button>
-                        <button type="submit" wire:loading.attr="disabled"
-                            class="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-sm transition">
-                            <span wire:loading.remove wire:target="importExcel">Импортировать</span>
+
+                    <div class="flex flex-col gap-3">
+                        <a href="{{ asset('template/groups_template.xlsx') }}" download
+                            class="flex items-center justify-center gap-2 px-4 py-2.5 bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200 rounded-lg text-sm font-medium transition-colors">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                            </svg>
+                            Скачать шаблон
+                        </a>
+
+                        <div class="relative">
+                            <label class="flex flex-col items-center justify-center w-full px-4 py-6 border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-xl hover:border-indigo-500 dark:hover:border-indigo-400 transition-colors cursor-pointer group">
+                                <div class="flex flex-col items-center justify-center">
+                                    <svg class="w-8 h-8 text-gray-400 group-hover:text-indigo-500 transition-colors mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                                    </svg>
+                                    <p class="text-xs font-medium text-gray-600 dark:text-gray-400">Нажмите для выбора файла или перетащите</p>
+                                    <p class="text-[10px] text-gray-400 mt-1">Excel (.xlsx, .xls)</p>
+                                </div>
+                                <input type="file" wire:model="importFile" class="hidden" accept=".xlsx,.xls">
+                            </label>
+                            @error('importFile') <p class="text-xs text-red-600 mt-1">{{ $message }}</p> @enderror
+                        </div>
+
+                        <button type="button" wire:click="importExcel" wire:loading.attr="disabled"
+                            class="flex items-center justify-center px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-sm font-medium transition-colors disabled:opacity-50">
+                            <span wire:loading.remove wire:target="importExcel">Загрузить и импортировать</span>
                             <span wire:loading wire:target="importExcel">Загрузка...</span>
                         </button>
                     </div>
-                </form>
+                </div>
             </div>
         </div>
     @endif

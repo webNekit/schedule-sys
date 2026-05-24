@@ -191,28 +191,40 @@
 
                     @if($workloads->isNotEmpty())
                         <div class="overflow-x-auto">
-                            <table class="w-full text-sm">
+                            <table class="w-full text-sm border-collapse">
                                 <thead>
                                     <tr class="border-b border-gray-100 dark:border-gray-700 bg-gray-50/80 dark:bg-gray-800/80">
-                                        <th class="text-left px-4 py-2.5 font-medium text-gray-500 dark:text-gray-400">Группа</th>
-                                        <th class="text-left px-4 py-2.5 font-medium text-gray-500 dark:text-gray-400">Дисциплина</th>
-                                        <th class="text-center px-3 py-2.5 font-medium text-gray-500 dark:text-gray-400 w-24">1 пол. (ч.)</th>
-                                        <th class="text-center px-3 py-2.5 font-medium text-gray-500 dark:text-gray-400 w-24">2 пол. (ч.)</th>
-                                        <th class="text-center px-3 py-2.5 font-medium text-gray-500 dark:text-gray-400 w-20">План (ч.)</th>
-                                        <th class="text-center px-3 py-2.5 font-medium text-gray-500 dark:text-gray-400 w-24">Выдано (ч.)</th>
-                                        <th class="text-center px-3 py-2.5 font-medium text-gray-500 dark:text-gray-400 w-24">Осталось (ч.)</th>
+                                        <th rowspan="2" class="text-left px-4 py-2.5 font-medium text-gray-500 dark:text-gray-400 border-r border-gray-100 dark:border-gray-700">Группа</th>
+                                        <th rowspan="2" class="text-left px-4 py-2.5 font-medium text-gray-500 dark:text-gray-400 border-r border-gray-100 dark:border-gray-700">Дисциплина</th>
+                                        <th colspan="3" class="text-center px-2 py-1.5 font-medium text-gray-500 dark:text-gray-400 border-r border-gray-100 dark:border-gray-700">1 полугодие (ч.)</th>
+                                        <th colspan="3" class="text-center px-2 py-1.5 font-medium text-gray-500 dark:text-gray-400 border-r border-gray-100 dark:border-gray-700">2 полугодие (ч.)</th>
+                                        <th rowspan="2" class="text-center px-3 py-2.5 font-medium text-gray-500 dark:text-gray-400 border-r border-gray-100 dark:border-gray-700 w-20">План (ч.)</th>
+                                        <th rowspan="2" class="text-center px-3 py-2.5 font-medium text-gray-500 dark:text-gray-400 border-r border-gray-100 dark:border-gray-700 w-24">Выдано (ч.)</th>
+                                        <th rowspan="2" class="text-center px-3 py-2.5 font-medium text-gray-500 dark:text-gray-400 w-24">Осталось (ч.)</th>
+                                    </tr>
+                                    <tr class="border-b border-gray-100 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-800/50">
+                                        <th class="text-center px-2 py-1 font-bold text-[10px] text-gray-400 uppercase border-r border-gray-100 dark:border-gray-700 w-12">Всего</th>
+                                        <th class="text-center px-2 py-1 font-medium text-[10px] text-gray-400 uppercase border-r border-gray-100 dark:border-gray-700 w-10">Лек</th>
+                                        <th class="text-center px-2 py-1 font-medium text-[10px] text-gray-400 uppercase border-r border-gray-100 dark:border-gray-700 w-10">Пр</th>
+                                        <th class="text-center px-2 py-1 font-bold text-[10px] text-gray-400 uppercase border-r border-gray-100 dark:border-gray-700 w-12">Всего</th>
+                                        <th class="text-center px-2 py-1 font-medium text-[10px] text-gray-400 uppercase border-r border-gray-100 dark:border-gray-700 w-10">Лек</th>
+                                        <th class="text-center px-2 py-1 font-medium text-[10px] text-gray-400 uppercase border-r border-gray-100 dark:border-gray-700 w-10">Пр</th>
                                     </tr>
                                 </thead>
                                 <tbody class="divide-y divide-gray-100 dark:divide-gray-700">
                                     @foreach($workloads as $td)
                                         @php
-                                            $h1 = $td->semesters
-                                                ->where('curriculumSemester.semester_in_course', 1)
-                                                ->sum('planned_hours');
-                                            $h2 = $td->semesters
-                                                ->where('curriculumSemester.semester_in_course', 2)
-                                                ->sum('planned_hours');
-                                            $totalPlanned = $h1 + $h2;
+                                            $s1 = $td->semesters->where('curriculumSemester.semester_in_course', 1);
+                                            $h1_total = $s1->sum('planned_hours');
+                                            $h1_lec = $s1->sum('curriculumSemester.hours_lecture');
+                                            $h1_prac = $s1->sum('curriculumSemester.hours_practice');
+
+                                            $s2 = $td->semesters->where('curriculumSemester.semester_in_course', 2);
+                                            $h2_total = $s2->sum('planned_hours');
+                                            $h2_lec = $s2->sum('curriculumSemester.hours_lecture');
+                                            $h2_prac = $s2->sum('curriculumSemester.hours_practice');
+
+                                            $totalPlanned = $h1_total + $h2_total;
 
                                             $totalConducted = 0;
                                             foreach ($td->semesters as $tdSem) {
@@ -222,12 +234,19 @@
                                             $remaining = $totalPlanned - $totalConducted;
                                         @endphp
                                         <tr class="hover:bg-gray-50/50 dark:hover:bg-gray-700/30 transition-colors">
-                                            <td class="px-4 py-2.5 font-medium text-gray-900 dark:text-white">{{ $td->resolvedGroup?->name ?? '—' }}</td>
-                                            <td class="px-4 py-2.5 text-gray-700 dark:text-gray-300">{{ $td->discipline->name }}</td>
-                                            <td class="px-3 py-2.5 text-center font-medium text-gray-900 dark:text-white">{{ $h1 ?: '—' }}</td>
-                                            <td class="px-3 py-2.5 text-center font-medium text-gray-900 dark:text-white">{{ $h2 ?: '—' }}</td>
-                                            <td class="px-3 py-2.5 text-center font-semibold text-gray-900 dark:text-white">{{ $totalPlanned }}</td>
-                                            <td class="px-3 py-2.5 text-center font-medium text-emerald-600 dark:text-emerald-400">{{ $totalConducted ?: '0' }}</td>
+                                            <td class="px-4 py-2.5 font-medium text-gray-900 dark:text-white border-r border-gray-50 dark:border-gray-700">{{ $td->resolvedGroup?->name ?? '—' }}</td>
+                                            <td class="px-4 py-2.5 text-gray-700 dark:text-gray-300 border-r border-gray-50 dark:border-gray-700">{{ $td->discipline->name }}</td>
+                                            
+                                            <td class="px-2 py-2.5 text-center font-bold text-gray-900 dark:text-white border-r border-gray-50 dark:border-gray-700 bg-gray-50/30 dark:bg-gray-900/10">{{ $h1_total ?: '—' }}</td>
+                                            <td class="px-2 py-2.5 text-center text-xs text-gray-500 border-r border-gray-50 dark:border-gray-700">{{ $h1_lec ?: '—' }}</td>
+                                            <td class="px-2 py-2.5 text-center text-xs text-gray-500 border-r border-gray-50 dark:border-gray-700">{{ $h1_prac ?: '—' }}</td>
+
+                                            <td class="px-2 py-2.5 text-center font-bold text-gray-900 dark:text-white border-r border-gray-50 dark:border-gray-700 bg-gray-50/30 dark:bg-gray-900/10">{{ $h2_total ?: '—' }}</td>
+                                            <td class="px-2 py-2.5 text-center text-xs text-gray-500 border-r border-gray-50 dark:border-gray-700">{{ $h2_lec ?: '—' }}</td>
+                                            <td class="px-2 py-2.5 text-center text-xs text-gray-500 border-r border-gray-50 dark:border-gray-700">{{ $h2_prac ?: '—' }}</td>
+
+                                            <td class="px-3 py-2.5 text-center font-semibold text-gray-900 dark:text-white border-r border-gray-50 dark:border-gray-700">{{ $totalPlanned }}</td>
+                                            <td class="px-3 py-2.5 text-center font-medium text-emerald-600 dark:text-emerald-400 border-r border-gray-50 dark:border-gray-700">{{ $totalConducted ?: '0' }}</td>
                                             <td class="px-3 py-2.5 text-center">
                                                 <span class="font-semibold {{ $remaining > 0 ? 'text-amber-600 dark:text-amber-400' : 'text-emerald-600 dark:text-emerald-400' }}">
                                                     {{ $remaining }}

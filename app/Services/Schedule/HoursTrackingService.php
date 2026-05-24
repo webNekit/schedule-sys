@@ -11,6 +11,7 @@ use App\Models\HoursTracking;
 use App\Models\ScheduleLesson;
 use App\Models\ScheduleVersion;
 use App\Models\Teacher;
+use App\Models\TeacherDisciplineSemester;
 use Carbon\Carbon;
 use Illuminate\Support\Collection;
 
@@ -19,17 +20,17 @@ class HoursTrackingService
     public function getRemainingHours(Group $group, CurriculumDiscipline $discipline): int
     {
         $currentSemesterNum = $group->getCurrentSemester();
-        
+
         $totalHours = CurriculumSemester::where('discipline_id', $discipline->id)
             ->where('semester_number', $currentSemesterNum)
             ->sum('hours_total');
 
         $conductedHours = HoursTracking::where('group_id', $group->id)
             ->where('discipline_id', $discipline->id)
-            ->where('semester_id', function($q) use ($discipline, $currentSemesterNum) {
+            ->where('semester_id', function ($q) use ($discipline, $currentSemesterNum) {
                 $q->select('id')->from('curriculum_semesters')
-                  ->where('discipline_id', $discipline->id)
-                  ->where('semester_number', $currentSemesterNum);
+                    ->where('discipline_id', $discipline->id)
+                    ->where('semester_number', $currentSemesterNum);
             })
             ->where('is_cancelled', false)
             ->sum('hours_conducted');
@@ -54,16 +55,16 @@ class HoursTrackingService
         return max(0, $assignment->planned_hours - (int) $conducted);
     }
 
-    public function getTeacherAssignmentForDiscipline(Teacher $teacher, int $groupId, int $disciplineId, int $semesterNum): ?\App\Models\TeacherDisciplineSemester
+    public function getTeacherAssignmentForDiscipline(Teacher $teacher, int $groupId, int $disciplineId, int $semesterNum): ?TeacherDisciplineSemester
     {
-        return \App\Models\TeacherDisciplineSemester::whereHas('teacherDiscipline', function($q) use ($teacher, $groupId, $disciplineId) {
+        return TeacherDisciplineSemester::whereHas('teacherDiscipline', function ($q) use ($teacher, $groupId, $disciplineId) {
             $q->where('teacher_id', $teacher->id)
-              ->where('discipline_id', $disciplineId)
-              ->where(fn($sq) => $sq->where('group_id', $groupId)->orWhereNull('group_id'));
-        })->whereHas('curriculumSemester', function($q) use ($semesterNum) {
+                ->where('discipline_id', $disciplineId)
+                ->where(fn ($sq) => $sq->where('group_id', $groupId)->orWhereNull('group_id'));
+        })->whereHas('curriculumSemester', function ($q) use ($semesterNum) {
             $q->where('semester_number', $semesterNum);
         })->where('is_active', true)
-        ->first();
+            ->first();
     }
 
     public function getWeeklyLoad(Group $group, Carbon $weekStart): int
@@ -99,15 +100,23 @@ class HoursTrackingService
             ->get();
 
         foreach ($lessons as $lesson) {
+            if (! $lesson->teacher_id || ! $lesson->group_id || ! $lesson->discipline_id || ! $lesson->lesson_type_id || ! $lesson->date) {
+                continue;
+            }
+
             $semester = CurriculumSemester::where('discipline_id', $lesson->discipline_id)
                 ->where('semester_number', $this->getSemesterNumberForDate($lesson->date, $version))
                 ->first();
+
+            if (! $semester) {
+                continue;
+            }
 
             HoursTracking::create([
                 'group_id' => $lesson->group_id,
                 'discipline_id' => $lesson->discipline_id,
                 'teacher_id' => $lesson->teacher_id,
-                'semester_id' => $semester?->id,
+                'semester_id' => $semester->id,
                 'lesson_type_id' => $lesson->lesson_type_id,
                 'date' => $lesson->date,
                 'hours_conducted' => 2, // Каждая пара - 2 часа

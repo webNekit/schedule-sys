@@ -8,10 +8,8 @@ use App\DTOs\GenerationResult;
 use App\Models\AcademicYear;
 use App\Models\Building;
 use App\Models\CurriculumDiscipline;
-use App\Models\CurriculumPractice;
 use App\Models\Group;
 use App\Models\GroupBuilding;
-use App\Models\GroupCurriculumAssignment;
 use App\Models\Holiday;
 use App\Models\LessonType;
 use App\Models\Room;
@@ -62,29 +60,30 @@ class ScheduleGeneratorService
                 // 1. Сначала проверяем, является ли день рабочим для группы (учитываем праздники и график 5/6 дней)
                 if (! in_array($dayOfWeek, $workingDays, true) || $this->isNonWorkingDay($current)) {
                     $current->addDay();
+
                     continue;
                 }
 
                 // 2. Только если день рабочий - проверяем на практику или экзамен
                 if ($this->groupOnPracticeOrExam($group, $current, $version->id)) {
                     $block = $group->getCalendarBlock($current);
-                    
+
                     // Ищем тип занятия
                     $typeCode = $block?->type === 'exam_session' ? 'exam' : ($block?->type ?? 'prod_practice');
-                    $lessonType = LessonType::where('code', $typeCode)->first() 
+                    $lessonType = LessonType::where('code', $typeCode)->first()
                                  ?? LessonType::where('code', 'practice')->first()
                                  ?? LessonType::first();
 
                     // Ищем дисциплину для отображения
                     $discId = null;
                     if ($block?->type === 'exam_session') {
-                         $assignment = $group->getCurriculumAssignmentForDate($current);
-                         $discId = CurriculumDiscipline::where('curriculum_plan_id', $assignment?->curriculum_plan_id)
+                        $assignment = $group->getCurriculumAssignmentForDate($current);
+                        $discId = CurriculumDiscipline::where('curriculum_plan_id', $assignment?->curriculum_plan_id)
                             ->where('name', 'like', '%сессия%')
                             ->first()?->id;
                     }
-                    
-                    if (!$discId) {
+
+                    if (! $discId) {
                         $discId = $this->getPracticeDisciplineId($group, $current);
                     }
 
@@ -107,6 +106,7 @@ class ScheduleGeneratorService
 
                     $current->addDay();
                     $dayIndex++;
+
                     continue;
                 }
 
@@ -240,9 +240,9 @@ class ScheduleGeneratorService
         $inVersion = ScheduleLesson::where('group_id', $group->id)
             ->where('date', $dateStr)
             ->where('version_id', $versionId)
-            ->where(function($q) {
+            ->where(function ($q) {
                 $q->whereHas('lessonType', fn ($sub) => $sub->whereIn('code', ['exam', 'test', 'diff_test']))
-                  ->orWhereHas('discipline', fn ($sub) => $sub->where('name', 'like', '%экзамен%'));
+                    ->orWhereHas('discipline', fn ($sub) => $sub->where('name', 'like', '%экзамен%'));
             })
             ->exists();
 
@@ -254,9 +254,9 @@ class ScheduleGeneratorService
         return ScheduleLesson::where('group_id', $group->id)
             ->where('date', $dateStr)
             ->whereHas('version', fn ($q) => $q->where('status', 'published'))
-            ->where(function($q) {
+            ->where(function ($q) {
                 $q->whereHas('lessonType', fn ($sub) => $sub->whereIn('code', ['exam', 'test', 'diff_test']))
-                  ->orWhereHas('discipline', fn ($sub) => $sub->where('name', 'like', '%экзамен%'));
+                    ->orWhereHas('discipline', fn ($sub) => $sub->where('name', 'like', '%экзамен%'));
             })
             ->exists();
     }
@@ -508,7 +508,9 @@ class ScheduleGeneratorService
     private function getPracticeDisciplineId(Group $group, ?Carbon $date = null): ?int
     {
         $assignment = $group->getCurriculumAssignmentForDate($date);
-        if (!$assignment) return null;
+        if (! $assignment) {
+            return null;
+        }
 
         return CurriculumDiscipline::where('curriculum_plan_id', $assignment->curriculum_plan_id)
             ->where('name', 'like', '%практика%')
@@ -529,6 +531,12 @@ class ScheduleGeneratorService
             ->whereHas('semesters', fn ($q) => $q->where('semester_number', $currentSemester))
             ->where('name', 'not like', '%Физическая культура%')
             ->where('is_schedulable', true);
+
+        // Если сегодня НЕ день сессии (нет блока Э в календаре), то исключаем экзаменационные дисциплины
+        $isExamDay = $group->getCalendarBlock($date)?->type === 'exam_session';
+        if (! $isExamDay) {
+            $query->where('name', 'not like', '%Экзамен%');
+        }
 
         // Фильтр: у дисциплины должен быть преподаватель, работающий в этот день
         if ($dayOfWeek !== null) {
@@ -569,12 +577,12 @@ class ScheduleGeneratorService
         // Находим всех преподавателей, назначенных на этот семестр, отсортированных по sort_order
         $assignments = TeacherDisciplineSemester::whereHas('teacherDiscipline', function ($q) use ($disciplineId, $groupId) {
             $q->where('discipline_id', $disciplineId)
-              ->where(fn ($q2) => $q2->where('group_id', $groupId)->orWhereNull('group_id'));
+                ->where(fn ($q2) => $q2->where('group_id', $groupId)->orWhereNull('group_id'));
         })->whereHas('curriculumSemester', function ($q) use ($currentSemesterNum) {
             $q->where('semester_number', $currentSemesterNum);
         })->where('is_active', true)
-          ->orderBy('sort_order', 'asc')
-          ->get();
+            ->orderBy('sort_order', 'asc')
+            ->get();
 
         foreach ($assignments as $assignment) {
             $teacher = $assignment->teacherDiscipline->teacher;
@@ -582,7 +590,7 @@ class ScheduleGeneratorService
             // Проверяем, остались ли часы у этого преподавателя (с учетом sort_order)
             // Если у текущего преподавателя в очереди еще есть часы, мы ОБЯЗАНЫ выбрать его или никого.
             if ($this->hoursTracking->getTeacherRemainingHoursForDiscipline($teacher, $groupId, $disciplineId, $currentSemesterNum) > 0) {
-                
+
                 // Проверяем доступность выбранного по очереди преподавателя
                 if (! $teacher->isAvailableOn($date, $lessonNumber)) {
                     return null; // Ждем этого преподавателя, других не ставим
@@ -625,6 +633,7 @@ class ScheduleGeneratorService
     private function isSportComplexRoom(int $roomId): bool
     {
         $room = Room::find($roomId);
+
         return $room && $room->roomType && $room->roomType->name === 'Спорт.комплекс';
     }
 

@@ -90,7 +90,7 @@ class ScheduleVersion extends Model
 
         foreach ($lessons as $lesson) {
             $academicYearId = $this->academic_year_id ?? AcademicYear::where('is_current', true)->first()?->id;
-            if (! $academicYearId || ! $lesson->discipline_id) {
+            if (! $academicYearId || ! $lesson->discipline_id || ! $lesson->teacher_id || ! $lesson->group_id || ! $lesson->lesson_type_id || ! $lesson->date) {
                 continue;
             }
 
@@ -117,7 +117,7 @@ class ScheduleVersion extends Model
                 'academic_year_id' => $academicYearId,
                 'lesson_type_id' => $lesson->lesson_type_id,
                 'date' => $lesson->date,
-                'hours_conducted' => 1,
+                'hours_conducted' => 2, // 1 пара = 2 часа
                 'schedule_lesson_id' => $lesson->id,
                 'is_cancelled' => false,
             ]);
