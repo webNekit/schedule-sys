@@ -81,10 +81,26 @@ class ScheduleVersion extends Model
         });
     }
 
+    public function revertToDraft(): void
+    {
+        DB::transaction(function () {
+            $this->update([
+                'status' => 'draft',
+                'published_at' => null,
+                'published_by' => null,
+            ]);
+
+            // Удаляем все записи о выданных часах для этой версии
+            HoursTracking::whereHas('scheduleLesson', function ($query) {
+                $query->where('version_id', $this->id);
+            })->delete();
+        });
+    }
+
     public function trackHours(): void
     {
         $lessons = $this->lessons()
-            ->with('version')
+            ->with(['version', 'group'])
             ->where('status', '!=', 'cancelled')
             ->get();
 
@@ -95,9 +111,9 @@ class ScheduleVersion extends Model
             }
 
             $semesterId = $this->resolveSemesterId(
+                $lesson->group_id,
                 $lesson->discipline_id,
-                $lesson->date,
-                $academicYearId,
+                $lesson->date
             );
 
             if (! $semesterId) {
@@ -129,32 +145,21 @@ class ScheduleVersion extends Model
         HoursTracking::where('schedule_lesson_id', $lesson->id)->delete();
     }
 
-    private function resolveSemesterId(?int $disciplineId, mixed $date, ?int $academicYearId): ?int
+    private function resolveSemesterId(?int $groupId, ?int $disciplineId, mixed $date): ?int
     {
-        if (! $disciplineId || ! $academicYearId) {
+        if (! $groupId || ! $disciplineId) {
             return null;
         }
 
-        $lessonDate = $date instanceof Carbon ? $date : Carbon::parse($date);
-        $academicYear = AcademicYear::find($academicYearId);
-
-        if (! $academicYear) {
+        $group = Group::find($groupId);
+        if (! $group) {
             return null;
         }
 
-        $semesterInCourse = 2;
-        if ($lessonDate->greaterThanOrEqualTo($academicYear->first_semester_start)
-            && $lessonDate->lessThanOrEqualTo($academicYear->first_semester_end)) {
-            $semesterInCourse = 1;
-        } elseif ($lessonDate->greaterThanOrEqualTo($academicYear->second_semester_start)
-            && $lessonDate->lessThanOrEqualTo($academicYear->second_semester_end)) {
-            $semesterInCourse = 2;
-        }
+        $semesterNum = $group->getCurrentSemester($date instanceof Carbon ? $date : Carbon::parse($date));
 
-        $cs = CurriculumSemester::where('discipline_id', $disciplineId)
-            ->where('semester_in_course', $semesterInCourse)
-            ->first();
-
-        return $cs?->id;
+        return CurriculumSemester::where('discipline_id', $disciplineId)
+            ->where('semester_number', $semesterNum)
+            ->first()?->id;
     }
 }

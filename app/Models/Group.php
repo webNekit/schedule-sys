@@ -285,6 +285,28 @@ class Group extends Model
         $this->save();
     }
 
+    /**
+     * Проверяет, может ли группа заниматься на указанной паре в указанную дату (проверка смены/графика).
+     */
+    public function isAvailableOn($date, $lessonNumber): bool
+    {
+        $parsedDate = $date instanceof Carbon ? $date : Carbon::parse($date);
+        $dayOfWeek = $parsedDate->dayOfWeekIso;
+
+        // 1. Проверка разрешенных пар для данного дня (из настроек системы)
+        $allowedNumbers = $this->getAllowedLessonNumbersForDay($dayOfWeek);
+        
+        // Если настройки заданы, проверяем вхождение
+        if (! empty($allowedNumbers)) {
+            return in_array($lessonNumber, $allowedNumbers, true);
+        }
+
+        // Если настройки НЕ заданы, используем дефолтную логику смен
+        $defaultAllowed = $this->shift === 1 ? range(1, 5) : range(3, 7);
+        
+        return in_array($lessonNumber, $defaultAllowed, true);
+    }
+
     public function isOnPractice(Carbon $date): bool
     {
         return $this->getCalendarBlock($date) !== null;

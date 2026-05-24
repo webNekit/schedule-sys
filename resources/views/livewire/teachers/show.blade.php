@@ -215,12 +215,13 @@
                                     @foreach($workloads as $td)
                                         @php
                                             $s1 = $td->semesters->where('curriculumSemester.semester_in_course', 1);
-                                            $h1_total = $s1->sum('planned_hours');
+                                            // Если planned_hours 0 или нет записи, берем из CurriculumSemester
+                                            $h1_total = $s1->sum(fn($s) => $s->planned_hours > 0 ? $s->planned_hours : ($s->curriculumSemester->hours_total ?? 0));
                                             $h1_lec = $s1->sum('curriculumSemester.hours_lecture');
                                             $h1_prac = $s1->sum('curriculumSemester.hours_practice');
 
                                             $s2 = $td->semesters->where('curriculumSemester.semester_in_course', 2);
-                                            $h2_total = $s2->sum('planned_hours');
+                                            $h2_total = $s2->sum(fn($s) => $s->planned_hours > 0 ? $s->planned_hours : ($s->curriculumSemester->hours_total ?? 0));
                                             $h2_lec = $s2->sum('curriculumSemester.hours_lecture');
                                             $h2_prac = $s2->sum('curriculumSemester.hours_practice');
 

@@ -211,21 +211,29 @@
     {{-- Список дисциплин --}}
     <div class="rounded-xl bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 overflow-hidden shadow-sm">
         <div class="p-4 border-b border-gray-100 dark:border-gray-700 bg-gray-50/50">
-            <div class="flex flex-col sm:flex-row gap-3">
-                <select wire:model.live="courseFilter" class="w-full sm:w-auto rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 px-3 py-2 text-sm focus:border-emerald-500 outline-none">
-                    <option value="">Все курсы</option>
-                    @foreach($this->availableCourses as $course)
-                        <option value="{{ $course }}">{{ $course }} курс</option>
-                    @endforeach
-                </select>
-                <select wire:model.live="semesterFilter" class="w-full sm:w-auto rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 px-3 py-2 text-sm focus:border-emerald-500 outline-none">
-                    <option value="">Все семестры</option>
-                    @foreach($this->availableSemesters as $semester)
-                        <option value="{{ $semester }}">{{ $semester }} семестр</option>
-                    @endforeach
-                </select>
+            <div class="flex flex-col lg:flex-row gap-3">
+                <div class="flex flex-col sm:flex-row gap-3">
+                    <select wire:model.live="courseFilter" class="w-full sm:w-auto rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 px-3 py-2 text-sm focus:border-emerald-500 outline-none transition-colors">
+                        <option value="">Все курсы</option>
+                        @foreach($this->availableCourses as $course)
+                            <option value="{{ $course }}">{{ $course }} курс</option>
+                        @endforeach
+                    </select>
+                    <select wire:model.live="semesterFilter" class="w-full sm:w-auto rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 px-3 py-2 text-sm focus:border-emerald-500 outline-none transition-colors">
+                        <option value="">Все семестры</option>
+                        @foreach($this->availableSemesters as $semester)
+                            <option value="{{ $semester }}">{{ $semester }} семестр</option>
+                        @endforeach
+                    </select>
+                    <select wire:model.live="teacherFilter" class="w-full sm:w-auto rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 px-3 py-2 text-sm focus:border-emerald-500 outline-none transition-colors">
+                        <option value="">Все преподаватели</option>
+                        @foreach($assignedTeachers as $t)
+                            <option value="{{ $t->id }}">{{ $t->short_name }}</option>
+                        @endforeach
+                    </select>
+                </div>
                 <div class="flex-1 relative">
-                    <input type="text" wire:model.live="disciplineSearch" placeholder="Поиск дисциплины..." class="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 pl-4 pr-4 py-2 text-sm focus:border-emerald-500 outline-none">
+                    <input type="text" wire:model.live="disciplineSearch" placeholder="Поиск по названию или коду..." class="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 pl-4 pr-4 py-2 text-sm focus:border-emerald-500 outline-none transition-colors">
                 </div>
             </div>
         </div>

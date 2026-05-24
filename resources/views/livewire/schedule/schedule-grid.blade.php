@@ -90,16 +90,30 @@
                     </select>
                 @endif
             </div>
-            @if ($shareLink)
-                <div class="flex items-center gap-2">
+            <div class="flex items-center gap-2">
+                @if ($versionId)
+                    @php $v = \App\Models\ScheduleVersion::find($versionId); @endphp
+                    @if ($v && $v->status === 'published')
+                        <button wire:click="revertToDraft({{ $versionId }})" wire:confirm="Перевести расписание в черновик? Выданные часы будут аннулированы."
+                            class="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-sm transition">
+                            В черновик
+                        </button>
+                    @elseif ($v && ($v->status === 'draft' || $v->status === 'generating'))
+                        <button wire:click="publish({{ $versionId }})"
+                            class="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-sm transition">
+                            Опубликовать
+                        </button>
+                    @endif
+                @endif
+                @if ($shareLink)
                     <input type="text" value="{{ $shareLink }}" readonly
                         class="rounded-lg border border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-700 px-3 py-2 text-sm w-80"
                         onclick="this.select()">
                     <button onclick="navigator.clipboard.writeText('{{ $shareLink }}')"
                         class="px-3 py-2 bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 rounded-lg text-sm transition">Копировать</button>
                     <button wire:click="$set('shareLink', null)" class="text-gray-400 hover:text-gray-600">&times;</button>
-                </div>
-            @endif
+                @endif
+            </div>
         </div>
         <div class="flex items-center justify-between">
             <button wire:click="previousWeek"
@@ -349,15 +363,18 @@
     @endforelse
     @if ($editing)
         <div class="fixed inset-0 bg-black/50 flex items-center justify-center z-50"
-            wire:click.self="$set('editing', false)">
+            wire:click.self="cancelEdit">
             <div
                 class="bg-white dark:bg-gray-800 rounded-xl shadow-xl border border-gray-200 dark:border-gray-700 p-6 w-full max-w-lg">
-                <h3 class="text-lg font-semibold mb-4">
-                    Редактирование занятия
-                    @if ($editIsPublished)
-                        <span class="ml-2 text-xs px-2 py-0.5 rounded bg-amber-100 text-amber-700 font-normal">Замена</span>
-                    @endif
-                </h3>
+                <div class="flex justify-between items-center mb-4">
+                    <h3 class="text-lg font-semibold text-gray-900 dark:text-white">
+                        {{ $editDisciplineId > 0 ? 'Редактирование занятия' : 'Добавление занятия' }}
+                        @if ($editIsPublished)
+                            <span class="ml-2 text-xs px-2 py-0.5 rounded bg-amber-100 text-amber-700 font-normal">Замена</span>
+                        @endif
+                    </h3>
+                    <button wire:click="cancelEdit" class="text-gray-400 hover:text-gray-600 transition-colors">&times;</button>
+                </div>
                 <div class="space-y-4">
                     <div>
                         <label class="block text-sm font-medium mb-1">Дата</label>
@@ -367,14 +384,39 @@
                     </div>
                     <div>
                         <label class="block text-sm font-medium mb-1">Дисциплина</label>
-                        <select wire:model.live="editDisciplineId"
-                            class="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-2">
-                            <option value="0">Не выбрана</option>
-                            @foreach ($this->disciplines as $disc)
-                                <option value="{{ $disc->id }}">
-                                    {{ $disc->code ? $disc->code . ' — ' . $disc->name : $disc->name }}</option>
-                            @endforeach
-                        </select>
+                        <div x-data="{ open: false }" class="relative">
+                            <div class="flex items-center">
+                                <button type="button" @click="open = !open"
+                                    class="flex-1 flex justify-between items-center rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-2 text-left">
+                                    <span class="truncate text-sm">{{ $disciplineSearch ?: 'Выберите дисциплину...' }}</span>
+                                    <svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M19 9l-7 7-7-7"/></svg>
+                                </button>
+                                @if($editDisciplineId > 0)
+                                    <button type="button" wire:click="selectDiscipline(0, '')" class="ml-2 p-2 text-gray-400 hover:text-red-500 transition-colors">
+                                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                                    </button>
+                                @endif
+                            </div>
+                            <div x-show="open" @click.outside="open = false" class="absolute z-50 w-full mt-1 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg max-h-60 overflow-y-auto">
+                                <input type="text" wire:model.live.debounce.300ms="disciplineSearch" placeholder="Поиск..."
+                                    class="w-full p-2 border-b border-gray-100 dark:border-gray-700 bg-transparent outline-none text-sm">
+                                @foreach ($this->filteredDisciplines as $disc)
+                                    <button type="button" @click="open = false" wire:click="selectDiscipline({{ $disc->id }}, '{{ addslashes($disc->name) }}')"
+                                        class="w-full text-left px-3 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700 flex justify-between items-center group">
+                                        <span class="truncate pr-2">
+                                            @if($disc->code)
+                                                <span class="font-mono text-[10px] text-gray-400 mr-1">[{{ $disc->code }}]</span>
+                                            @endif
+                                            {{ $disc->name }}
+                                        </span>
+                                        <span class="shrink-0 text-[10px] px-1.5 py-0.5 rounded-full bg-gray-100 dark:bg-gray-700 text-gray-500 group-hover:bg-emerald-100 group-hover:text-emerald-700 transition-colors">
+                                            {{ $disc->remaining_hours }} / {{ $disc->total_hours }} ч.
+                                        </span>
+                                    </button>
+                                @endforeach
+
+                            </div>
+                        </div>
                     </div>
                     <div>
                         <label class="block text-sm font-medium mb-1">Номер пары</label>
@@ -384,39 +426,65 @@
                     </div>
                     <div>
                         <label class="block text-sm font-medium mb-1">Преподаватель</label>
-                        <select wire:model="editTeacherId"
-                            class="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-2">
-                            <option value="0">Не назначен</option>
-                            @foreach ($this->teachers as $teacher)
-                                @php
-                                    $teachesDisc = !$this->editDisciplineId || \App\Models\TeacherDiscipline::where('teacher_id', $teacher->id)->where('discipline_id', $this->editDisciplineId)->where(function ($q) {
-                                        $q->where('group_id', $this->editGroupId)->orWhereNull('group_id');
-                                    })->exists();
-                                    $workingDays = $teacher->working_days ?? [];
-                                    $workingNums = $teacher->working_lesson_numbers ?? [];
-                                    $editDayOfWeek = $this->editDate ? (int) \Carbon\Carbon::parse($this->editDate)->format('N') : 0;
-                                    $dayOk = empty($workingDays) || in_array($editDayOfWeek, $workingDays);
-                                    $numOk = empty($workingNums) || in_array($this->editLessonNumber, $workingNums);
-                                    $tFi = $teacher->first_name ? mb_substr($teacher->first_name, 0, 1) . '.' : '';
-                                    $tMi = $teacher->middle_name ? mb_substr($teacher->middle_name, 0, 1) . '.' : '';
-                                @endphp
-                                @if ($teachesDisc && $dayOk && $numOk)
-                                    <option value="{{ $teacher->id }}">{{ $teacher->last_name }} {{ $tFi }}{{ $tMi }}</option>
+                        <div x-data="{ open: false }" class="relative">
+                            <div class="flex items-center">
+                                <button type="button" @click="open = !open"
+                                    class="flex-1 flex justify-between items-center rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-2 text-left">
+                                    <span class="truncate text-sm">{{ $teacherSearchInput ?: 'Выберите преподавателя...' }}</span>
+                                    <svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M19 9l-7 7-7-7"/></svg>
+                                </button>
+                                @if($editTeacherId > 0)
+                                    <button type="button" wire:click="selectTeacher(0, '')" class="ml-2 p-2 text-gray-400 hover:text-red-500 transition-colors">
+                                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                                    </button>
                                 @endif
-                            @endforeach
-                        </select>
+                            </div>
+                            <div x-show="open" @click.outside="open = false" class="absolute z-50 w-full mt-1 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg max-h-60 overflow-y-auto">
+                                <input type="text" wire:model.live.debounce.300ms="teacherSearchInput" placeholder="Поиск..."
+                                    class="w-full p-2 border-b border-gray-100 dark:border-gray-700 bg-transparent outline-none text-sm">
+                                @foreach ($this->filteredTeachers as $teacher)
+                                    <button type="button" @click="open = false" wire:click="selectTeacher({{ $teacher->id }}, '{{ addslashes($teacher->full_name) }}')"
+                                        class="w-full text-left px-3 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700">
+                                        {{ $teacher->full_name }}
+                                    </button>
+                                @endforeach
+                            </div>
+                        </div>
                     </div>
                     <div>
                         <label class="block text-sm font-medium mb-1">Аудитория</label>
-                        <select wire:model="editRoomId"
-                            class="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-2">
-                            <option value="0">Не назначена</option>
-                            @foreach ($this->roomsForTeacher as $room)
-                                <option value="{{ $room->id }}">
-                                    №{{ $room->number }}{{ $room->building ? ' · ' . ($room->building->short_name ?? $room->building->name) : '' }}
-                                </option>
-                            @endforeach
-                        </select>
+                        <div x-data="{ open: false }" class="relative">
+                            <div class="flex items-center">
+                                <button type="button" @click="open = !open"
+                                    class="flex-1 flex justify-between items-center rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-2 text-left">
+                                    <span class="truncate text-sm">{{ $roomSearch ?: 'Выберите аудиторию...' }}</span>
+                                    <svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M19 9l-7 7-7-7"/></svg>
+                                </button>
+                                @if($editRoomId > 0)
+                                    <button type="button" wire:click="selectRoom(0, '')" class="ml-2 p-2 text-gray-400 hover:text-red-500 transition-colors">
+                                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                                    </button>
+                                @endif
+                            </div>
+                            <div x-show="open" @click.outside="open = false" class="absolute z-50 w-full mt-1 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg max-h-60 overflow-y-auto">
+                                <input type="text" wire:model.live.debounce.300ms="roomSearch" placeholder="Поиск по номеру..."
+                                    class="w-full p-2 border-b border-gray-100 dark:border-gray-700 bg-transparent outline-none text-sm">
+                                @foreach ($this->filteredRooms as $room)
+                                    <button type="button" @click="open = false" wire:click="selectRoom({{ $room->id }}, '№{{ $room->number }}')"
+                                        class="w-full text-left px-3 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700 flex justify-between items-center group">
+                                        <div class="flex flex-col">
+                                            <span class="font-medium text-gray-900 dark:text-white">{{ $room->display_name }}</span>
+                                            <span class="text-[10px] {{ $room->suitability === 'perfect' ? 'text-emerald-600' : ($room->suitability === 'preferred' ? 'text-indigo-500' : 'text-gray-400') }}">
+                                                {{ $room->suitability_label }}
+                                            </span>
+                                        </div>
+                                        @if($room->suitability === 'perfect')
+                                            <svg class="w-4 h-4 text-emerald-500" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/></svg>
+                                        @endif
+                                    </button>
+                                @endforeach
+                            </div>
+                        </div>
                     </div>
                     <div>
                         <label class="block text-sm font-medium mb-1">Заметки</label>
@@ -430,7 +498,7 @@
                         Удалить
                     </button>
                     <div class="flex gap-2">
-                        <button wire:click="$set('editing', false)"
+                        <button wire:click="cancelEdit"
                             class="px-4 py-2 bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 rounded-lg transition">Отмена</button>
                         <button wire:click="saveLesson"
                             class="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg transition">{{ $editIsPublished ? 'Сохранить замену' : 'Сохранить' }}</button>

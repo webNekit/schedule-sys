@@ -55,12 +55,41 @@ class TeacherAssignment extends Component
             return;
         }
 
+        $academicYear = \App\Models\AcademicYear::where('is_current', true)->first();
+
         foreach ($this->assignments as $disciplineId => $teacherId) {
-            TeacherDiscipline::updateOrCreate(
+            $td = TeacherDiscipline::updateOrCreate(
                 ['discipline_id' => $disciplineId],
-                ['teacher_id' => $teacherId ?: null],
+                [
+                    'teacher_id' => $teacherId ?: null,
+                    'academic_year_id' => $academicYear?->id,
+                    'is_primary' => true,
+                ],
             );
+
+            // Если преподаватель назначен, создаем записи для семестров
+            if ($teacherId) {
+                $discipline = CurriculumDiscipline::with('semesters')->find($disciplineId);
+                if ($discipline) {
+                    foreach ($discipline->semesters as $semester) {
+                        \App\Models\TeacherDisciplineSemester::updateOrCreate(
+                            [
+                                'teacher_discipline_id' => $td->id,
+                                'curriculum_semester_id' => $semester->id,
+                            ],
+                            [
+                                'planned_hours' => $semester->hours_total,
+                            ]
+                        );
+                    }
+                }
+            } else {
+                // Если преподаватель снят, удаляем записи семестров
+                $td->semesters()->delete();
+            }
         }
+
+        session()->flash('message', 'Назначения успешно сохранены.');
     }
 
     public function assignTeacher(int $disciplineId, int $teacherId): void

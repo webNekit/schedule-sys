@@ -315,26 +315,73 @@ class Show extends Component
     {
         $currentAcademicYear = AcademicYear::where('is_current', true)->first();
 
-        $workloads = TeacherDiscipline::where('teacher_id', $this->teacher->id)
+        // 1. Получаем ПЛАНОВУЮ нагрузку
+        $plannedWorkloads = TeacherDiscipline::where('teacher_id', $this->teacher->id)
             ->with([
                 'discipline.curriculumPlan',
                 'group',
                 'semesters.curriculumSemester',
                 'academicYear',
             ])
-            ->get()
-            ->map(function ($td) {
-                if (! $td->group && $td->discipline?->curriculumPlan) {
-                    $assignment = GroupCurriculumAssignment::where('curriculum_plan_id', $td->discipline->curriculumPlan->id)
-                        ->with('group')
-                        ->first();
-                    $td->resolvedGroup = $assignment?->group;
-                } else {
-                    $td->resolvedGroup = $td->group;
-                }
+            ->get();
 
-                return $td;
-            });
+        // 2. Получаем ФАКТИЧЕСКУЮ нагрузку из трекинга (чтобы учесть физкультуру и замены)
+        $conductedHours = HoursTracking::where('teacher_id', $this->teacher->id)
+            ->where('is_cancelled', false)
+            ->with(['discipline.curriculumPlan', 'group', 'semester'])
+            ->get()
+            ->groupBy(fn($h) => $h->group_id . '-' . $h->discipline_id);
+
+        // 3. Собираем все уникальные комбинации Группа + Дисциплина
+        $workloads = collect();
+
+        // Сначала добавляем все плановые
+        foreach ($plannedWorkloads as $pw) {
+            $key = ($pw->group_id ?? '') . '-' . $pw->discipline_id;
+            
+            if (! $pw->group && $pw->discipline?->curriculumPlan) {
+                $assignment = GroupCurriculumAssignment::where('curriculum_plan_id', $pw->discipline->curriculumPlan->id)
+                    ->with('group')
+                    ->first();
+                $pw->resolvedGroup = $assignment?->group;
+            } else {
+                $pw->resolvedGroup = $pw->group;
+            }
+            
+            $workloads->put($key, $pw);
+        }
+
+        // Затем добавляем те, по которым были фактические часы, но нет записи в TeacherDiscipline (например, физкультура)
+        foreach ($conductedHours as $key => $hours) {
+            if (! $workloads->has($key)) {
+                $first = $hours->first();
+                $virtualTd = new TeacherDiscipline([
+                    'teacher_id' => $this->teacher->id,
+                    'group_id' => $first->group_id,
+                    'discipline_id' => $first->discipline_id,
+                ]);
+                $virtualTd->setRelation('discipline', $first->discipline);
+                $virtualTd->setRelation('group', $first->group);
+                $virtualTd->resolvedGroup = $first->group;
+                
+                // Создаем виртуальные семестры на основе трекинга
+                // Пытаемся подтянуть плановые часы из учебного плана, если это основная нагрузка
+                $semesters = $hours->groupBy('semester_id')->map(function($hGroup) {
+                    $firstH = $hGroup->first();
+                    $tds = new TeacherDisciplineSemester([
+                        'curriculum_semester_id' => $firstH->semester_id,
+                        'planned_hours' => $firstH->semester?->hours_total ?? 0, // Показываем план дисциплины как базу
+                    ]);
+                    $tds->setRelation('curriculumSemester', $firstH->semester);
+                    return $tds;
+                });
+                $virtualTd->setRelation('semesters', $semesters);
+                
+                $workloads->put($key, $virtualTd);
+            }
+        }
+
+        $workloads = $workloads->values();
 
         $hasPublishedSchedule = ScheduleVersion::where('status', 'published')->exists();
 

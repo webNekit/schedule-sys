@@ -26,6 +26,8 @@ class ShowPlan extends Component
 
     public ?int $semesterFilter = null;
 
+    public ?int $teacherFilter = null;
+
     public int $assignDisciplineId = 0;
 
     public string $assignDisciplineName = '';
@@ -375,6 +377,15 @@ class ShowPlan extends Component
             $semesters = $semesters->filter(fn ($s) => mb_strpos(mb_strtolower($s->discipline->name), $search) !== false);
         }
 
+        if ($this->teacherFilter) {
+            $teacherId = (int) $this->teacherFilter;
+            $semesters = $semesters->filter(function($s) use ($teacherId) {
+                return TeacherDisciplineSemester::where('curriculum_semester_id', $s->id)
+                    ->whereHas('teacherDiscipline', fn($q) => $q->where('teacher_id', $teacherId)->where('academic_year_id', $this->plan->academic_year_id))
+                    ->exists();
+            });
+        }
+
         $semesters = $semesters->sortBy(['course_number', 'semester_number']);
 
         $teachers = collect();
@@ -396,6 +407,9 @@ class ShowPlan extends Component
             'semesters' => $semesters,
             'searchableTeachers' => $teachers,
             'allTeachers' => Teacher::where('is_active', true)->orderBy('last_name')->get(),
+            'assignedTeachers' => Teacher::whereHas('disciplines', fn($q) => $q->where('academic_year_id', $this->plan->academic_year_id))
+                ->orderBy('last_name')
+                ->get(),
         ]);
     }
 }
