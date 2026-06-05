@@ -4,8 +4,10 @@ declare(strict_types=1);
 
 namespace App\Http\Livewire\Curriculum;
 
+use App\Models\AcademicYear;
 use App\Models\CurriculumPlan;
 use App\Models\Department;
+use Livewire\Attributes\Computed;
 use Livewire\Attributes\Layout;
 use Livewire\Component;
 
@@ -50,6 +52,12 @@ class Index extends Component
         $plan->delete();
 
         session()->flash('message', 'Учебный план успешно удалён.');
+    }
+
+    #[Computed]
+    public function currentAcademicYearId(): ?int
+    {
+        return AcademicYear::where('is_current', true)->first()?->id;
     }
 
     #[Layout('components.layouts.app')]

@@ -22,13 +22,17 @@ use App\Http\Livewire\Rooms\Index as RoomsIndex;
 use App\Http\Livewire\Rooms\RoomManagement;
 use App\Http\Livewire\Schedule\DayShare as ScheduleDayShare;
 use App\Http\Livewire\Schedule\Index as ScheduleIndex;
+use App\Http\Livewire\Schedule\MonitoringHeatmap;
 use App\Http\Livewire\Schedule\PublicView as SchedulePublicView;
+use App\Http\Livewire\Schedule\ReplacementFinder;
 use App\Http\Livewire\Schedule\ScheduleGeneratorForm;
 use App\Http\Livewire\Schedule\ScheduleGrid;
 use App\Http\Livewire\Teachers\Index as TeachersIndex;
 use App\Http\Livewire\Teachers\Show as TeachersShow;
 use App\Http\Livewire\Teachers\TeacherAssignment;
 use App\Http\Livewire\Teachers\TeacherWorkloadDashboard;
+use App\Models\ScheduleVersion;
+use App\Services\Export\ExcelExportService;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/schedule/shared', SchedulePublicView::class)->name('schedule.shared');
@@ -56,6 +60,12 @@ Route::middleware('auth')->group(function () {
     Route::get('/teachers/assignments', TeacherAssignment::class)->name('teachers.assignments');
     Route::get('/teachers/{teacher}', TeachersShow::class)->name('teachers.show');
     Route::get('/schedule', ScheduleIndex::class)->name('schedule.index');
+    Route::get('/schedule/export/{version}/{date}', function (ScheduleVersion $version, string $date) {
+        $filePath = app(ExcelExportService::class)->exportDepartmentGridByDate($version->id, $date);
+        $fileName = 'Расписание_'.basename($filePath);
+
+        return response()->download($filePath, $fileName)->deleteFileAfterSend();
+    })->name('schedule.export.download');
     Route::get('/curriculum', CurriculumIndex::class)->name('curriculum.index');
     Route::get('/curriculum/academic-periods', AcademicPeriodsManager::class)->name('curriculum.periods');
     Route::get('/curriculum/import', CurriculumImportForm::class)->name('curriculum.import');
@@ -63,6 +73,8 @@ Route::middleware('auth')->group(function () {
     Route::get('/rooms', RoomsIndex::class)->name('rooms.index');
     Route::get('/schedule/generate', ScheduleGeneratorForm::class)->name('schedule.generate');
     Route::get('/schedule/view/{version?}', ScheduleGrid::class)->name('schedule.view');
+    Route::get('/schedule/monitoring', MonitoringHeatmap::class)->name('schedule.monitoring');
+    Route::get('/schedule/replacements', ReplacementFinder::class)->name('schedule.replacements');
     Route::get('/rooms/manage', RoomManagement::class)->name('rooms.manage');
 
     Route::middleware('permission:admin.access')->group(function () {

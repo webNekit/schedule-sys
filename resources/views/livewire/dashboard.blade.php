@@ -1,130 +1,137 @@
-<div class="space-y-8">
-    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between">
+<div class="space-y-6">
+    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-            <h1 class="text-2xl font-bold text-gray-900 dark:text-white">Добро пожаловать, {{ auth()->user()?->name ?? 'Пользователь' }}</h1>
-            <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">Обзор системы расписания колледжа</p>
+            <h1 class="text-xl font-bold text-white tracking-tight">Добро пожаловать, {{ auth()->user()?->name ?? 'Пользователь' }}</h1>
+            <p class="text-xs text-zinc-400 mt-1">Интеллектуальный планировщик и панель управления системой расписания</p>
         </div>
-        <div class="mt-4 sm:mt-0 flex items-center gap-3">
-            <span class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium bg-emerald-50 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800">
-                <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+        <div class="flex items-center gap-3">
+            <span class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 inline-block shadow-[0_0_8px_rgba(16,185,129,0.8)]"></span>
                 Система активна
             </span>
         </div>
     </div>
 
     <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
-        <div class="relative overflow-hidden rounded-xl bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 p-5 transition-all duration-200 hover:shadow-md hover:border-emerald-300 dark:hover:border-emerald-700 group">
+        <!-- Groups card -->
+        <div class="relative overflow-hidden rounded-xl bg-zinc-900 border border-zinc-850 p-5 transition-all duration-300 hover:border-emerald-500/30 group">
             <div class="flex items-center justify-between">
                 <div>
-                    <p class="text-sm font-medium text-gray-500 dark:text-gray-400">Группы</p>
-                    <p class="mt-1.5 text-3xl font-bold text-gray-900 dark:text-white">{{ $groupsCount }}</p>
+                    <span class="text-xs text-zinc-400 font-semibold uppercase tracking-wider block">Группы</span>
+                    <span class="mt-2 text-3xl font-bold text-white font-mono block leading-none">{{ $groupsCount }}</span>
                 </div>
-                <div class="w-12 h-12 rounded-lg bg-emerald-50 dark:bg-emerald-900/30 flex items-center justify-center text-lg font-bold text-emerald-600 dark:text-emerald-400 group-hover:scale-110 transition-transform">Г</div>
+                <div class="w-10 h-10 rounded-lg bg-emerald-500/10 flex items-center justify-center text-sm font-bold text-emerald-400 group-hover:scale-110 transition-transform">👥</div>
             </div>
-            <div class="mt-3 h-1 w-full rounded-full bg-emerald-100 dark:bg-emerald-900/50">
-                <div class="h-1 rounded-full bg-emerald-500" style="width: {{ min(100, $groupsCount * 10) }}%"></div>
+            <div class="w-full bg-zinc-800 h-1 rounded-full mt-4 overflow-hidden">
+                <div class="bg-emerald-500 h-full transition-all duration-500" style="width: {{ min(100, $groupsCount * 10) }}%"></div>
             </div>
         </div>
 
-        <div class="relative overflow-hidden rounded-xl bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 p-5 transition-all duration-200 hover:shadow-md hover:border-blue-300 dark:hover:border-blue-700 group">
+        <!-- Teachers card -->
+        <div class="relative overflow-hidden rounded-xl bg-zinc-900 border border-zinc-850 p-5 transition-all duration-300 hover:border-emerald-500/30 group">
             <div class="flex items-center justify-between">
                 <div>
-                    <p class="text-sm font-medium text-gray-500 dark:text-gray-400">Преподаватели</p>
-                    <p class="mt-1.5 text-3xl font-bold text-gray-900 dark:text-white">{{ $teachersCount }}</p>
+                    <span class="text-xs text-zinc-400 font-semibold uppercase tracking-wider block">Преподаватели</span>
+                    <span class="mt-2 text-3xl font-bold text-white font-mono block leading-none">{{ $teachersCount }}</span>
                 </div>
-                <div class="w-12 h-12 rounded-lg bg-blue-50 dark:bg-blue-900/30 flex items-center justify-center text-lg font-bold text-blue-600 dark:text-blue-400 group-hover:scale-110 transition-transform">П</div>
+                <div class="w-10 h-10 rounded-lg bg-emerald-500/10 flex items-center justify-center text-sm font-bold text-emerald-400 group-hover:scale-110 transition-transform">👨‍🏫</div>
             </div>
-            <div class="mt-3 h-1 w-full rounded-full bg-blue-100 dark:bg-blue-900/50">
-                <div class="h-1 rounded-full bg-blue-500" style="width: {{ min(100, $teachersCount * 10) }}%"></div>
+            <div class="w-full bg-zinc-800 h-1 rounded-full mt-4 overflow-hidden">
+                <div class="bg-emerald-500 h-full transition-all duration-500" style="width: {{ min(100, $teachersCount * 10) }}%"></div>
             </div>
         </div>
 
-        <div class="relative overflow-hidden rounded-xl bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 p-5 transition-all duration-200 hover:shadow-md hover:border-purple-300 dark:hover:border-purple-700 group">
+        <!-- Rooms card -->
+        <div class="relative overflow-hidden rounded-xl bg-zinc-900 border border-zinc-850 p-5 transition-all duration-300 hover:border-emerald-500/30 group">
             <div class="flex items-center justify-between">
                 <div>
-                    <p class="text-sm font-medium text-gray-500 dark:text-gray-400">Аудитории</p>
-                    <p class="mt-1.5 text-3xl font-bold text-gray-900 dark:text-white">{{ $roomsCount }}</p>
+                    <span class="text-xs text-zinc-400 font-semibold uppercase tracking-wider block">Аудитории</span>
+                    <span class="mt-2 text-3xl font-bold text-white font-mono block leading-none">{{ $roomsCount }}</span>
                 </div>
-                <div class="w-12 h-12 rounded-lg bg-purple-50 dark:bg-purple-900/30 flex items-center justify-center text-lg font-bold text-purple-600 dark:text-purple-400 group-hover:scale-110 transition-transform">А</div>
+                <div class="w-10 h-10 rounded-lg bg-emerald-500/10 flex items-center justify-center text-sm font-bold text-emerald-400 group-hover:scale-110 transition-transform">📍</div>
             </div>
-            <div class="mt-3 h-1 w-full rounded-full bg-purple-100 dark:bg-purple-900/50">
-                <div class="h-1 rounded-full bg-purple-500" style="width: {{ min(100, $roomsCount * 10) }}%"></div>
+            <div class="w-full bg-zinc-800 h-1 rounded-full mt-4 overflow-hidden">
+                <div class="bg-emerald-500 h-full transition-all duration-500" style="width: {{ min(100, $roomsCount * 10) }}%"></div>
             </div>
         </div>
 
-        <div class="relative overflow-hidden rounded-xl bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 p-5 transition-all duration-200 hover:shadow-md hover:border-amber-300 dark:hover:border-amber-700 group">
+        <!-- Disciplines card -->
+        <div class="relative overflow-hidden rounded-xl bg-zinc-900 border border-zinc-850 p-5 transition-all duration-300 hover:border-emerald-500/30 group">
             <div class="flex items-center justify-between">
                 <div>
-                    <p class="text-sm font-medium text-gray-500 dark:text-gray-400">Дисциплины</p>
-                    <p class="mt-1.5 text-3xl font-bold text-gray-900 dark:text-white">{{ $disciplinesCount }}</p>
+                    <span class="text-xs text-zinc-400 font-semibold uppercase tracking-wider block">Дисциплины</span>
+                    <span class="mt-2 text-3xl font-bold text-white font-mono block leading-none">{{ $disciplinesCount }}</span>
                 </div>
-                <div class="w-12 h-12 rounded-lg bg-amber-50 dark:bg-amber-900/30 flex items-center justify-center text-lg font-bold text-amber-600 dark:text-amber-400 group-hover:scale-110 transition-transform">Д</div>
+                <div class="w-10 h-10 rounded-lg bg-emerald-500/10 flex items-center justify-center text-sm font-bold text-emerald-400 group-hover:scale-110 transition-transform">📚</div>
             </div>
-            <div class="mt-3 h-1 w-full rounded-full bg-amber-100 dark:bg-amber-900/50">
-                <div class="h-1 rounded-full bg-amber-500" style="width: {{ min(100, $disciplinesCount * 5) }}%"></div>
+            <div class="w-full bg-zinc-800 h-1 rounded-full mt-4 overflow-hidden">
+                <div class="bg-emerald-500 h-full transition-all duration-500" style="width: {{ min(100, $disciplinesCount * 5) }}%"></div>
             </div>
         </div>
 
-        <div class="relative overflow-hidden rounded-xl bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 p-5 transition-all duration-200 hover:shadow-md hover:border-cyan-300 dark:hover:border-cyan-700 group">
+        <!-- Schedules card -->
+        <div class="relative overflow-hidden rounded-xl bg-zinc-900 border border-zinc-850 p-5 transition-all duration-300 hover:border-emerald-500/30 group">
             <div class="flex items-center justify-between">
                 <div>
-                    <p class="text-sm font-medium text-gray-500 dark:text-gray-400">Расписаний</p>
-                    <p class="mt-1.5 text-3xl font-bold text-gray-900 dark:text-white">{{ $schedulesCount }}</p>
+                    <span class="text-xs text-zinc-400 font-semibold uppercase tracking-wider block">Расписания</span>
+                    <span class="mt-2 text-3xl font-bold text-white font-mono block leading-none">{{ $schedulesCount }}</span>
                 </div>
-                <div class="w-12 h-12 rounded-lg bg-cyan-50 dark:bg-cyan-900/30 flex items-center justify-center text-lg font-bold text-cyan-600 dark:text-cyan-400 group-hover:scale-110 transition-transform">Р</div>
+                <div class="w-10 h-10 rounded-lg bg-emerald-500/10 flex items-center justify-center text-sm font-bold text-emerald-400 group-hover:scale-110 transition-transform">🗓️</div>
             </div>
-            <div class="mt-3 h-1 w-full rounded-full bg-cyan-100 dark:bg-cyan-900/50">
-                <div class="h-1 rounded-full bg-cyan-500" style="width: {{ min(100, $schedulesCount * 20) }}%"></div>
+            <div class="w-full bg-zinc-800 h-1 rounded-full mt-4 overflow-hidden">
+                <div class="bg-emerald-500 h-full transition-all duration-500" style="width: {{ min(100, $schedulesCount * 20) }}%"></div>
             </div>
         </div>
 
-        <div class="relative overflow-hidden rounded-xl bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 p-5 transition-all duration-200 hover:shadow-md group {{ $pendingConflicts > 0 ? 'hover:border-red-300 dark:hover:border-red-700' : 'hover:border-emerald-300 dark:hover:border-emerald-700' }}">
+        <!-- Conflicts card -->
+        <div class="relative overflow-hidden rounded-xl bg-zinc-900 border border-zinc-850 p-5 transition-all duration-300 hover:border-red-500/30 group">
             <div class="flex items-center justify-between">
                 <div>
-                    <p class="text-sm font-medium text-gray-500 dark:text-gray-400">Конфликты</p>
-                    <p class="mt-1.5 text-3xl font-bold {{ $pendingConflicts > 0 ? 'text-red-600 dark:text-red-400' : 'text-emerald-600 dark:text-emerald-400' }}">{{ $pendingConflicts }}</p>
+                    <span class="text-xs text-zinc-400 font-semibold uppercase tracking-wider block">Конфликты</span>
+                    <span class="mt-2 text-3xl font-bold font-mono block leading-none {{ $pendingConflicts > 0 ? 'text-red-400' : 'text-emerald-400' }}">{{ $pendingConflicts }}</span>
                 </div>
-                <div class="w-12 h-12 rounded-lg {{ $pendingConflicts > 0 ? 'bg-red-50 dark:bg-red-900/30' : 'bg-emerald-50 dark:bg-emerald-900/30' }} flex items-center justify-center text-lg font-bold {{ $pendingConflicts > 0 ? 'text-red-600 dark:text-red-400' : 'text-emerald-600 dark:text-emerald-400' }} group-hover:scale-110 transition-transform">!</div>
+                <div class="w-10 h-10 rounded-lg bg-zinc-950 flex items-center justify-center text-sm font-bold {{ $pendingConflicts > 0 ? 'text-red-400 bg-red-500/10' : 'text-emerald-400 bg-emerald-500/10' }} group-hover:scale-110 transition-transform">⚠️</div>
             </div>
-            <div class="mt-3 h-1 w-full rounded-full {{ $pendingConflicts > 0 ? 'bg-red-100 dark:bg-red-900/50' : 'bg-emerald-100 dark:bg-emerald-900/50' }}">
-                <div class="h-1 rounded-full {{ $pendingConflicts > 0 ? 'bg-red-500' : 'bg-emerald-500' }}" style="width: {{ min(100, $pendingConflicts * 25) }}%"></div>
+            <div class="w-full bg-zinc-800 h-1 rounded-full mt-4 overflow-hidden">
+                <div class="h-full transition-all duration-500 {{ $pendingConflicts > 0 ? 'bg-red-500' : 'bg-emerald-500' }}" style="width: {{ min(100, $pendingConflicts * 25) }}%"></div>
             </div>
         </div>
     </div>
 
     <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div class="lg:col-span-2 space-y-6">
-            <div class="rounded-xl bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 overflow-hidden">
-                <div class="px-6 py-4 border-b border-gray-100 dark:border-gray-700">
-                    <h2 class="text-lg font-semibold text-gray-900 dark:text-white">Быстрые действия</h2>
-                </div>
-                <div class="p-6 grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <a href="{{ route('groups.index') }}" class="flex items-center gap-4 p-4 rounded-lg border border-gray-200 dark:border-gray-700 hover:border-emerald-300 dark:hover:border-emerald-600 hover:bg-emerald-50/50 dark:hover:bg-emerald-900/10 transition-all duration-200 group">
-                        <div class="w-10 h-10 rounded-lg bg-emerald-50 dark:bg-emerald-900/30 flex items-center justify-center text-sm font-bold text-emerald-600 dark:text-emerald-400 group-hover:scale-110 transition-transform">Г</div>
+            <!-- Quick actions -->
+            <div class="rounded-xl bg-zinc-900 border border-zinc-850 overflow-hidden p-5">
+                <h3 class="text-sm font-bold text-white uppercase tracking-wider mb-2">Быстрые действия</h3>
+                <p class="text-xs text-zinc-400 mb-4">Основные разделы для управления учебным процессом</p>
+
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <a href="{{ route('groups.index') }}" class="flex items-center gap-4 p-4 rounded-xl border border-zinc-800 bg-zinc-950 hover:bg-zinc-900/55 hover:border-emerald-500/30 transition-all duration-300 group">
+                        <div class="w-10 h-10 rounded-lg bg-emerald-500/10 flex items-center justify-center text-sm font-bold text-emerald-400 group-hover:scale-110 transition-transform">👥</div>
                         <div>
-                            <p class="font-medium text-gray-900 dark:text-white text-sm">Управление группами</p>
-                            <p class="text-xs text-gray-500 dark:text-gray-400">Просмотр и редактирование групп</p>
+                            <p class="font-bold text-white text-xs">Управление группами</p>
+                            <p class="text-[10px] text-zinc-400 mt-0.5">Просмотр и редактирование групп студентов</p>
                         </div>
                     </a>
-                    <a href="{{ route('teachers.index') }}" class="flex items-center gap-4 p-4 rounded-lg border border-gray-200 dark:border-gray-700 hover:border-blue-300 dark:hover:border-blue-600 hover:bg-blue-50/50 dark:hover:bg-blue-900/10 transition-all duration-200 group">
-                        <div class="w-10 h-10 rounded-lg bg-blue-50 dark:bg-blue-900/30 flex items-center justify-center text-sm font-bold text-blue-600 dark:text-blue-400 group-hover:scale-110 transition-transform">П</div>
+                    <a href="{{ route('teachers.index') }}" class="flex items-center gap-4 p-4 rounded-xl border border-zinc-800 bg-zinc-950 hover:bg-zinc-900/55 hover:border-emerald-500/30 transition-all duration-300 group">
+                        <div class="w-10 h-10 rounded-lg bg-emerald-500/10 flex items-center justify-center text-sm font-bold text-emerald-400 group-hover:scale-110 transition-transform">👨‍🏫</div>
                         <div>
-                            <p class="font-medium text-gray-900 dark:text-white text-sm">Преподаватели</p>
-                            <p class="text-xs text-gray-500 dark:text-gray-400">Список и нагрузка</p>
+                            <p class="font-bold text-white text-xs">Преподаватели</p>
+                            <p class="text-[10px] text-zinc-400 mt-0.5">Список преподавателей и их нагрузка</p>
                         </div>
                     </a>
-                    <a href="{{ route('schedule.index') }}" class="flex items-center gap-4 p-4 rounded-lg border border-gray-200 dark:border-gray-700 hover:border-cyan-300 dark:hover:border-cyan-600 hover:bg-cyan-50/50 dark:hover:bg-cyan-900/10 transition-all duration-200 group">
-                        <div class="w-10 h-10 rounded-lg bg-cyan-50 dark:bg-cyan-900/30 flex items-center justify-center text-sm font-bold text-cyan-600 dark:text-cyan-400 group-hover:scale-110 transition-transform">Р</div>
+                    <a href="{{ route('schedule.index') }}" class="flex items-center gap-4 p-4 rounded-xl border border-zinc-800 bg-zinc-950 hover:bg-zinc-900/55 hover:border-emerald-500/30 transition-all duration-300 group">
+                        <div class="w-10 h-10 rounded-lg bg-emerald-500/10 flex items-center justify-center text-sm font-bold text-emerald-400 group-hover:scale-110 transition-transform">🗓️</div>
                         <div>
-                            <p class="font-medium text-gray-900 dark:text-white text-sm">Расписание</p>
-                            <p class="text-xs text-gray-500 dark:text-gray-400">Версии и публикация</p>
+                            <p class="font-bold text-white text-xs">Расписание</p>
+                            <p class="text-[10px] text-zinc-400 mt-0.5">Версии расписания, генерация и публикации</p>
                         </div>
                     </a>
-                    <a href="{{ route('curriculum.index') }}" class="flex items-center gap-4 p-4 rounded-lg border border-gray-200 dark:border-gray-700 hover:border-amber-300 dark:hover:border-amber-600 hover:bg-amber-50/50 dark:hover:bg-amber-900/10 transition-all duration-200 group">
-                        <div class="w-10 h-10 rounded-lg bg-amber-50 dark:bg-amber-900/30 flex items-center justify-center text-sm font-bold text-amber-600 dark:text-amber-400 group-hover:scale-110 transition-transform">П</div>
+                    <a href="{{ route('curriculum.index') }}" class="flex items-center gap-4 p-4 rounded-xl border border-zinc-800 bg-zinc-950 hover:bg-zinc-900/55 hover:border-emerald-500/30 transition-all duration-300 group">
+                        <div class="w-10 h-10 rounded-lg bg-emerald-500/10 flex items-center justify-center text-sm font-bold text-emerald-400 group-hover:scale-110 transition-transform">📚</div>
                         <div>
-                            <p class="font-medium text-gray-900 dark:text-white text-sm">Учебные планы</p>
-                            <p class="text-xs text-gray-500 dark:text-gray-400">Импорт и просмотр</p>
+                            <p class="font-bold text-white text-xs">Учебные планы</p>
+                            <p class="text-[10px] text-zinc-400 mt-0.5">Импорт и просмотр дисциплин учебного плана</p>
                         </div>
                     </a>
                 </div>
@@ -134,27 +141,30 @@
         </div>
 
         <div>
-            <div class="rounded-xl bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 overflow-hidden">
-                <div class="px-6 py-4 border-b border-gray-100 dark:border-gray-700 flex items-center justify-between">
-                    <h2 class="text-lg font-semibold text-gray-900 dark:text-white">Активность</h2>
-                    <span class="text-xs text-gray-400 dark:text-gray-500">Последние</span>
+            <!-- Activity feed -->
+            <div class="rounded-xl bg-zinc-900 border border-zinc-850 overflow-hidden p-5 flex flex-col h-full">
+                <div class="flex items-center justify-between mb-2">
+                    <h3 class="text-sm font-bold text-white uppercase tracking-wider">Активность</h3>
+                    <span class="text-[10px] text-zinc-500 font-mono">Последние события</span>
                 </div>
-                <div class="divide-y divide-gray-100 dark:divide-gray-700">
+                <p class="text-xs text-zinc-400 mb-4">Журнал последних изменений в системе</p>
+
+                <div class="divide-y divide-zinc-800/50 flex-grow overflow-y-auto max-h-[360px] pr-1">
                     @forelse($recentActivity as $log)
-                        <div class="px-6 py-3.5 hover:bg-gray-50/50 dark:hover:bg-gray-700/30 transition-colors">
+                        <div class="py-3 hover:bg-zinc-800/10 transition-colors">
                             <div class="flex items-start gap-3">
-                                <div class="w-7 h-7 rounded-full bg-gray-100 dark:bg-gray-700 flex items-center justify-center text-xs shrink-0 mt-0.5">
+                                <div class="w-7 h-7 rounded-full bg-zinc-950 border border-zinc-800 flex items-center justify-center text-xs text-emerald-400 shrink-0 font-bold">
                                     {{ substr($log->user?->name ?? '?', 0, 1) }}
                                 </div>
-                                <div class="min-w-0">
-                                    <p class="text-sm text-gray-700 dark:text-gray-300 truncate">{{ $log->description }}</p>
-                                    <p class="text-xs text-gray-400 dark:text-gray-500 mt-0.5">{{ $log->created_at->diffForHumans() }}</p>
+                                <div class="min-w-0 flex-1">
+                                    <p class="text-xs text-zinc-200 font-semibold truncate">{{ $log->description }}</p>
+                                    <p class="text-[9px] font-mono text-zinc-500 mt-1">{{ $log->created_at->diffForHumans() }}</p>
                                 </div>
                             </div>
                         </div>
                     @empty
-                        <div class="px-6 py-8 text-center">
-                            <p class="text-sm text-gray-400 dark:text-gray-500">Нет активности</p>
+                        <div class="py-8 text-center italic text-xs text-zinc-600">
+                            Нет активности
                         </div>
                     @endforelse
                 </div>

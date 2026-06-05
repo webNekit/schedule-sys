@@ -97,7 +97,7 @@ class Group extends Model
     public function getCurriculumAssignmentForDate(?Carbon $date = null): ?GroupCurriculumAssignment
     {
         $date = $date ?? Carbon::now();
-        
+
         $academicYear = AcademicYear::where('date_start', '<=', $date->toDateString())
             ->where('date_end', '>=', $date->toDateString())
             ->first() ?? AcademicYear::where('is_current', true)->first();
@@ -107,7 +107,7 @@ class Group extends Model
                 ->where('academic_year_id', $academicYear->id)
                 ->where('is_active', true)
                 ->first();
-            
+
             if ($assignment) {
                 return $assignment;
             }
@@ -176,7 +176,7 @@ class Group extends Model
     public function getCurrentSemester(?Carbon $date = null): int
     {
         $date = $date ?? Carbon::now();
-        
+
         // Пытаемся найти учебный год, который охватывает данную дату.
         // Если привязанный к группе год не подходит, ищем в базе текущий или подходящий по датам.
         $academicYear = $this->academicYear;
@@ -263,7 +263,7 @@ class Group extends Model
         static::saving(function (Group $group) {
             // Если курс установлен и он больше максимального для специальности - выпускаем
             $maxCourses = $group->specialty?->max_courses ?? 4;
-            
+
             if ($group->current_course > $maxCourses) {
                 $group->status = 'graduated';
             } elseif ($group->status === 'graduated' && $group->current_course > 0 && $group->current_course <= $maxCourses) {
@@ -295,7 +295,7 @@ class Group extends Model
 
         // 1. Проверка разрешенных пар для данного дня (из настроек системы)
         $allowedNumbers = $this->getAllowedLessonNumbersForDay($dayOfWeek);
-        
+
         // Если настройки заданы, проверяем вхождение
         if (! empty($allowedNumbers)) {
             return in_array($lessonNumber, $allowedNumbers, true);
@@ -303,7 +303,7 @@ class Group extends Model
 
         // Если настройки НЕ заданы, используем дефолтную логику смен
         $defaultAllowed = $this->shift === 1 ? range(1, 5) : range(3, 7);
-        
+
         return in_array($lessonNumber, $defaultAllowed, true);
     }
 

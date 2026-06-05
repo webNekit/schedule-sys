@@ -137,18 +137,18 @@ class Teacher extends Model
         $isOnEduPractice = $this->conductedPractices()
             ->where('type', 'edu_practice')
             ->get()
-            ->contains(function($p) use ($parsedDate) {
+            ->contains(function ($p) use ($parsedDate) {
                 $pStart = Carbon::parse($p->start_date);
                 $pEnd = Carbon::parse($p->end_date);
-                
+
                 // Нормализация дат (учитываем учебный год)
                 $pYearOffset = ($pStart->month < 9) ? $pStart->year - 1 : $pStart->year;
                 $dYearOffset = ($parsedDate->month < 9) ? $parsedDate->year - 1 : $parsedDate->year;
                 $yearDiff = $dYearOffset - $pYearOffset;
-                
+
                 $normStart = $pStart->copy()->addYears($yearDiff);
                 $normEnd = $pEnd->copy()->addYears($yearDiff);
-                
+
                 return $parsedDate->between($normStart, $normEnd);
             });
 

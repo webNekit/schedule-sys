@@ -2,13 +2,10 @@
 
 @php
 $classes = ($active ?? false)
-    ? 'flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-emerald-400 bg-emerald-900/20 border-l-[3px] border-emerald-500 transition-all duration-150'
-    : 'flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-gray-400 hover:text-white hover:bg-gray-800 border-l-[3px] border-transparent transition-all duration-150';
+    ? 'w-full flex items-center px-3 py-2 rounded-lg text-sm font-medium bg-zinc-900 text-white border-l-2 border-emerald-500 transition-colors shrink-0'
+    : 'w-full flex items-center px-3 py-2 rounded-lg text-sm font-medium text-zinc-400 hover:text-zinc-100 hover:bg-zinc-900/60 border-l-2 border-transparent transition-colors shrink-0';
 @endphp
 
 <a href="{{ $href }}" {{ $attributes->merge(['class' => $classes]) }}>
-    @if($emoji)
-        <span class="w-5 h-5 flex items-center justify-center text-base shrink-0">{{ $emoji }}</span>
-    @endif
-    <span class="flex-1 min-w-0 truncate">{{ $slot }}</span>
+    <span class="truncate">{{ $slot }}</span>
 </a>

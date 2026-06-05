@@ -330,15 +330,15 @@ class Show extends Component
             ->where('is_cancelled', false)
             ->with(['discipline.curriculumPlan', 'group', 'semester'])
             ->get()
-            ->groupBy(fn($h) => $h->group_id . '-' . $h->discipline_id);
+            ->groupBy(fn ($h) => $h->group_id.'-'.$h->discipline_id);
 
         // 3. Собираем все уникальные комбинации Группа + Дисциплина
         $workloads = collect();
 
         // Сначала добавляем все плановые
         foreach ($plannedWorkloads as $pw) {
-            $key = ($pw->group_id ?? '') . '-' . $pw->discipline_id;
-            
+            $key = ($pw->group_id ?? '').'-'.$pw->discipline_id;
+
             if (! $pw->group && $pw->discipline?->curriculumPlan) {
                 $assignment = GroupCurriculumAssignment::where('curriculum_plan_id', $pw->discipline->curriculumPlan->id)
                     ->with('group')
@@ -347,7 +347,7 @@ class Show extends Component
             } else {
                 $pw->resolvedGroup = $pw->group;
             }
-            
+
             $workloads->put($key, $pw);
         }
 
@@ -363,20 +363,21 @@ class Show extends Component
                 $virtualTd->setRelation('discipline', $first->discipline);
                 $virtualTd->setRelation('group', $first->group);
                 $virtualTd->resolvedGroup = $first->group;
-                
+
                 // Создаем виртуальные семестры на основе трекинга
                 // Пытаемся подтянуть плановые часы из учебного плана, если это основная нагрузка
-                $semesters = $hours->groupBy('semester_id')->map(function($hGroup) {
+                $semesters = $hours->groupBy('semester_id')->map(function ($hGroup) {
                     $firstH = $hGroup->first();
                     $tds = new TeacherDisciplineSemester([
                         'curriculum_semester_id' => $firstH->semester_id,
                         'planned_hours' => $firstH->semester?->hours_total ?? 0, // Показываем план дисциплины как базу
                     ]);
                     $tds->setRelation('curriculumSemester', $firstH->semester);
+
                     return $tds;
                 });
                 $virtualTd->setRelation('semesters', $semesters);
-                
+
                 $workloads->put($key, $virtualTd);
             }
         }

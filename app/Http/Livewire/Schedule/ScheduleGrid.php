@@ -6,24 +6,27 @@ namespace App\Http\Livewire\Schedule;
 
 use App\Models\AcademicYear;
 use App\Models\CurriculumDiscipline;
+use App\Models\CurriculumPractice;
 use App\Models\Department;
 use App\Models\Group;
+use App\Models\GroupCurriculumAssignment;
 use App\Models\Holiday;
+use App\Models\HoursTracking;
 use App\Models\Room;
 use App\Models\ScheduleLesson;
 use App\Models\ScheduleVersion;
 use App\Models\Teacher;
+use App\Models\TeacherDiscipline;
 use App\Models\TeacherRoom;
 use App\Models\Vacation;
-use App\Services\Export\ExcelExportService;
 use App\Services\Schedule\ConflictCheckerService;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
+use Illuminate\Support\Collection;
 use Livewire\Attributes\Computed;
 use Livewire\Attributes\Layout;
 use Livewire\Attributes\Rule;
 use Livewire\Component;
-use Symfony\Component\HttpFoundation\BinaryFileResponse;
 
 #[Layout('components.layouts.app')]
 class ScheduleGrid extends Component
@@ -165,7 +168,7 @@ class ScheduleGrid extends Component
     {
         $weekStart = Carbon::parse($this->weekStart);
         $weekEnd = $weekStart->copy()->endOfWeek(Carbon::SUNDAY);
-        
+
         $lessonsQuery = ScheduleLesson::with([
             'group',
             'discipline',
@@ -188,7 +191,7 @@ class ScheduleGrid extends Component
         }
 
         $lessons = $lessonsQuery->orderBy('date')->orderBy('lesson_number')->get();
-        
+
         $this->scheduleData = $lessons->map(function ($lesson) {
             $data = $lesson->toArray();
             $data['date'] = $lesson->date instanceof Carbon
@@ -205,8 +208,8 @@ class ScheduleGrid extends Component
             if ($this->viewMode === 'group') {
                 $groupIds = $this->viewId > 0 ? [$this->viewId] : Group::active()->pluck('id')->toArray();
             } else {
-                $groupIds = $this->viewId > 0 
-                    ? Group::where('department_id', $this->viewId)->pluck('id')->toArray() 
+                $groupIds = $this->viewId > 0
+                    ? Group::where('department_id', $this->viewId)->pluck('id')->toArray()
                     : Group::active()->pluck('id')->toArray();
             }
 
@@ -214,31 +217,31 @@ class ScheduleGrid extends Component
             foreach ($groups as $group) {
                 $assignment = $group->getCurriculumAssignmentForDate(Carbon::parse($this->weekStart));
                 if ($assignment) {
-                    $allPractices = \App\Models\CurriculumPractice::where('curriculum_plan_id', $assignment->curriculum_plan_id)
+                    $allPractices = CurriculumPractice::where('curriculum_plan_id', $assignment->curriculum_plan_id)
                         ->where('course_number', $group->current_course)
                         ->get();
-                    
+
                     foreach ($allPractices as $p) {
-                        $pStart = \Carbon\Carbon::parse($p->start_date);
-                        $pEnd = \Carbon\Carbon::parse($p->end_date);
-                        
+                        $pStart = Carbon::parse($p->start_date);
+                        $pEnd = Carbon::parse($p->end_date);
+
                         $pYearOffset = ($pStart->month < 9) ? $pStart->year - 1 : $pStart->year;
                         $dYearOffset = ($weekStart->month < 9) ? $weekStart->year - 1 : $weekStart->year;
                         $yearDiff = $dYearOffset - $pYearOffset;
-                        
+
                         $normalizedStart = $pStart->copy()->addYears($yearDiff);
                         $normalizedEnd = $pEnd->copy()->addYears($yearDiff);
 
-                        if ($normalizedStart->format('Y-m-d') <= $weekEnd->format('Y-m-d') && 
+                        if ($normalizedStart->format('Y-m-d') <= $weekEnd->format('Y-m-d') &&
                             $normalizedEnd->format('Y-m-d') >= $weekStart->format('Y-m-d')) {
-                            
+
                             $workingDays = $group->getWorkingDays();
                             $pStartClamped = $normalizedStart->copy()->max($weekStart);
                             $pEndClamped = $normalizedEnd->copy()->min($weekEnd);
-                            
+
                             $curr = $pStartClamped->copy();
                             while ($curr->lessThanOrEqualTo($pEndClamped)) {
-                                if (in_array((int)$curr->format('N'), $workingDays, true) && !$this->isNonWorkingDay($curr)) {
+                                if (in_array((int) $curr->format('N'), $workingDays, true) && ! $this->isNonWorkingDay($curr)) {
                                     $this->practiceData[$group->id][] = [
                                         'date' => $curr->format('Y-m-d'),
                                         'symbol' => $p->symbol,
@@ -298,8 +301,8 @@ class ScheduleGrid extends Component
         $this->editDisciplineId = $lesson->discipline_id ?? 0;
         $this->editGroupId = $lesson->group_id;
         $this->editIsPublished = $lesson->version?->status === 'published';
-        
-        $this->disciplineSearch = ''; 
+
+        $this->disciplineSearch = '';
         $this->teacherSearchInput = $lesson->teacher?->full_name ?? '';
         $this->roomSearch = $lesson->room ? "№{$lesson->room->number}" : '';
     }
@@ -309,6 +312,7 @@ class ScheduleGrid extends Component
         if ($id === 0) {
             $this->editRoomId = 0;
             $this->roomSearch = '';
+
             return;
         }
         $this->editRoomId = $id;
@@ -322,21 +326,22 @@ class ScheduleGrid extends Component
             $this->disciplineSearch = '';
             $this->editTeacherId = 0;
             $this->teacherSearchInput = '';
+
             return;
         }
 
         $this->editDisciplineId = $id;
         $this->disciplineSearch = $name;
-        
+
         $this->editTeacherId = 0;
         $this->teacherSearchInput = '';
-        
+
         $currentYear = AcademicYear::where('is_current', true)->first();
-        $assignment = \App\Models\TeacherDiscipline::where('discipline_id', $id)
+        $assignment = TeacherDiscipline::where('discipline_id', $id)
             ->where('is_primary', true)
-            ->when($currentYear, fn($q) => $q->where('academic_year_id', $currentYear->id))
+            ->when($currentYear, fn ($q) => $q->where('academic_year_id', $currentYear->id))
             ->first();
-            
+
         if ($assignment) {
             $this->editTeacherId = $assignment->teacher_id;
             $this->teacherSearchInput = $assignment->teacher->full_name;
@@ -348,6 +353,7 @@ class ScheduleGrid extends Component
         if ($id === 0) {
             $this->editTeacherId = 0;
             $this->teacherSearchInput = '';
+
             return;
         }
         $this->editTeacherId = $id;
@@ -355,42 +361,48 @@ class ScheduleGrid extends Component
     }
 
     #[Computed]
-    public function getFilteredDisciplinesProperty(): \Illuminate\Support\Collection
+    public function getFilteredDisciplinesProperty(): Collection
     {
         $currentYear = AcademicYear::where('is_current', true)->first();
-        if (!$this->editGroupId || $this->editGroupId <= 0) return collect();
+        if (! $this->editGroupId || $this->editGroupId <= 0) {
+            return collect();
+        }
 
         $group = Group::find($this->editGroupId);
-        if (!$group) return collect();
+        if (! $group) {
+            return collect();
+        }
 
         $referenceDate = $this->editDate ? Carbon::parse($this->editDate) : Carbon::parse($this->weekStart);
         $semesterNum = $group->getCurrentSemester($referenceDate);
 
-        $planQuery = \App\Models\GroupCurriculumAssignment::where('group_id', $group->id)
+        $planQuery = GroupCurriculumAssignment::where('group_id', $group->id)
             ->where('is_active', true);
-            
+
         if ($currentYear) {
             $planId = (clone $planQuery)->where('academic_year_id', $currentYear->id)->value('curriculum_plan_id');
-            if (!$planId) {
+            if (! $planId) {
                 $planId = $planQuery->value('curriculum_plan_id');
             }
         } else {
             $planId = $planQuery->value('curriculum_plan_id');
         }
 
-        if (!$planId) return collect();
+        if (! $planId) {
+            return collect();
+        }
 
         $disciplines = CurriculumDiscipline::where('curriculum_plan_id', $planId)
-            ->whereHas('semesters', fn($q) => $q->where('semester_number', $semesterNum))
-            ->with(['semesters' => fn($q) => $q->where('semester_number', $semesterNum)])
-            ->when($this->disciplineSearch, fn($q) => $q->where('name', 'like', '%' . $this->disciplineSearch . '%'))
+            ->whereHas('semesters', fn ($q) => $q->where('semester_number', $semesterNum))
+            ->with(['semesters' => fn ($q) => $q->where('semester_number', $semesterNum)])
+            ->when($this->disciplineSearch, fn ($q) => $q->where('name', 'like', '%'.$this->disciplineSearch.'%'))
             ->orderBy('name')
             ->get();
 
         return $disciplines->map(function ($disc) use ($group) {
             $semester = $disc->semesters->first();
             $totalHours = $semester?->hours_total ?? 0;
-            $conductedHours = \App\Models\HoursTracking::where('group_id', $group->id)
+            $conductedHours = HoursTracking::where('group_id', $group->id)
                 ->where('discipline_id', $disc->id)
                 ->where('semester_id', $semester?->id)
                 ->where('is_cancelled', false)
@@ -398,19 +410,20 @@ class ScheduleGrid extends Component
 
             $disc->total_hours = (int) $totalHours;
             $disc->remaining_hours = (int) ($totalHours - $conductedHours);
+
             return $disc;
         });
     }
 
     #[Computed]
-    public function getFilteredTeachersProperty(): \Illuminate\Support\Collection
+    public function getFilteredTeachersProperty(): Collection
     {
         $query = Teacher::where('is_active', true);
         $currentYear = AcademicYear::where('is_current', true)->first();
 
         if ($this->editDisciplineId > 0) {
-            $assignedQuery = \App\Models\TeacherDiscipline::where('discipline_id', $this->editDisciplineId);
-            
+            $assignedQuery = TeacherDiscipline::where('discipline_id', $this->editDisciplineId);
+
             if ($currentYear) {
                 $assignedIds = (clone $assignedQuery)->where('academic_year_id', $currentYear->id)->pluck('teacher_id')->toArray();
                 if (empty($assignedIds)) {
@@ -419,8 +432,8 @@ class ScheduleGrid extends Component
             } else {
                 $assignedIds = $assignedQuery->pluck('teacher_id')->toArray();
             }
-                
-            if (!empty($assignedIds)) {
+
+            if (! empty($assignedIds)) {
                 $query->whereIn('id', $assignedIds);
             } else {
                 return collect();
@@ -428,9 +441,9 @@ class ScheduleGrid extends Component
         }
 
         if ($this->teacherSearchInput) {
-            $query->where(function($q) {
-                $q->where('last_name', 'like', '%' . $this->teacherSearchInput . '%')
-                  ->orWhere('first_name', 'like', '%' . $this->teacherSearchInput . '%');
+            $query->where(function ($q) {
+                $q->where('last_name', 'like', '%'.$this->teacherSearchInput.'%')
+                    ->orWhere('first_name', 'like', '%'.$this->teacherSearchInput.'%');
             });
         }
 
@@ -449,14 +462,15 @@ class ScheduleGrid extends Component
             ->where('lesson_number', $this->editLessonNumber)
             ->where('id', '!=', $lesson->id)
             ->exists();
-            
+
         if ($duplicate) {
             session()->flash('error', 'В этой ячейке уже есть занятие.');
+
             return;
         }
 
         $teacherChanged = $isPublished && $this->editTeacherId > 0 && $this->editTeacherId !== $lesson->teacher_id;
-        
+
         $lesson->update([
             'discipline_id' => $this->editDisciplineId,
             'lesson_type_id' => $lesson->lesson_type_id ?? 1, // Лекция по умолчанию
@@ -498,6 +512,7 @@ class ScheduleGrid extends Component
 
         if ($overlap) {
             session()->flash('error', "ОШИБКА: На эти даты уже опубликовано расписание «{$overlap->name}».");
+
             return;
         }
 
@@ -522,11 +537,12 @@ class ScheduleGrid extends Component
             $version = ScheduleVersion::find($this->versionId);
             if ($version && $version->status === 'published') {
                 session()->flash('error', 'Это расписание опубликовано. Сначала переведите его в черновик.');
+
                 return;
             }
         }
-        
-        if (!$version) {
+
+        if (! $version) {
             $version = ScheduleVersion::whereIn('status', ['draft', 'generating'])->latest()->first();
         }
 
@@ -559,7 +575,7 @@ class ScheduleGrid extends Component
             'shift' => $group?->shift ?? 1,
             'status' => 'draft',
         ]);
-        
+
         $this->editLesson($lesson->id);
     }
 
@@ -595,26 +611,71 @@ class ScheduleGrid extends Component
         return Room::with('building')->where('is_active', true)->orderBy('name')->get();
     }
 
-    public function exportExcel(ExcelExportService $exportService): ?BinaryFileResponse
+    public bool $showExportModal = false;
+
+    public function openExportModal(): void
     {
         if (! $this->versionId) {
             session()->flash('error', 'Выберите версию расписания.');
-            return null;
+
+            return;
         }
+
+        $this->showExportModal = true;
+    }
+
+    public function closeExportModal(): void
+    {
+        $this->showExportModal = false;
+    }
+
+    #[Computed]
+    public function availableExportDates(): array
+    {
+        if (! $this->versionId) {
+            return [];
+        }
+
         $version = ScheduleVersion::find($this->versionId);
-        $deptId = $this->viewMode === 'department' && $this->viewId > 0 ? $this->viewId : Department::first()->id;
-        try {
-            $filePath = $exportService->exportScheduleByDepartment(
-                deptId: $deptId,
-                dateFrom: Carbon::parse($this->weekStart),
-                dateTo: Carbon::parse($this->weekStart),
-                versionId: $version->id,
-            );
-            return response()->download($filePath, basename($filePath));
-        } catch (\Exception $e) {
-            session()->flash('error', 'Ошибка экспорта: '.$e->getMessage());
-            return null;
+        if (! $version || ! $version->date_from || ! $version->date_to) {
+            return [];
         }
+
+        $dayNames = [1 => 'Пн', 2 => 'Вт', 3 => 'Ср', 4 => 'Чт', 5 => 'Пт', 6 => 'Сб', 7 => 'Вс'];
+        $dates = [];
+        $current = Carbon::parse($version->date_from)->startOfDay();
+        $end = Carbon::parse($version->date_to)->endOfDay();
+
+        while ($current->lessThanOrEqualTo($end)) {
+            $isHoliday = Holiday::where('date', $current->format('Y-m-d'))->exists()
+                || Vacation::where('start_date', '<=', $current->format('Y-m-d'))
+                    ->where('end_date', '>=', $current->format('Y-m-d'))
+                    ->exists();
+
+            if (! $current->isSunday() && ! $isHoliday) {
+                $hasLessons = ScheduleLesson::where('version_id', $this->versionId)
+                    ->where('date', $current->format('Y-m-d'))
+                    ->where('status', '!=', 'cancelled')
+                    ->exists();
+
+                $dates[] = [
+                    'value' => $current->format('Y-m-d'),
+                    'dayLabel' => $dayNames[$current->dayOfWeekIso] ?? '',
+                    'dateLabel' => $current->format('d.m'),
+                    'hasLessons' => $hasLessons,
+                ];
+            }
+
+            $current->addDay();
+        }
+
+        return $dates;
+    }
+
+    /** @deprecated kept for backwards compatibility */
+    public function exportExcel(): void
+    {
+        $this->openExportModal();
     }
 
     public array $highlightedLessonIds = [];
@@ -647,7 +708,9 @@ class ScheduleGrid extends Component
     public function autoFixConflicts(ConflictCheckerService $conflictChecker): void
     {
         $version = ScheduleVersion::whereIn('status', ['draft', 'published'])->latest()->first();
-        if ($version === null) return;
+        if ($version === null) {
+            return;
+        }
         $conflictChecker->autoFix($version->id);
         $this->conflicts = $conflictChecker->checkVersion($version->id);
         $this->loadWeek();
@@ -656,7 +719,9 @@ class ScheduleGrid extends Component
     public function checkConflicts(ConflictCheckerService $conflictChecker): void
     {
         $version = ScheduleVersion::whereIn('status', ['draft', 'published'])->latest()->first();
-        if ($version === null) return;
+        if ($version === null) {
+            return;
+        }
         $this->conflicts = $conflictChecker->checkVersion($version->id);
         $this->showConflictModal = true;
     }
@@ -664,7 +729,9 @@ class ScheduleGrid extends Component
     public function checkConflictsForWeek(ConflictCheckerService $conflictChecker): void
     {
         $version = ScheduleVersion::whereIn('status', ['draft', 'published'])->latest()->first();
-        if ($version === null) return;
+        if ($version === null) {
+            return;
+        }
         $weekStart = Carbon::parse($this->weekStart);
         $weekEnd = $weekStart->copy()->endOfWeek(Carbon::SUNDAY);
         $this->conflicts = $conflictChecker->checkVersionForRange($version->id, $weekStart->format('Y-m-d'), $weekEnd->format('Y-m-d'));
@@ -679,11 +746,15 @@ class ScheduleGrid extends Component
 
     public function resolveConflict(ConflictCheckerService $conflictChecker): void
     {
-        if ($this->resolvingConflictId === null) return;
+        if ($this->resolvingConflictId === null) {
+            return;
+        }
         $conflictChecker->resolveConflict($this->resolvingConflictId, auth()->id(), $this->resolutionNote);
         $this->resolvingConflictId = null;
         $version = ScheduleVersion::whereIn('status', ['draft', 'published'])->latest()->first();
-        if ($version) $this->conflicts = $conflictChecker->checkVersion($version->id);
+        if ($version) {
+            $this->conflicts = $conflictChecker->checkVersion($version->id);
+        }
     }
 
     public function openShareModal(): void
@@ -695,6 +766,7 @@ class ScheduleGrid extends Component
     }
 
     public string $shareDate = '';
+
     public string $shareType = 'week';
 
     public function generateShareLink(): void
@@ -709,13 +781,13 @@ class ScheduleGrid extends Component
     }
 
     #[Computed]
-    public function getFilteredRoomsProperty(): \Illuminate\Support\Collection
+    public function getFilteredRoomsProperty(): Collection
     {
         $query = Room::with('building')->where('is_active', true);
 
-        if ($this->roomSearch && !Room::where('id', $this->editRoomId)->where('number', str_replace('№', '', $this->roomSearch))->exists()) {
+        if ($this->roomSearch && ! Room::where('id', $this->editRoomId)->where('number', str_replace('№', '', $this->roomSearch))->exists()) {
             $search = str_replace(['№', ' '], '', $this->roomSearch);
-            $query->where('number', 'like', '%' . $search . '%');
+            $query->where('number', 'like', '%'.$search.'%');
         }
 
         $rooms = $query->orderBy('number')->get();
@@ -741,9 +813,10 @@ class ScheduleGrid extends Component
                 $room->suitability = 'neutral';
                 $room->suitability_label = 'Доступна';
             }
-            $room->display_name = "№{$room->number}" . ($room->building ? " · " . ($room->building->short_name ?? $room->building->name) : "");
+            $room->display_name = "№{$room->number}".($room->building ? ' · '.($room->building->short_name ?? $room->building->name) : '');
+
             return $room;
-        })->sortByDesc(fn($r) => $r->suitability === 'perfect' ? 2 : ($r->suitability === 'preferred' ? 1 : 0));
+        })->sortByDesc(fn ($r) => $r->suitability === 'perfect' ? 2 : ($r->suitability === 'preferred' ? 1 : 0));
     }
 
     #[Computed]

@@ -4,10 +4,12 @@ declare(strict_types=1);
 
 namespace App\Http\Livewire\Teachers;
 
+use App\Models\AcademicYear;
 use App\Models\CurriculumDiscipline;
 use App\Models\CurriculumPlan;
 use App\Models\Teacher;
 use App\Models\TeacherDiscipline;
+use App\Models\TeacherDisciplineSemester;
 use Illuminate\Contracts\View\View;
 use Illuminate\Support\Collection;
 use Livewire\Attributes\Computed;
@@ -55,7 +57,7 @@ class TeacherAssignment extends Component
             return;
         }
 
-        $academicYear = \App\Models\AcademicYear::where('is_current', true)->first();
+        $academicYear = AcademicYear::where('is_current', true)->first();
 
         foreach ($this->assignments as $disciplineId => $teacherId) {
             $td = TeacherDiscipline::updateOrCreate(
@@ -72,7 +74,7 @@ class TeacherAssignment extends Component
                 $discipline = CurriculumDiscipline::with('semesters')->find($disciplineId);
                 if ($discipline) {
                     foreach ($discipline->semesters as $semester) {
-                        \App\Models\TeacherDisciplineSemester::updateOrCreate(
+                        TeacherDisciplineSemester::updateOrCreate(
                             [
                                 'teacher_discipline_id' => $td->id,
                                 'curriculum_semester_id' => $semester->id,

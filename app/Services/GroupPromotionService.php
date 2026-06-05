@@ -18,7 +18,7 @@ class GroupPromotionService
         // 1. Находим следующий учебный год
         $currentYear = AcademicYear::where('is_current', true)->first();
         $nextYear = null;
-        
+
         if ($currentYear) {
             $nextYear = AcademicYear::where('year_start', '>', $currentYear->year_start)
                 ->orderBy('year_start', 'asc')

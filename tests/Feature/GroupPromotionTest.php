@@ -1,6 +1,7 @@
 <?php
 
 use App\Models\AcademicYear;
+use App\Models\Department;
 use App\Models\Group;
 use App\Models\Specialty;
 use App\Services\GroupPromotionService;
@@ -28,7 +29,7 @@ test('groups are promoted correctly to the next year', function () {
         'is_current' => false,
     ]);
 
-    $department = \App\Models\Department::create([
+    $department = Department::create([
         'name' => 'Test Department',
         'short_name' => 'TD',
     ]);
@@ -65,7 +66,7 @@ test('groups are promoted correctly to the next year', function () {
     ]);
 
     // 4. Run Promotion
-    $service = new GroupPromotionService();
+    $service = new GroupPromotionService;
     $result = $service->promoteAllGroups();
 
     // 5. Assertions

@@ -5,12 +5,13 @@ declare(strict_types=1);
 namespace App\Http\Livewire\Curriculum;
 
 use App\Models\AcademicYear;
-use App\Models\CurriculumDiscipline;
 use App\Models\CurriculumPlan;
+use App\Models\CurriculumPractice;
 use App\Models\CurriculumSemester;
 use App\Models\Teacher;
 use App\Models\TeacherDiscipline;
 use App\Models\TeacherDisciplineSemester;
+use Carbon\Carbon;
 use Illuminate\Support\Collection;
 use Livewire\Attributes\Computed;
 use Livewire\Attributes\Layout;
@@ -27,6 +28,12 @@ class ShowPlan extends Component
     public ?int $semesterFilter = null;
 
     public ?int $teacherFilter = null;
+
+    public int $activeCourse = 1;
+
+    public int $activeSemesterInCourse = 1;
+
+    public string $activeTab = 'plan';
 
     public int $assignDisciplineId = 0;
 
@@ -70,6 +77,14 @@ class ShowPlan extends Component
             if ($total > 0) {
                 $this->plan->update(['total_hours' => $total]);
             }
+        }
+
+        $firstAvailableCourse = $this->availableCourses->first();
+        if ($firstAvailableCourse) {
+            $this->activeCourse = $firstAvailableCourse;
+            $this->activeSemesterInCourse = 1;
+            $this->courseFilter = $this->activeCourse;
+            $this->semesterFilter = $this->getFirstSemesterForCourse($this->activeCourse);
         }
     }
 
@@ -150,8 +165,9 @@ class ShowPlan extends Component
         if ($this->showWorkloadModal) {
             $this->addTeacherToSemester($teacherId);
         } else {
-            if (!$this->assignDisciplineId) {
+            if (! $this->assignDisciplineId) {
                 session()->flash('error', 'Дисциплина не выбрана');
+
                 return;
             }
 
@@ -277,17 +293,73 @@ class ShowPlan extends Component
         session()->flash('message', 'Назначение удалено.');
     }
 
+    public function moveTeacherInSemester(int $semesterId, int $assignmentId, string $direction): void
+    {
+        $assignments = TeacherDisciplineSemester::where('curriculum_semester_id', $semesterId)
+            ->whereHas('teacherDiscipline', fn ($q) => $q->where('academic_year_id', $this->plan->academic_year_id))
+            ->orderBy('sort_order')
+            ->orderBy('id')
+            ->get();
+
+        // Normalize sort_orders to ensure they are sequential
+        foreach ($assignments as $i => $a) {
+            $a->update(['sort_order' => $i + 1]);
+        }
+
+        $assignments = $assignments->sortBy('sort_order')->values();
+        $index = $assignments->search(fn ($a) => $a->id === $assignmentId);
+
+        if ($index === false) {
+            return;
+        }
+
+        $swapIndex = $direction === 'up' ? $index - 1 : $index + 1;
+
+        if ($swapIndex < 0 || $swapIndex >= $assignments->count()) {
+            return;
+        }
+
+        $assignments[$index]->update(['sort_order' => $swapIndex + 1]);
+        $assignments[$swapIndex]->update(['sort_order' => $index + 1]);
+
+        $this->loadPlanData($this->plan);
+    }
+
+    public function setActiveCourse(int $course): void
+    {
+        $this->activeCourse = $course;
+        $this->activeSemesterInCourse = 1;
+        $this->courseFilter = $course;
+        $this->semesterFilter = $this->getFirstSemesterForCourse($course);
+    }
+
+    public function setActiveSemester(int $semesterInCourse): void
+    {
+        $this->activeSemesterInCourse = $semesterInCourse;
+        $this->semesterFilter = $this->getSemesterNumber($this->activeCourse, $semesterInCourse);
+    }
+
+    private function getFirstSemesterForCourse(int $course): int
+    {
+        return ($course - 1) * 2 + 1;
+    }
+
+    private function getSemesterNumber(int $course, int $semesterInCourse): int
+    {
+        return ($course - 1) * 2 + $semesterInCourse;
+    }
+
     public function openExamModal(int $course, int $semester): void
     {
         $this->examCourse = $course;
         $this->examSemester = $semester;
-        
-        $existing = \App\Models\CurriculumPractice::where('curriculum_plan_id', $this->plan->id)
+
+        $existing = CurriculumPractice::where('curriculum_plan_id', $this->plan->id)
             ->where('course_number', $course)
             ->where('symbol', 'Э')
             ->where('type', 'exam_session')
             ->first();
-            
+
         $this->examStartDate = $existing?->start_date?->format('Y-m-d');
         $this->examEndDate = $existing?->end_date?->format('Y-m-d');
         $this->showExamModal = true;
@@ -300,7 +372,7 @@ class ShowPlan extends Component
             'examEndDate' => 'required|date|after_or_equal:examStartDate',
         ]);
 
-        \App\Models\CurriculumPractice::updateOrCreate([
+        CurriculumPractice::updateOrCreate([
             'curriculum_plan_id' => $this->plan->id,
             'course_number' => $this->examCourse,
             'symbol' => 'Э',
@@ -318,7 +390,7 @@ class ShowPlan extends Component
     public function openPracticeTeacherModal(int $practiceId): void
     {
         $this->selectedPracticeId = $practiceId;
-        $practice = \App\Models\CurriculumPractice::find($practiceId);
+        $practice = CurriculumPractice::find($practiceId);
         $this->practiceTeacherId = $practice?->teacher_id;
         $this->showPracticeTeacherModal = true;
     }
@@ -329,7 +401,7 @@ class ShowPlan extends Component
             'practiceTeacherId' => 'nullable|integer|exists:teachers,id',
         ]);
 
-        \App\Models\CurriculumPractice::where('id', $this->selectedPracticeId)
+        CurriculumPractice::where('id', $this->selectedPracticeId)
             ->update(['teacher_id' => $this->practiceTeacherId]);
 
         $this->showPracticeTeacherModal = false;
@@ -340,6 +412,156 @@ class ShowPlan extends Component
     public function isNonSchedulable(bool $isSchedulable): bool
     {
         return ! $isSchedulable;
+    }
+
+    private function deriveEntryYear(): int
+    {
+        $practices = $this->plan->practices->filter(fn ($p) => $p->type !== 'exam_session');
+
+        foreach ($practices->sortBy('course_number') as $practice) {
+            $course = $practice->course_number;
+            $month = (int) $practice->start_date->format('n');
+            $year = (int) $practice->start_date->format('Y');
+            $courseSepYear = $month >= 9 ? $year : $year - 1;
+
+            return $courseSepYear - ($course - 1);
+        }
+
+        return $this->plan->academicYear?->year_start ?? (int) date('Y');
+    }
+
+    private function russianMonthName(int $month): string
+    {
+        return match ($month) {
+            1 => 'Январь',
+            2 => 'Февраль',
+            3 => 'Март',
+            4 => 'Апрель',
+            5 => 'Май',
+            6 => 'Июнь',
+            7 => 'Июль',
+            8 => 'Август',
+            9 => 'Сентябрь',
+            10 => 'Октябрь',
+            11 => 'Ноябрь',
+            12 => 'Декабрь',
+            default => '',
+        };
+    }
+
+    #[Computed]
+    public function calendarGrid(): array
+    {
+        $entryYear = $this->deriveEntryYear();
+        $courses = $this->availableCourses;
+        $totalWeeks = 52;
+
+        // Build 52-week reference structure (week grouping by end-date month)
+        $baseDate = Carbon::create($entryYear, 9, 1)->startOfWeek(Carbon::MONDAY);
+        $weeks = [];
+        $months = [];
+
+        for ($w = 1; $w <= $totalWeeks; $w++) {
+            $weekStart = $baseDate->copy()->addWeeks($w - 1);
+            $weekEnd = $weekStart->copy()->addDays(6);
+            $monthNum = (int) $weekEnd->format('n');
+            $monthName = $this->russianMonthName($monthNum);
+
+            $weeks[$w] = [
+                'label' => $weekStart->format('j').'–'.$weekEnd->format('j'),
+                'month_num' => $monthNum,
+                'month_name' => $monthName,
+            ];
+
+            if (! isset($months[$monthName])) {
+                $months[$monthName] = ['name' => $monthName, 'count' => 0, 'num' => $monthNum];
+            }
+            $months[$monthName]['count']++;
+        }
+
+        // Load all practices and group by course
+        $practices = $this->plan->practices;
+
+        // Load vacations for each course's academic year
+        $allAcademicYears = AcademicYear::with('vacations')->get()->keyBy('year_start');
+
+        $grid = [];
+        foreach ($courses as $course) {
+            $courseYear = $entryYear + $course - 1;
+            $courseStart = Carbon::create($courseYear, 9, 1)->startOfWeek(Carbon::MONDAY);
+
+            $coursePractices = $practices->where('course_number', $course)
+                ->filter(fn ($p) => $p->type !== 'exam_session');
+            $examSessions = $practices->where('course_number', $course)
+                ->where('type', 'exam_session');
+
+            $courseAcademicYear = $allAcademicYears->get($courseYear);
+            $courseVacations = $courseAcademicYear?->vacations ?? collect();
+
+            $grid[$course] = [];
+            for ($w = 1; $w <= $totalWeeks; $w++) {
+                $weekStart = $courseStart->copy()->addWeeks($w - 1);
+                $weekEnd = $weekStart->copy()->addDays(6);
+
+                $symbol = null;
+                $type = null;
+
+                foreach ($coursePractices as $practice) {
+                    if ($practice->start_date <= $weekEnd && $practice->end_date >= $weekStart) {
+                        $symbol = mb_strtoupper(trim((string) $practice->symbol));
+                        $type = 'practice';
+                        break;
+                    }
+                }
+
+                if (! $symbol) {
+                    foreach ($examSessions as $exam) {
+                        if ($exam->start_date <= $weekEnd && $exam->end_date >= $weekStart) {
+                            $symbol = 'Э';
+                            $type = 'exam';
+                            break;
+                        }
+                    }
+                }
+
+                if (! $symbol) {
+                    foreach ($courseVacations as $vacation) {
+                        $vs = Carbon::parse($vacation->start_date);
+                        $ve = Carbon::parse($vacation->end_date);
+                        if ($vs <= $weekEnd && $ve >= $weekStart) {
+                            $symbol = 'К';
+                            $type = 'vacation';
+                            break;
+                        }
+                    }
+                }
+
+                $grid[$course][$w] = $symbol !== null ? ['symbol' => $symbol, 'type' => $type] : null;
+            }
+        }
+
+        return [
+            'weeks' => $weeks,
+            'months' => $months,
+            'grid' => $grid,
+            'courses' => $courses->toArray(),
+        ];
+    }
+
+    #[Computed]
+    public function teacherWorkloadSummary(): Collection
+    {
+        return Teacher::whereHas('disciplines', fn ($q) => $q->where('academic_year_id', $this->plan->academic_year_id))
+            ->with([
+                'position',
+                'disciplines' => fn ($q) => $q->where('academic_year_id', $this->plan->academic_year_id)
+                    ->with([
+                        'semesters' => fn ($sq) => $sq->whereHas('curriculumSemester.discipline', fn ($dq) => $dq->where('curriculum_plan_id', $this->plan->id)),
+                        'discipline',
+                    ]),
+            ])
+            ->orderBy('last_name')
+            ->get();
     }
 
     #[Computed]
@@ -357,6 +579,57 @@ class ShowPlan extends Component
         }
 
         return $query->pluck('semester_number')->unique()->sort()->values();
+    }
+
+    #[Computed]
+    public function semestersByCourse(): array
+    {
+        $result = [];
+        $semesters = $this->plan->disciplines->flatMap->semesters;
+
+        for ($course = 1; $course <= 4; $course++) {
+            $courseSemesters = $semesters->where('course_number', $course)->sortBy('semester_number');
+            $result[$course] = $courseSemesters->map(function ($semester) {
+                return [
+                    'id' => $semester->id,
+                    'semester_number' => $semester->semester_number,
+                    'semester_in_course' => $semester->semester_number - (($semester->course_number - 1) * 2),
+                    'hours_total' => $semester->hours_total,
+                    'hours_lecture' => $semester->hours_lecture,
+                    'hours_practice' => $semester->hours_practice,
+                    'hours_lab' => $semester->hours_lab,
+                    'hours_self_study' => $semester->hours_self_study,
+                    'discipline_name' => $semester->discipline->name,
+                ];
+            })->values()->toArray();
+        }
+
+        return $result;
+    }
+
+    #[Computed]
+    public function totalHoursByCourse(): array
+    {
+        $result = [];
+        foreach ($this->semestersByCourse as $course => $semesters) {
+            $result[$course] = collect($semesters)->sum('hours_total');
+        }
+
+        return $result;
+    }
+
+    #[Computed]
+    public function isCurrentYearPlan(): bool
+    {
+        $currentYear = AcademicYear::where('is_current', true)->first();
+
+        return $currentYear !== null && $this->plan->academic_year_id === $currentYear->id;
+    }
+
+    #[Computed]
+    public function currentAcademicYear(): ?AcademicYear
+    {
+        return AcademicYear::where('is_current', true)->first();
     }
 
     #[Layout('components.layouts.app')]
@@ -379,9 +652,9 @@ class ShowPlan extends Component
 
         if ($this->teacherFilter) {
             $teacherId = (int) $this->teacherFilter;
-            $semesters = $semesters->filter(function($s) use ($teacherId) {
+            $semesters = $semesters->filter(function ($s) use ($teacherId) {
                 return TeacherDisciplineSemester::where('curriculum_semester_id', $s->id)
-                    ->whereHas('teacherDiscipline', fn($q) => $q->where('teacher_id', $teacherId)->where('academic_year_id', $this->plan->academic_year_id))
+                    ->whereHas('teacherDiscipline', fn ($q) => $q->where('teacher_id', $teacherId)->where('academic_year_id', $this->plan->academic_year_id))
                     ->exists();
             });
         }
@@ -407,7 +680,7 @@ class ShowPlan extends Component
             'semesters' => $semesters,
             'searchableTeachers' => $teachers,
             'allTeachers' => Teacher::where('is_active', true)->orderBy('last_name')->get(),
-            'assignedTeachers' => Teacher::whereHas('disciplines', fn($q) => $q->where('academic_year_id', $this->plan->academic_year_id))
+            'assignedTeachers' => Teacher::whereHas('disciplines', fn ($q) => $q->where('academic_year_id', $this->plan->academic_year_id))
                 ->orderBy('last_name')
                 ->get(),
         ]);

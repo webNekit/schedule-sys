@@ -38,6 +38,25 @@ class HoursTrackingService
         return max(0, $totalHours - (int) $conductedHours);
     }
 
+    public function getRemainingHoursByIds(int $groupId, int $disciplineId, int $semesterNum): int
+    {
+        $totalHours = CurriculumSemester::where('discipline_id', $disciplineId)
+            ->where('semester_number', $semesterNum)
+            ->sum('hours_total');
+
+        $conductedHours = HoursTracking::where('group_id', $groupId)
+            ->where('discipline_id', $disciplineId)
+            ->where('semester_id', function ($q) use ($disciplineId, $semesterNum) {
+                $q->select('id')->from('curriculum_semesters')
+                    ->where('discipline_id', $disciplineId)
+                    ->where('semester_number', $semesterNum);
+            })
+            ->where('is_cancelled', false)
+            ->sum('hours_conducted');
+
+        return max(0, $totalHours - (int) $conductedHours);
+    }
+
     public function getTeacherRemainingHoursForDiscipline(Teacher $teacher, int $groupId, int $disciplineId, int $semesterNum): int
     {
         $assignment = $this->getTeacherAssignmentForDiscipline($teacher, $groupId, $disciplineId, $semesterNum);

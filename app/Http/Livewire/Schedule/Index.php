@@ -5,7 +5,12 @@ declare(strict_types=1);
 namespace App\Http\Livewire\Schedule;
 
 use App\Models\AcademicYear;
+use App\Models\Holiday;
+use App\Models\ScheduleLesson;
 use App\Models\ScheduleVersion;
+use App\Models\Vacation;
+use Carbon\Carbon;
+use Livewire\Attributes\Computed;
 use Livewire\Attributes\Layout;
 use Livewire\Component;
 use Livewire\WithPagination;
@@ -22,14 +27,18 @@ class Index extends Component
 
     public bool $selectAll = false;
 
+    public bool $showExportModal = false;
+
+    public ?int $exportVersionId = null;
+
     public function updatedSelectAll(bool $value): void
     {
         if ($value) {
             $this->selectedVersions = ScheduleVersion::query()
-                ->when($this->search, fn($q) => $q->where('name', 'like', '%'.$this->search.'%'))
-                ->when($this->statusFilter, fn($q) => $q->where('status', $this->statusFilter))
+                ->when($this->search, fn ($q) => $q->where('name', 'like', '%'.$this->search.'%'))
+                ->when($this->statusFilter, fn ($q) => $q->where('status', $this->statusFilter))
                 ->pluck('id')
-                ->map(fn($id) => (string)$id)
+                ->map(fn ($id) => (string) $id)
                 ->toArray();
         } else {
             $this->selectedVersions = [];
@@ -48,7 +57,7 @@ class Index extends Component
         }
 
         $versions = ScheduleVersion::whereIn('id', $this->selectedVersions)->get();
-        
+
         foreach ($versions as $version) {
             foreach ($version->lessons as $lesson) {
                 $lesson->delete();
@@ -105,11 +114,73 @@ class Index extends Component
         session()->flash('message', 'Расписание опубликовано. Часы учтены в нагрузке.');
     }
 
+    public function openExportModal(int $id): void
+    {
+        ScheduleVersion::findOrFail($id);
+        $this->exportVersionId = $id;
+        $this->showExportModal = true;
+    }
+
+    public function closeExportModal(): void
+    {
+        $this->showExportModal = false;
+        $this->exportVersionId = null;
+    }
+
+    #[Computed]
+    public function exportVersion(): ?ScheduleVersion
+    {
+        return $this->exportVersionId ? ScheduleVersion::find($this->exportVersionId) : null;
+    }
+
+    #[Computed]
+    public function availableExportDates(): array
+    {
+        if (! $this->exportVersionId) {
+            return [];
+        }
+
+        $version = ScheduleVersion::find($this->exportVersionId);
+        if (! $version || ! $version->date_from || ! $version->date_to) {
+            return [];
+        }
+
+        $dates = [];
+        $current = Carbon::parse($version->date_from)->startOfDay();
+        $end = Carbon::parse($version->date_to)->endOfDay();
+
+        while ($current->lessThanOrEqualTo($end)) {
+            // Пропускаем воскресенья, праздники и каникулы
+            $isHoliday = Holiday::where('date', $current->format('Y-m-d'))->exists()
+                || Vacation::where('start_date', '<=', $current->format('Y-m-d'))
+                    ->where('end_date', '>=', $current->format('Y-m-d'))
+                    ->exists();
+
+            if (! $current->isSunday() && ! $isHoliday) {
+                $hasLessons = ScheduleLesson::where('version_id', $this->exportVersionId)
+                    ->where('date', $current->format('Y-m-d'))
+                    ->where('status', '!=', 'cancelled')
+                    ->exists();
+
+                $dayNames = [1 => 'Пн', 2 => 'Вт', 3 => 'Ср', 4 => 'Чт', 5 => 'Пт', 6 => 'Сб', 7 => 'Вс'];
+                $dates[] = [
+                    'value' => $current->format('Y-m-d'),
+                    'dayLabel' => $dayNames[$current->dayOfWeekIso] ?? '',
+                    'dateLabel' => $current->format('d.m'),
+                    'hasLessons' => $hasLessons,
+                ];
+            }
+
+            $current->addDay();
+        }
+
+        return $dates;
+    }
+
+    /** @deprecated Use openExportModal instead */
     public function export(int $id): void
     {
-        $version = ScheduleVersion::findOrFail($id);
-
-        session()->flash('message', 'Экспорт: '.$version->name);
+        $this->openExportModal($id);
     }
 
     public function archive(int $id): void
@@ -128,7 +199,7 @@ class Index extends Component
         }
         $version->delete();
 
-        $this->selectedVersions = array_diff($this->selectedVersions, [(string)$id, $id]);
+        $this->selectedVersions = array_diff($this->selectedVersions, [(string) $id, $id]);
 
         session()->flash('message', 'Расписание удалено.');
     }

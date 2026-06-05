@@ -15,6 +15,7 @@ use App\Models\LessonType;
 use App\Models\Room;
 use App\Models\ScheduleLesson;
 use App\Models\ScheduleVersion;
+use App\Models\SystemSetting;
 use App\Models\Teacher;
 use App\Models\TeacherDisciplineSemester;
 use App\Models\Vacation;
@@ -28,26 +29,127 @@ class ScheduleGeneratorService
 
     private array $teacherDayLessons = [];
 
+    /** Количество занятий по каждой дисциплине, размещённых в текущем сеансе генерации. */
+    private array $sessionDisciplineHours = [];
+
+    /** Сколько раз дисциплина поставлена группе в текущую неделю. */
+    private array $weekDisciplineCount = [];
+
     public function __construct(
         private readonly ConflictCheckerService $conflictChecker,
         private readonly HoursTrackingService $hoursTracking,
     ) {}
+
+    // ── Публичный API ──────────────────────────────────────────────────────
 
     public function generateForWeek(Carbon $weekStart, array $groupIds = []): GenerationResult
     {
         $weekStart = $weekStart->copy()->startOfWeek(Carbon::MONDAY);
         $weekEnd = $weekStart->copy()->endOfWeek(Carbon::SUNDAY);
 
+        $this->resetSession();
+
         $version = $this->createVersion('week', $weekStart, $weekEnd, $groupIds);
         $groups = $this->getGroups($groupIds);
 
+        [$totalLessons, $conflicts] = $this->generateWeeksIntoVersion($version, $weekStart, $weekEnd, $groups);
+
+        return $this->finalizeVersion($version, $totalLessons, $conflicts);
+    }
+
+    public function generateForDay(Carbon $date, array $groupIds = []): GenerationResult
+    {
+        return $this->generateForWeek($date->copy()->startOfWeek(), $groupIds);
+    }
+
+    public function generateForMonth(int $year, int $month, array $groupIds = []): GenerationResult
+    {
+        $monthStart = Carbon::create($year, $month, 1)->startOfMonth();
+        $monthEnd = $monthStart->copy()->endOfMonth();
+
+        $this->resetSession();
+
+        $version = $this->createVersion('month', $monthStart, $monthEnd, $groupIds);
+        $groups = $this->getGroups($groupIds);
+
+        $totalLessons = 0;
+        $conflictsRaw = 0;
+
+        $weekCursor = $monthStart->copy()->startOfWeek(Carbon::MONDAY);
+        while ($weekCursor->lessThanOrEqualTo($monthEnd)) {
+            $weekEnd = $weekCursor->copy()->endOfWeek(Carbon::SUNDAY);
+            [$wLessons, $wConflicts] = $this->generateWeeksIntoVersion($version, $weekCursor->copy(), $weekEnd, $groups);
+            $totalLessons += $wLessons;
+            $conflictsRaw += $wConflicts;
+            $weekCursor->addWeek();
+        }
+
+        return $this->finalizeVersion($version, $totalLessons, $conflictsRaw);
+    }
+
+    public function generateForSemester(int $semester, array $groupIds = []): GenerationResult
+    {
+        $academicYear = AcademicYear::where('is_current', true)->first();
+        if (! $academicYear) {
+            return GenerationResult::failure('Не найден текущий учебный год');
+        }
+
+        if ($semester === 1) {
+            $start = $academicYear->first_semester_start ?? $academicYear->date_start;
+            $end = $academicYear->first_semester_end ?? $academicYear->date_start?->copy()->addMonths(5);
+        } else {
+            $start = $academicYear->second_semester_start ?? $academicYear->date_start?->copy()->addMonths(6);
+            $end = $academicYear->second_semester_end ?? $academicYear->date_end;
+        }
+
+        if (! $start || ! $end) {
+            return GenerationResult::failure('Не заданы даты семестра в учебном году');
+        }
+
+        $periodStart = Carbon::parse($start)->startOfDay();
+        $periodEnd = Carbon::parse($end)->endOfDay();
+
+        $this->resetSession();
+
+        $version = $this->createVersion(
+            'semester',
+            $periodStart,
+            $periodEnd,
+            $groupIds,
+            "Семестр {$semester} ({$periodStart->format('d.m.Y')} — {$periodEnd->format('d.m.Y')})"
+        );
+        $groups = $this->getGroups($groupIds);
+
+        $totalLessons = 0;
+        $conflictsRaw = 0;
+
+        $weekCursor = $periodStart->copy()->startOfWeek(Carbon::MONDAY);
+        while ($weekCursor->lessThanOrEqualTo($periodEnd)) {
+            $weekEnd = $weekCursor->copy()->endOfWeek(Carbon::SUNDAY);
+            [$wLessons, $wConflicts] = $this->generateWeeksIntoVersion($version, $weekCursor->copy(), $weekEnd, $groups);
+            $totalLessons += $wLessons;
+            $conflictsRaw += $wConflicts;
+            $weekCursor->addWeek();
+        }
+
+        return $this->finalizeVersion($version, $totalLessons, $conflictsRaw);
+    }
+
+    // ── Ядро генерации ─────────────────────────────────────────────────────
+
+    /**
+     * Генерирует занятия для всех групп на диапазон недели в существующую версию.
+     * Возвращает [totalLessons, conflictCount].
+     */
+    private function generateWeeksIntoVersion(ScheduleVersion $version, Carbon $weekStart, Carbon $weekEnd, array $groups): array
+    {
         $totalLessons = 0;
         $conflicts = 0;
 
-        $this->teacherDayLessons = [];
-        $this->teacherDayBuildings = [];
-
         foreach ($groups as $group) {
+            // Сбрасываем счётчик дисциплин за неделю для этой группы
+            $this->weekDisciplineCount[$group->id] = [];
+
             $workingDays = $group->getWorkingDays();
             $dailyQuotas = $this->distributeQuota($group->getWeeklyPairs(), count($workingDays));
 
@@ -57,24 +159,19 @@ class ScheduleGeneratorService
             while ($current->lessThanOrEqualTo($weekEnd)) {
                 $dayOfWeek = (int) $current->format('N');
 
-                // 1. Сначала проверяем, является ли день рабочим для группы (учитываем праздники и график 5/6 дней)
                 if (! in_array($dayOfWeek, $workingDays, true) || $this->isNonWorkingDay($current)) {
                     $current->addDay();
 
                     continue;
                 }
 
-                // 2. Только если день рабочий - проверяем на практику или экзамен
                 if ($this->groupOnPracticeOrExam($group, $current, $version->id)) {
                     $block = $group->getCalendarBlock($current);
-
-                    // Ищем тип занятия
                     $typeCode = $block?->type === 'exam_session' ? 'exam' : ($block?->type ?? 'prod_practice');
                     $lessonType = LessonType::where('code', $typeCode)->first()
-                                 ?? LessonType::where('code', 'practice')->first()
-                                 ?? LessonType::first();
+                        ?? LessonType::where('code', 'practice')->first()
+                        ?? LessonType::first();
 
-                    // Ищем дисциплину для отображения
                     $discId = null;
                     if ($block?->type === 'exam_session') {
                         $assignment = $group->getCurriculumAssignmentForDate($current);
@@ -82,7 +179,6 @@ class ScheduleGeneratorService
                             ->where('name', 'like', '%сессия%')
                             ->first()?->id;
                     }
-
                     if (! $discId) {
                         $discId = $this->getPracticeDisciplineId($group, $current);
                     }
@@ -116,7 +212,6 @@ class ScheduleGeneratorService
                     $perDaySlots = $group->shift === 1 ? [1, 2, 3, 4, 5] : [3, 4, 5, 6, 7];
                 }
 
-                // Проверка на экзамен: если в этот день у группы уже стоит экзамен (в этой версии или в базе)
                 if ($this->hasExamOnDay($group, $current, $version->id)) {
                     $current->addDay();
                     $dayIndex++;
@@ -124,11 +219,10 @@ class ScheduleGeneratorService
                     continue;
                 }
 
-                // Множественные окна в день: заполняем все возможные непрерывные окна
                 $allDayLessons = [];
                 $usedDayDisciplines = [];
                 $dayUsedTeachers = [];
-                $teacherPlannedSlots = []; // Track slots for each teacher locally for this group
+                $teacherPlannedSlots = [];
                 $remainingSlots = $perDaySlots;
                 $remainingTarget = $pairsCountToGenerate;
 
@@ -145,9 +239,16 @@ class ScheduleGeneratorService
                         break;
                     }
 
-                    $allDayLessons = array_merge($allDayLessons, $windowData['lessons']);
                     foreach ($windowData['lessons'] as $ld) {
-                        $teacherPlannedSlots[$ld['teacher_id']][] = $ld['lesson_number'];
+                        if (isset($ld['sub_lessons'])) {
+                            foreach ($ld['sub_lessons'] as $sub) {
+                                $allDayLessons[] = $sub;
+                                $teacherPlannedSlots[$sub['teacher_id']][] = $sub['lesson_number'];
+                            }
+                        } else {
+                            $allDayLessons[] = $ld;
+                            $teacherPlannedSlots[$ld['teacher_id']][] = $ld['lesson_number'];
+                        }
                     }
                     $remainingSlots = array_values(array_diff($remainingSlots, $windowData['slots']));
                     $remainingTarget -= count($windowData['lessons']);
@@ -160,6 +261,17 @@ class ScheduleGeneratorService
                 if (! empty($allDayLessons)) {
                     $dayBuildingId = $allDayLessons[0]['building_id'];
                     $this->groupDayBuildings[$group->id][$current->format('Y-m-d')] = $dayBuildingId;
+
+                    // Считаем уникальные дисциплины дня для учёта частоты
+                    $uniqueDisciplineIds = collect($allDayLessons)
+                        ->pluck('discipline_id')
+                        ->filter()
+                        ->unique();
+
+                    foreach ($uniqueDisciplineIds as $discId) {
+                        $this->sessionDisciplineHours[$group->id][$discId] = ($this->sessionDisciplineHours[$group->id][$discId] ?? 0) + 1;
+                        $this->weekDisciplineCount[$group->id][$discId] = ($this->weekDisciplineCount[$group->id][$discId] ?? 0) + 1;
+                    }
 
                     foreach ($allDayLessons as $lessonData) {
                         ScheduleLesson::create(array_merge($lessonData, [
@@ -187,9 +299,13 @@ class ScheduleGeneratorService
             }
         }
 
+        return [$totalLessons, $conflicts];
+    }
+
+    private function finalizeVersion(ScheduleVersion $version, int $totalLessons, int $conflictsRaw): GenerationResult
+    {
         $version->update(['status' => 'draft', 'generated_at' => now()]);
 
-        // Run real conflict check to get accurate numbers
         $actualConflicts = $this->conflictChecker->checkVersion($version->id);
         $conflictCount = count($actualConflicts);
 
@@ -201,22 +317,23 @@ class ScheduleGeneratorService
         );
     }
 
-    public function generateForDay(Carbon $date, array $groupIds = []): GenerationResult
+    private function resetSession(): void
     {
-        return $this->generateForWeek($date->copy()->startOfWeek(), $groupIds);
+        $this->groupDayBuildings = [];
+        $this->teacherDayBuildings = [];
+        $this->teacherDayLessons = [];
+        $this->sessionDisciplineHours = [];
+        $this->weekDisciplineCount = [];
     }
 
-    public function generateForMonth(int $year, int $month, array $groupIds = []): GenerationResult
-    {
-        return $this->generateForWeek(Carbon::create($year, $month, 1), $groupIds);
-    }
+    // ── Распределение квоты ────────────────────────────────────────────────
 
     private function distributeQuota(int $totalPairs, int $daysCount): array
     {
         if ($daysCount <= 0) {
             return [];
         }
-        $quotas = array_fill(0, $daysCount, 3); // База 3 пары в день
+        $quotas = array_fill(0, $daysCount, 3);
         $remaining = $totalPairs - ($daysCount * 3);
 
         $i = 0;
@@ -232,11 +349,12 @@ class ScheduleGeneratorService
         return $quotas;
     }
 
+    // ── Проверки на конфликты ──────────────────────────────────────────────
+
     private function hasExamOnDay(Group $group, Carbon $date, int $versionId): bool
     {
         $dateStr = $date->toDateString();
 
-        // 1. Проверяем в текущей версии (если уже добавили вручную)
         $inVersion = ScheduleLesson::where('group_id', $group->id)
             ->where('date', $dateStr)
             ->where('version_id', $versionId)
@@ -250,7 +368,6 @@ class ScheduleGeneratorService
             return true;
         }
 
-        // 2. Проверяем опубликованные версии на эту дату
         return ScheduleLesson::where('group_id', $group->id)
             ->where('date', $dateStr)
             ->whereHas('version', fn ($q) => $q->where('status', 'published'))
@@ -261,10 +378,31 @@ class ScheduleGeneratorService
             ->exists();
     }
 
+    private function groupOnPracticeOrExam(Group $group, Carbon $date, int $versionId): bool
+    {
+        if ($group->isOnPractice($date)) {
+            return true;
+        }
+
+        return $this->hasExamOnDay($group, $date, $versionId);
+    }
+
+    private function isNonWorkingDay(Carbon $date): bool
+    {
+        if ($date->isSunday()) {
+            return true;
+        }
+        if (Holiday::where('date', $date->toDateString())->exists()) {
+            return true;
+        }
+
+        return Vacation::where('start_date', '<=', $date->toDateString())->where('end_date', '>=', $date->toDateString())->exists();
+    }
+
+    // ── Окна ───────────────────────────────────────────────────────────────
+
     /**
-     * Strict Sliding Window: Ищет только НЕПРЕРЫВНЫЕ окна без дыр.
-     * Заполняет одно окно и возвращает его. Может быть вызван несколько раз
-     * для одного дня, чтобы заполнить несколько окон.
+     * Strict Sliding Window: ищет только непрерывные окна без дыр.
      */
     private function findBestStrictWindow(ScheduleVersion $version, Group $group, Carbon $date, array $allowedSlots, int $targetPairs, array &$usedDisciplines = [], array &$usedTeachers = [], array $existingTeacherPlannedSlots = [], bool $anchorStart = false): array
     {
@@ -305,19 +443,17 @@ class ScheduleGeneratorService
                         continue;
                     }
 
-                    if ($this->shouldGeneratePE($group) && isset($windowSlots[$index + 1])) {
+                    if ($this->shouldGeneratePE($group, $date) && isset($windowSlots[$index + 1])) {
                         $peData = $this->simulatePELessons($version, $group, $date, $slot, $group->shift, $usedTeachers, $currentWindowTeacherSlots);
                         if ($peData) {
                             $isSportComplex = $this->isSportComplexRoom($peData[0]['room_id']);
                             $isValidPlacement = true;
 
                             if ($isSportComplex) {
-                                // Спорт.комплекс: строго 1-2 или 3-4 пары
                                 if (! in_array($slot, [1, 3], true)) {
                                     $isValidPlacement = false;
                                 }
                             } else {
-                                // Обычный спортзал: не позже 4 пары (т.е. начало не позже 3 или 4, уточним: не позже 4 пары всего)
                                 if ($slot > 3) {
                                     $isValidPlacement = false;
                                 }
@@ -335,7 +471,6 @@ class ScheduleGeneratorService
                         }
                     }
 
-                    // Пробуем до 10 разных дисциплин для этого слота
                     $discipline = null;
                     $teacher = null;
                     $triedDisciplineIds = [];
@@ -360,6 +495,57 @@ class ScheduleGeneratorService
                             $triedDisciplineIds[] = $candidate->id;
 
                             continue;
+                        }
+
+                        if ($candidate->requires_subgroup) {
+                            $subgroups = $group->subgroups()->where('is_active', true)->get();
+                            if ($subgroups->count() > 1) {
+                                $subLessons = [];
+                                $allSubSucceed = true;
+                                $tempUsedTeachers = $usedTeachers;
+                                $tempTeacherSlots = $currentWindowTeacherSlots;
+
+                                foreach ($subgroups as $subgroup) {
+                                    $subTeacher = $this->pickTeacherForDiscipline($candidate->id, $group->id, $date, $slot, $localBuilding, $tempUsedTeachers, $tempTeacherSlots, $subgroup->id);
+                                    if (! $subTeacher) {
+                                        $allSubSucceed = false;
+                                        break;
+                                    }
+
+                                    $subRoom = $this->pickRoomForLesson($localBuilding->id, $subgroup->students_count, $candidate, $date, $slot, $subTeacher);
+                                    if (! $subRoom) {
+                                        $allSubSucceed = false;
+                                        break;
+                                    }
+
+                                    $subLessons[] = [
+                                        'lesson_number' => $slot,
+                                        'shift' => $group->shift,
+                                        'discipline_id' => $candidate->id,
+                                        'teacher_id' => $subTeacher->id,
+                                        'room_id' => $subRoom->id,
+                                        'building_id' => $subRoom->building_id,
+                                        'subgroup_id' => $subgroup->id,
+                                        'lesson_type_id' => $typeId,
+                                    ];
+
+                                    $tempUsedTeachers[$subTeacher->id] = ($tempUsedTeachers[$subTeacher->id] ?? 0) + 1;
+                                    $tempTeacherSlots[$subTeacher->id][] = $slot;
+                                }
+
+                                if ($allSubSucceed) {
+                                    $lessonsData[] = ['sub_lessons' => $subLessons];
+                                    $usedDisciplines[] = $candidate->id;
+                                    $usedTeachers = $tempUsedTeachers;
+                                    $currentWindowTeacherSlots = $tempTeacherSlots;
+
+                                    continue 2;
+                                } else {
+                                    $triedDisciplineIds[] = $candidate->id;
+
+                                    continue;
+                                }
+                            }
                         }
 
                         $candidateRoom = $this->pickRoomForLesson($localBuilding->id, $group->students_count, $candidate, $date, $slot, $candidateTeacher);
@@ -402,10 +588,7 @@ class ScheduleGeneratorService
                     $usedTeachers[$teacher->id] = ($usedTeachers[$teacher->id] ?? 0) + 1;
                     $currentWindowTeacherSlots[$teacher->id][] = $slot;
 
-                    // Если это экзамен, то это должна быть единственная пара в этот день для группы
                     if ($isExamDiscipline) {
-                        // Очищаем другие уже добавленные в это окно пары (если были)
-                        // Но лучше просто прервать цикл и вернуть только этот экзамен
                         return ['slots' => [$slot], 'lessons' => [end($lessonsData)], 'building' => $localBuilding, 'is_exam' => true];
                     }
                 }
@@ -419,15 +602,52 @@ class ScheduleGeneratorService
         return ['slots' => [], 'lessons' => [], 'building' => $building];
     }
 
-    private function groupOnPracticeOrExam(Group $group, Carbon $date, int $versionId): bool
+    // ── Физкультура ────────────────────────────────────────────────────────
+
+    /**
+     * Проверяет нужно ли поставить физкультуру на этот день, исходя из остатка часов
+     * и доступности спортивного комплекса по расписанию.
+     */
+    private function shouldGeneratePE(Group $group, Carbon $date): bool
     {
-        // 1. Проверяем график практик (УП, ПП, ПДП, ГИА) через модель группы
-        if ($group->isOnPractice($date)) {
-            return true;
+        $currentSemester = $group->getCurrentSemester($date);
+
+        $peDiscipline = CurriculumDiscipline::whereHas('curriculumPlan.groupAssignments', fn ($q) => $q->where('group_id', $group->id))
+            ->whereHas('semesters', fn ($q) => $q->where('semester_number', $currentSemester))
+            ->where('name', 'like', '%Физическая культура%')
+            ->where('is_schedulable', true)
+            ->first();
+
+        if (! $peDiscipline) {
+            return false;
         }
 
-        // 2. Проверяем наличие экзаменов в текущей или опубликованных версиях
-        return $this->hasExamOnDay($group, $date, $versionId);
+        // Проверяем рабочие дни спорткомплекса
+        $sportComplexDays = $this->getSportComplexWorkingDays();
+        $dayOfWeek = (int) $date->format('N');
+        if (! empty($sportComplexDays) && ! in_array($dayOfWeek, $sportComplexDays, true)) {
+            return false;
+        }
+
+        // Нужно не менее 4 часов остатка, чтобы поставить сдвоенную пару
+        $sessionPlaced = ($this->sessionDisciplineHours[$group->id][$peDiscipline->id] ?? 0) * 2;
+        $dbRemaining = $this->hoursTracking->getRemainingHours($group, $peDiscipline);
+        $remaining = max(0, $dbRemaining - $sessionPlaced);
+
+        return $remaining >= 4;
+    }
+
+    private function getSportComplexWorkingDays(): array
+    {
+        $setting = SystemSetting::where('key', 'sport_complex_working_days')->first();
+        if ($setting && $setting->value) {
+            $days = json_decode($setting->value, true);
+            if (is_array($days)) {
+                return array_map('intval', $days);
+            }
+        }
+
+        return [];
     }
 
     private function simulatePELessons(ScheduleVersion $version, Group $group, Carbon $date, int $startLessonNumber, int $shift, array &$usedTeachers, array $simulatedWindowSlots = []): ?array
@@ -442,7 +662,6 @@ class ScheduleGeneratorService
             return null;
         }
 
-        // Поиск подходящих спортзалов
         $sportRooms = Room::whereHas('roomType', fn ($q) => $q->where('name', 'like', '%Спорт%'))
             ->where('is_active', true)
             ->get();
@@ -490,33 +709,21 @@ class ScheduleGeneratorService
         return null;
     }
 
-    private function isExam(CurriculumDiscipline $discipline, int $typeId): bool
+    private function isSportComplexRoom(int $roomId): bool
     {
-        $lt = LessonType::find($typeId);
-        if ($lt && in_array($lt->code, ['exam', 'test', 'diff_test'])) {
-            return true;
-        }
+        $room = Room::find($roomId);
 
-        return (bool) preg_match('/экзамен|зачет|аттестация/ui', $discipline->name);
+        return $room && $room->roomType && $room->roomType->name === 'Спорт.комплекс';
     }
 
-    private function shouldGeneratePE(Group $group): bool
-    {
-        return rand(1, 10) === 1; // 10% шанс
-    }
+    // ── Выбор дисциплины ───────────────────────────────────────────────────
 
-    private function getPracticeDisciplineId(Group $group, ?Carbon $date = null): ?int
-    {
-        $assignment = $group->getCurriculumAssignmentForDate($date);
-        if (! $assignment) {
-            return null;
-        }
-
-        return CurriculumDiscipline::where('curriculum_plan_id', $assignment->curriculum_plan_id)
-            ->where('name', 'like', '%практика%')
-            ->first()?->id;
-    }
-
+    /**
+     * Выбирает дисциплину для группы с учётом:
+     * - остатка часов по учебному плану (сначала самые «должные»)
+     * - ограничения 2 раза в неделю на одну дисциплину
+     * - часов, уже поставленных в текущем сеансе генерации
+     */
     private function pickDisciplineForGroup(Group $group, array $excludeIds = [], ?Carbon $date = null): ?CurriculumDiscipline
     {
         $assignment = $group->getCurriculumAssignmentForDate($date);
@@ -532,13 +739,11 @@ class ScheduleGeneratorService
             ->where('name', 'not like', '%Физическая культура%')
             ->where('is_schedulable', true);
 
-        // Если сегодня НЕ день сессии (нет блока Э в календаре), то исключаем экзаменационные дисциплины
         $isExamDay = $group->getCalendarBlock($date)?->type === 'exam_session';
         if (! $isExamDay) {
             $query->where('name', 'not like', '%Экзамен%');
         }
 
-        // Фильтр: у дисциплины должен быть преподаватель, работающий в этот день
         if ($dayOfWeek !== null) {
             $query->whereHas('teacherDisciplines.teacher', function ($q) use ($dayOfWeek) {
                 $q->where(function ($sub) use ($dayOfWeek) {
@@ -549,35 +754,65 @@ class ScheduleGeneratorService
             });
         }
 
+        // Исключаем дисциплины, уже использованные в этот день
         if (! empty($excludeIds)) {
             $query->whereNotIn('id', $excludeIds);
         }
 
-        $discipline = $query->inRandomOrder()->first();
+        // Исключаем дисциплины, поставленные 2+ раз за эту неделю
+        $overusedIds = array_keys(array_filter(
+            $this->weekDisciplineCount[$group->id] ?? [],
+            fn ($count) => $count >= 2
+        ));
+        if (! empty($overusedIds)) {
+            $query->whereNotIn('id', $overusedIds);
+        }
 
-        // Если не нашли с учетом исключенных (например, все уже были в этот день),
-        // то пробуем найти любую подходящую для этого семестра
-        if (! $discipline && ! empty($excludeIds)) {
+        $disciplines = $query->get();
+
+        if ($disciplines->isEmpty()) {
+            // Fallback без ограничений по частоте — чтобы не оставлять пустых дней
             return CurriculumDiscipline::where('curriculum_plan_id', $assignment->curriculum_plan_id)
                 ->whereHas('semesters', fn ($q) => $q->where('semester_number', $currentSemester))
                 ->where('name', 'not like', '%Физическая культура%')
                 ->where('is_schedulable', true)
+                ->whereNotIn('id', $excludeIds)
                 ->inRandomOrder()
                 ->first();
         }
 
-        return $discipline;
+        // Сортируем по убыванию остатка часов (с учётом уже поставленных в сеансе)
+        $groupId = $group->id;
+        $ranked = $disciplines->map(function (CurriculumDiscipline $disc) use ($groupId, $currentSemester) {
+            $dbRemaining = $this->hoursTracking->getRemainingHoursByIds($groupId, $disc->id, $currentSemester);
+            $sessionPlaced = ($this->sessionDisciplineHours[$groupId][$disc->id] ?? 0) * 2;
+            $remaining = max(0, $dbRemaining - $sessionPlaced);
+
+            return ['disc' => $disc, 'remaining' => $remaining];
+        })->filter(fn ($item) => $item['remaining'] > 0)
+            ->sortByDesc('remaining')
+            ->values();
+
+        if ($ranked->isEmpty()) {
+            // Все часы закрыты — возвращаем случайную (не должно мешать)
+            return $disciplines->random();
+        }
+
+        // Берём из топ-3 случайно, чтобы расписание не было детерминированным
+        return $ranked->take(3)->random()['disc'];
     }
 
-    private function pickTeacherForDiscipline(int $disciplineId, int $groupId, Carbon $date, int $lessonNumber, Building $targetBuilding, array $simulatedTeacherLoads = [], array $simulatedWindowSlotsMap = []): ?Teacher
+    // ── Выбор преподавателя ────────────────────────────────────────────────
+
+    private function pickTeacherForDiscipline(int $disciplineId, int $groupId, Carbon $date, int $lessonNumber, Building $targetBuilding, array $simulatedTeacherLoads = [], array $simulatedWindowSlotsMap = [], ?int $subgroupId = null): ?Teacher
     {
         $currentSemesterNum = Group::find($groupId)?->getCurrentSemester($date);
         $dateStr = $date->format('Y-m-d');
 
-        // Находим всех преподавателей, назначенных на этот семестр, отсортированных по sort_order
-        $assignments = TeacherDisciplineSemester::whereHas('teacherDiscipline', function ($q) use ($disciplineId, $groupId) {
+        $assignments = TeacherDisciplineSemester::whereHas('teacherDiscipline', function ($q) use ($disciplineId, $groupId, $subgroupId) {
             $q->where('discipline_id', $disciplineId)
-                ->where(fn ($q2) => $q2->where('group_id', $groupId)->orWhereNull('group_id'));
+                ->where(fn ($q2) => $q2->where('group_id', $groupId)->orWhereNull('group_id'))
+                ->when($subgroupId, fn ($q3) => $q3->where('subgroup_id', $subgroupId));
         })->whereHas('curriculumSemester', function ($q) use ($currentSemesterNum) {
             $q->where('semester_number', $currentSemesterNum);
         })->where('is_active', true)
@@ -587,16 +822,12 @@ class ScheduleGeneratorService
         foreach ($assignments as $assignment) {
             $teacher = $assignment->teacherDiscipline->teacher;
 
-            // Проверяем, остались ли часы у этого преподавателя (с учетом sort_order)
-            // Если у текущего преподавателя в очереди еще есть часы, мы ОБЯЗАНЫ выбрать его или никого.
             if ($this->hoursTracking->getTeacherRemainingHoursForDiscipline($teacher, $groupId, $disciplineId, $currentSemesterNum) > 0) {
-
-                // Проверяем доступность выбранного по очереди преподавателя
                 if (! $teacher->isAvailableOn($date, $lessonNumber)) {
-                    return null; // Ждем этого преподавателя, других не ставим
+                    return null;
                 }
                 if ($this->conflictChecker->checkTeacherConflict($teacher->id, $dateStr, $lessonNumber)) {
-                    return null; // Конфликт, ждем
+                    return null;
                 }
 
                 $teacherSimSlots = $simulatedWindowSlotsMap[$teacher->id] ?? [];
@@ -618,7 +849,6 @@ class ScheduleGeneratorService
 
                 return $teacher;
             }
-            // Если у текущего преподавателя часы кончились, цикл перейдет к следующему в sort_order
         }
 
         return null;
@@ -626,15 +856,7 @@ class ScheduleGeneratorService
 
     private function pickTeacherForDisciplineFallback(int $disciplineId, int $groupId, Carbon $date, int $lessonNumber, array $simulatedTeacherLoads = [], array $simulatedWindowSlotsMap = []): ?Teacher
     {
-        // В последовательной системе fallback должен работать так же - строго по очереди
         return $this->pickTeacherForDiscipline($disciplineId, $groupId, $date, $lessonNumber, Building::where('is_active', true)->first(), $simulatedTeacherLoads, $simulatedWindowSlotsMap);
-    }
-
-    private function isSportComplexRoom(int $roomId): bool
-    {
-        $room = Room::find($roomId);
-
-        return $room && $room->roomType && $room->roomType->name === 'Спорт.комплекс';
     }
 
     private function canAssignToTeacherWithoutWindow(int $teacherId, string $date, int $lessonNumber, array $additionalSlots = []): bool
@@ -644,7 +866,6 @@ class ScheduleGeneratorService
             return true;
         }
 
-        // Check if $lessonNumber is adjacent to any existing lesson
         foreach ($existing as $ex) {
             if (abs($ex - $lessonNumber) === 1) {
                 return true;
@@ -653,6 +874,8 @@ class ScheduleGeneratorService
 
         return false;
     }
+
+    // ── Выбор аудитории ────────────────────────────────────────────────────
 
     private function pickRoomForLesson(int $buildingId, int $studentsCount, CurriculumDiscipline $discipline, Carbon $date, int $lessonNumber, ?Teacher $teacher): ?Room
     {
@@ -705,24 +928,36 @@ class ScheduleGeneratorService
         return $gb ? $gb->building : Building::where('is_active', true)->first();
     }
 
-    private function isNonWorkingDay(Carbon $date): bool
+    // ── Вспомогательные ────────────────────────────────────────────────────
+
+    private function isExam(CurriculumDiscipline $discipline, int $typeId): bool
     {
-        if ($date->isSunday()) {
-            return true;
-        }
-        if (Holiday::where('date', $date->toDateString())->exists()) {
+        $lt = LessonType::find($typeId);
+        if ($lt && in_array($lt->code, ['exam', 'test', 'diff_test'])) {
             return true;
         }
 
-        return Vacation::where('start_date', '<=', $date->toDateString())->where('end_date', '>=', $date->toDateString())->exists();
+        return (bool) preg_match('/экзамен|зачет|аттестация/ui', $discipline->name);
     }
 
-    private function createVersion(string $periodType, Carbon $dateFrom, Carbon $dateTo, array $groupIds): ScheduleVersion
+    private function getPracticeDisciplineId(Group $group, ?Carbon $date = null): ?int
+    {
+        $assignment = $group->getCurriculumAssignmentForDate($date);
+        if (! $assignment) {
+            return null;
+        }
+
+        return CurriculumDiscipline::where('curriculum_plan_id', $assignment->curriculum_plan_id)
+            ->where('name', 'like', '%практика%')
+            ->first()?->id;
+    }
+
+    private function createVersion(string $periodType, Carbon $dateFrom, Carbon $dateTo, array $groupIds, ?string $name = null): ScheduleVersion
     {
         $academicYear = AcademicYear::where('is_current', true)->first();
 
         return ScheduleVersion::create([
-            'name' => 'Автогенерация ('.$dateFrom->format('d.m').' - '.$dateTo->format('d.m').')',
+            'name' => $name ?? 'Автогенерация ('.$dateFrom->format('d.m').' - '.$dateTo->format('d.m').')',
             'academic_year_id' => $academicYear?->id,
             'date_from' => $dateFrom->toDateString(),
             'date_to' => $dateTo->toDateString(),

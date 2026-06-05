@@ -90,14 +90,20 @@
                                                                 <p class="text-sm font-medium text-gray-900 dark:text-white group-hover:text-emerald-600 dark:group-hover:text-emerald-400">{{ $plan->name }}</p>
                                                                 <p class="text-xs text-gray-400 dark:text-gray-500">{{ $plan->academicYear?->name ?? '—' }} • {{ $plan->version ?? '1.0' }} • {{ $plan->total_hours ?? 0 }} ч.</p>
                                                             </div>
-                                                            <div class="shrink-0">
+                                                            <div class="shrink-0 flex items-center gap-2">
+                                                                @if($plan->academic_year_id === $this->currentAcademicYearId)
+                                                                    <span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-medium bg-emerald-50 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800">
+                                                                        <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                                                                        Активный план
+                                                                    </span>
+                                                                @endif
                                                                 @if($plan->is_active)
-                                                                    <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-emerald-50 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400">
-                                                                        Активен
+                                                                    <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-gray-100 text-gray-500 dark:bg-gray-700 dark:text-gray-400">
+                                                                        Опубликован
                                                                     </span>
                                                                 @else
                                                                     <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-gray-100 text-gray-500 dark:bg-gray-700 dark:text-gray-400">
-                                                                        Нет
+                                                                        Черновик
                                                                     </span>
                                                                 @endif
                                                             </div>

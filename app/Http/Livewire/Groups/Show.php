@@ -192,13 +192,13 @@ class Show extends Component
     public function render()
     {
         $currentYear = AcademicYear::where('is_current', true)->first();
-        
+
         $assignments = $this->group->curriculumAssignments()
             ->with(['curriculumPlan.disciplines.semesters', 'academicYear'])
             ->get();
 
         // Фильтруем дисциплины и семестры: показываем только те, что относятся к ТЕКУЩЕМУ учебному году
-        $activeAssignment = $assignments->where('academic_year_id', $currentYear?->id)->first() 
+        $activeAssignment = $assignments->where('academic_year_id', $currentYear?->id)->first()
                           ?? $assignments->where('is_active', true)->first();
 
         $disciplines = collect();

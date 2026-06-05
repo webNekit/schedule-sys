@@ -6,7 +6,6 @@ namespace App\Http\Livewire\Specialties;
 
 use App\Models\Department;
 use App\Models\Specialty;
-use App\Models\EducationLevel;
 use App\Services\Import\ExcelDictionaryImportService;
 use Illuminate\Support\Facades\Storage;
 use Livewire\Attributes\Layout;
@@ -24,15 +23,22 @@ class Index extends Component
 
     // Модалка создания
     public bool $showCreateModal = false;
+
     public string $newCode = '';
+
     public string $newName = '';
+
     public string $newShortName = '';
+
     public ?int $newDepartmentId = null;
+
     public ?int $newEducationLevelId = null;
+
     public int $newMaxCourses = 4;
 
     // Импорт
     public bool $showImportModal = false;
+
     public $importFile;
 
     public function openImportModal(): void

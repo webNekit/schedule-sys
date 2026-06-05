@@ -7,15 +7,17 @@ namespace App\Http\Livewire\Admin;
 use App\Models\Department;
 use App\Models\EducationLevel;
 use App\Models\Specialty;
+use App\Services\Import\ExcelDictionaryImportService;
+use Illuminate\Support\Facades\Storage;
 use Livewire\Attributes\Layout;
 use Livewire\Component;
-use Livewire\WithPagination;
 use Livewire\WithFileUploads;
+use Livewire\WithPagination;
 
 #[Layout('components.layouts.app')]
 class SpecialtyManager extends Component
 {
-    use WithPagination, WithFileUploads;
+    use WithFileUploads, WithPagination;
 
     public bool $showForm = false;
 
@@ -53,6 +55,7 @@ class SpecialtyManager extends Component
 
     // Импорт
     public bool $showImportModal = false;
+
     public $importFile;
 
     public function openImportModal(): void
@@ -67,14 +70,14 @@ class SpecialtyManager extends Component
         $this->importFile = null;
     }
 
-    public function importExcel(\App\Services\Import\ExcelDictionaryImportService $importService): void
+    public function importExcel(ExcelDictionaryImportService $importService): void
     {
         $this->validate([
             'importFile' => 'required|file|mimes:xlsx,xls|max:10240',
         ]);
 
         $storedPath = $this->importFile->store('imports', 'local');
-        $fullPath = \Illuminate\Support\Facades\Storage::disk('local')->path($storedPath);
+        $fullPath = Storage::disk('local')->path($storedPath);
 
         try {
             $result = $importService->importSpecialties($fullPath);

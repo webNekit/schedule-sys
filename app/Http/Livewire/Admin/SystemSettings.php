@@ -254,7 +254,7 @@ class SystemSettings extends Component
     {
         $groups = collect($this->settings)
             ->groupBy('group')
-            ->forget(['generation', 'schedule'])
+            ->forget(['generation', 'schedule', null, ''])
             ->filter(fn ($items, $group) => $group !== null && $group !== '');
 
         return view('livewire.admin.system-settings', [

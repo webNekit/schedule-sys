@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Livewire\Schedule;
 
+use App\Models\CurriculumPractice;
 use App\Models\Department;
 use App\Models\Group;
 use App\Models\Holiday;
@@ -42,9 +43,9 @@ class DayShare extends Component
         if ($this->versionId) {
             $version = ScheduleVersion::find($this->versionId);
         }
-        
+
         if (! $version) {
-            $version = ScheduleVersion::where('status', 'published')->latest()->first() 
+            $version = ScheduleVersion::where('status', 'published')->latest()->first()
                       ?? ScheduleVersion::latest()->first();
         }
 
@@ -71,16 +72,18 @@ class DayShare extends Component
         // Load practice data
         $this->practiceData = [];
         $checkDate = Carbon::parse($this->date);
-        
-        $groups = $this->departmentId > 0 
+
+        $groups = $this->departmentId > 0
             ? Group::where('department_id', $this->departmentId)->get()
             : Group::active()->get();
 
         foreach ($groups as $group) {
             $assignment = $group->getCurriculumAssignmentForDate($checkDate);
-            if (!$assignment) continue;
+            if (! $assignment) {
+                continue;
+            }
 
-            $practices = \App\Models\CurriculumPractice::where('curriculum_plan_id', $assignment->curriculum_plan_id)
+            $practices = CurriculumPractice::where('curriculum_plan_id', $assignment->curriculum_plan_id)
                 ->where('course_number', $group->current_course)
                 ->get();
 
@@ -88,17 +91,17 @@ class DayShare extends Component
                 // Year-agnostic check
                 $pStart = Carbon::parse($p->start_date);
                 $pEnd = Carbon::parse($p->end_date);
-                
+
                 $pYearOffset = ($pStart->month < 9) ? $pStart->year - 1 : $pStart->year;
                 $dYearOffset = ($checkDate->month < 9) ? $checkDate->year - 1 : $checkDate->year;
                 $yearDiff = $dYearOffset - $pYearOffset;
-                
+
                 $normalizedStart = $pStart->copy()->addYears($yearDiff);
                 $normalizedEnd = $pEnd->copy()->addYears($yearDiff);
 
                 if ($checkDate->between($normalizedStart, $normalizedEnd)) {
                     $workingDays = $group->getWorkingDays();
-                    if (in_array((int)$checkDate->format('N'), $workingDays, true) && !$this->isNonWorkingDay($checkDate)) {
+                    if (in_array((int) $checkDate->format('N'), $workingDays, true) && ! $this->isNonWorkingDay($checkDate)) {
                         $this->practiceData[$group->id] = [
                             'symbol' => $p->symbol,
                             'type' => $p->type,

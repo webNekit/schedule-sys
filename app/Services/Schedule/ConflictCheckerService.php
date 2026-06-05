@@ -6,7 +6,6 @@ namespace App\Services\Schedule;
 
 use App\Models\Group;
 use App\Models\LessonType;
-use App\Models\Room;
 use App\Models\ScheduleConflict;
 use App\Models\ScheduleLesson;
 use App\Models\ScheduleVersion;
@@ -58,7 +57,7 @@ class ConflictCheckerService
 
         foreach ($groupedByDate as $date => $dayLessons) {
             $dateStr = is_string($date) ? $date : $date->format('Y-m-d');
-            
+
             // 1. Проверка пересечений (Коллизии ресурсов)
             $this->checkCollisions($dayLessons, $dateStr, $versionId, $conflicts);
 
@@ -114,16 +113,18 @@ class ConflictCheckerService
         foreach ($dayLessons->groupBy('lesson_number') as $num => $lessons) {
             // а) Преподаватель в разных местах
             foreach ($lessons->groupBy('teacher_id') as $tId => $tLessons) {
-                if (! $tId || $tLessons->count() <= 1) continue;
-                
-                $uniqueCombo = $tLessons->map(fn($l) => "{$l->discipline_id}-{$l->room_id}")->unique();
+                if (! $tId || $tLessons->count() <= 1) {
+                    continue;
+                }
+
+                $uniqueCombo = $tLessons->map(fn ($l) => "{$l->discipline_id}-{$l->room_id}")->unique();
                 if ($uniqueCombo->count() > 1) {
                     $teacher = $tLessons->first()->teacher;
                     $conflicts[] = [
                         'version_id' => $versionId, 'conflict_type' => 'teacher_parallel', 'severity' => 'error',
                         'date' => $date, 'lesson_number' => (int) $num, 'teacher_id' => (int) $tId,
                         'description' => "Преподаватель {$teacher?->short_name} ведет разные пары одновременно ({$num}-я пара)",
-                        'suggestion' => "Перенести одну из пар на другое время",
+                        'suggestion' => 'Перенести одну из пар на другое время',
                         'is_resolved' => false,
                     ];
                 }
@@ -131,10 +132,12 @@ class ConflictCheckerService
 
             // б) Группа на разных парах
             foreach ($lessons->groupBy('group_id') as $gId => $gLessons) {
-                if (! $gId || $gLessons->count() <= 1) continue;
-                
+                if (! $gId || $gLessons->count() <= 1) {
+                    continue;
+                }
+
                 $hasDifferentSubgroups = $gLessons->pluck('subgroup_id')->filter()->unique()->count() > 1;
-                $hasNullSubgroup = $gLessons->contains(fn($l) => is_null($l->subgroup_id));
+                $hasNullSubgroup = $gLessons->contains(fn ($l) => is_null($l->subgroup_id));
 
                 if (! ($hasDifferentSubgroups && ! $hasNullSubgroup)) {
                     $group = $gLessons->first()->group;
@@ -142,7 +145,7 @@ class ConflictCheckerService
                         'version_id' => $versionId, 'conflict_type' => 'group_parallel', 'severity' => 'error',
                         'date' => $date, 'lesson_number' => (int) $num, 'group_id' => (int) $gId,
                         'description' => "Группа {$group->name} стоит на нескольких парах одновременно ({$num}-я пара)",
-                        'suggestion' => "Проверьте подгруппы или перенесите одну из пар",
+                        'suggestion' => 'Проверьте подгруппы или перенесите одну из пар',
                         'is_resolved' => false,
                     ];
                 }
@@ -150,7 +153,9 @@ class ConflictCheckerService
 
             // в) Аудитория занята разными преподами
             foreach ($lessons->groupBy('room_id') as $rId => $rLessons) {
-                if (! $rId || $rLessons->count() <= 1) continue;
+                if (! $rId || $rLessons->count() <= 1) {
+                    continue;
+                }
 
                 $uniqueTeachers = $rLessons->pluck('teacher_id')->unique();
                 if ($uniqueTeachers->count() > 1) {
@@ -159,7 +164,7 @@ class ConflictCheckerService
                         'version_id' => $versionId, 'conflict_type' => 'room_multi_group', 'severity' => 'error',
                         'date' => $date, 'lesson_number' => (int) $num, 'room_id' => (int) $rId,
                         'description' => "Аудитория {$room?->number} занята разными преподавателями ({$num}-я пара)",
-                        'suggestion' => "Перенести одну из пар в другую аудиторию",
+                        'suggestion' => 'Перенести одну из пар в другую аудиторию',
                         'is_resolved' => false,
                     ];
                 }
@@ -173,7 +178,9 @@ class ConflictCheckerService
     private function checkTeacherRules(Collection $lessons, string $date, int $versionId, array &$conflicts): void
     {
         $teacher = $lessons->first()->teacher;
-        if (! $teacher) return;
+        if (! $teacher) {
+            return;
+        }
 
         // 1. Доступность (график, отгулы, метод.день)
         foreach ($lessons as $lesson) {
@@ -182,7 +189,7 @@ class ConflictCheckerService
                     'version_id' => $versionId, 'conflict_type' => 'teacher_unavailability', 'severity' => 'error',
                     'date' => $date, 'lesson_number' => $lesson->lesson_number, 'teacher_id' => $teacher->id,
                     'description' => "Преподаватель {$teacher->short_name} недоступен на {$lesson->lesson_number}-й паре (согласно графику или заявкам)",
-                    'suggestion' => "Перенести пару или изменить настройки графика преподавателя",
+                    'suggestion' => 'Перенести пару или изменить настройки графика преподавателя',
                     'is_resolved' => false,
                 ];
             }
@@ -204,7 +211,9 @@ class ConflictCheckerService
     private function checkGroupRules(Collection $lessons, string $date, int $versionId, array &$conflicts): void
     {
         $group = $lessons->first()->group;
-        if (! $group) return;
+        if (! $group) {
+            return;
+        }
 
         // 1. Соответствие графику (смена, разрешенные пары)
         $this->checkGroupShift($lessons, $date, $group, $versionId, $conflicts);
@@ -228,7 +237,9 @@ class ConflictCheckerService
     private function checkRoomRules(Collection $lessons, string $date, int $versionId, array &$conflicts): void
     {
         $room = $lessons->first()->room;
-        if (! $room) return;
+        if (! $room) {
+            return;
+        }
 
         foreach ($lessons as $lesson) {
             $studentsCount = $lesson->group?->students_count ?? 0;
@@ -237,7 +248,7 @@ class ConflictCheckerService
                     'version_id' => $versionId, 'conflict_type' => 'room_capacity', 'severity' => 'warning',
                     'date' => $date, 'lesson_number' => $lesson->lesson_number, 'room_id' => $room->id,
                     'description' => "Аудитория {$room->number} (вмест. {$room->capacity}) мала для группы {$lesson->group?->name} ({$studentsCount} чел.)",
-                    'suggestion' => "Подобрать более просторную аудиторию",
+                    'suggestion' => 'Подобрать более просторную аудиторию',
                     'is_resolved' => false,
                 ];
             }
@@ -265,7 +276,9 @@ class ConflictCheckerService
     private function checkTeacherWindows(Collection $lessons, string $date, Teacher $teacher, int $versionId, array &$conflicts): void
     {
         $numbers = $lessons->pluck('lesson_number')->unique()->sort()->values()->toArray();
-        if (count($numbers) < 2) return;
+        if (count($numbers) < 2) {
+            return;
+        }
 
         for ($i = 1; $i < count($numbers); $i++) {
             if ($numbers[$i] - $numbers[$i - 1] > 1) {
@@ -273,7 +286,7 @@ class ConflictCheckerService
                     'version_id' => $versionId, 'conflict_type' => 'teacher_window', 'severity' => 'warning',
                     'date' => $date, 'lesson_number' => $numbers[$i], 'teacher_id' => $teacher->id,
                     'description' => "Окно у преподавателя {$teacher->short_name}: между {$numbers[$i - 1]}-й и {$numbers[$i]}-й парой",
-                    'suggestion' => "Уплотнить расписание преподавателя",
+                    'suggestion' => 'Уплотнить расписание преподавателя',
                     'is_resolved' => false,
                 ];
             }
@@ -283,10 +296,14 @@ class ConflictCheckerService
     private function checkTeacherMinPairs(Collection $lessons, string $date, Teacher $teacher, int $versionId, array &$conflicts): void
     {
         // В субботу не проверяем минимум пар
-        if (date('N', strtotime($date)) == 6) return;
+        if (date('N', strtotime($date)) == 6) {
+            return;
+        }
 
         // Если есть практика — не проверяем минимум
-        if ($lessons->contains(fn($l) => $this->isPracticeLesson($l))) return;
+        if ($lessons->contains(fn ($l) => $this->isPracticeLesson($l))) {
+            return;
+        }
 
         $count = $lessons->pluck('lesson_number')->unique()->count();
         if ($count === 1) {
@@ -294,7 +311,7 @@ class ConflictCheckerService
                 'version_id' => $versionId, 'conflict_type' => 'teacher_min_lessons', 'severity' => 'warning',
                 'date' => $date, 'lesson_number' => $lessons->first()->lesson_number, 'teacher_id' => $teacher->id,
                 'description' => "Мало пар у преподавателя {$teacher->short_name}: всего 1 пара в день",
-                'suggestion' => "Добавить еще пары или перенести на другой день",
+                'suggestion' => 'Добавить еще пары или перенести на другой день',
                 'is_resolved' => false,
             ];
         }
@@ -309,7 +326,7 @@ class ConflictCheckerService
                     'version_id' => $versionId, 'conflict_type' => 'group_shift_mismatch', 'severity' => 'error',
                     'date' => $date, 'lesson_number' => $lesson->lesson_number, 'group_id' => $group->id,
                     'description' => "Несоответствие графику: группа {$group->name} ({$shiftLabel}) не может заниматься на {$lesson->lesson_number}-й паре",
-                    'suggestion' => "Перенести в разрешенный слот или изменить настройки графиков пар/курсов",
+                    'suggestion' => 'Перенести в разрешенный слот или изменить настройки графиков пар/курсов',
                     'is_resolved' => false,
                 ];
             }
@@ -320,7 +337,7 @@ class ConflictCheckerService
     {
         $carbonDate = Carbon::parse($date);
         $isOnPractice = $group->isOnPractice($carbonDate);
-        
+
         if ($isOnPractice) {
             foreach ($lessons as $lesson) {
                 if (! $this->isPracticeLesson($lesson)) {
@@ -328,7 +345,7 @@ class ConflictCheckerService
                         'version_id' => $versionId, 'conflict_type' => 'group_practice_overlap', 'severity' => 'error',
                         'date' => $date, 'lesson_number' => $lesson->lesson_number, 'group_id' => $group->id,
                         'description' => "Группа {$group->name} находится на практике по графику, но ей поставлено теоретическое занятие",
-                        'suggestion' => "Удалите теорию или проверьте даты практики в учебном плане",
+                        'suggestion' => 'Удалите теорию или проверьте даты практики в учебном плане',
                         'is_resolved' => false,
                     ];
                 }
@@ -339,7 +356,9 @@ class ConflictCheckerService
     private function checkGroupWindows(Collection $lessons, string $date, Group $group, int $versionId, array &$conflicts): void
     {
         $numbers = $lessons->pluck('lesson_number')->unique()->sort()->values()->toArray();
-        if (count($numbers) < 2) return;
+        if (count($numbers) < 2) {
+            return;
+        }
 
         for ($i = 1; $i < count($numbers); $i++) {
             if ($numbers[$i] - $numbers[$i - 1] > 1) {
@@ -347,7 +366,7 @@ class ConflictCheckerService
                     'version_id' => $versionId, 'conflict_type' => 'group_window', 'severity' => 'error',
                     'date' => $date, 'lesson_number' => $numbers[$i], 'group_id' => $group->id,
                     'description' => "Окно у группы {$group->name}: между {$numbers[$i - 1]}-й и {$numbers[$i]}-й парой",
-                    'suggestion' => "Перенести одну из пар для устранения окна",
+                    'suggestion' => 'Перенести одну из пар для устранения окна',
                     'is_resolved' => false,
                 ];
             }
@@ -357,10 +376,12 @@ class ConflictCheckerService
     private function checkGroupMinPairs(Collection $lessons, string $date, Group $group, int $versionId, array &$conflicts): void
     {
         // Если суббота — не проверяем минимум
-        if (date('N', strtotime($date)) == 6) return;
+        if (date('N', strtotime($date)) == 6) {
+            return;
+        }
 
         // Если в этот день есть ПРАКТИКА (либо в расписании, либо по календарю) — не проверяем минимум
-        if ($lessons->contains(fn($l) => $this->isPracticeLesson($l)) || $group->isOnPractice(Carbon::parse($date))) {
+        if ($lessons->contains(fn ($l) => $this->isPracticeLesson($l)) || $group->isOnPractice(Carbon::parse($date))) {
             return;
         }
 
@@ -370,7 +391,7 @@ class ConflictCheckerService
                 'version_id' => $versionId, 'conflict_type' => 'group_min_lessons', 'severity' => 'warning',
                 'date' => $date, 'group_id' => $group->id,
                 'description' => "Мало пар у группы {$group->name}: всего {$count} в день (минимум 3)",
-                'suggestion' => "Добавить еще пары",
+                'suggestion' => 'Добавить еще пары',
                 'is_resolved' => false,
             ];
         }
@@ -383,7 +404,9 @@ class ConflictCheckerService
             || preg_match('/физ|спорт|бассейн/ui', $l->discipline?->name ?? '');
         $peNumbers = $lessons->filter($isPe)->pluck('lesson_number')->sort()->values();
         $nonPeNumbers = $lessons->reject($isPe)->pluck('lesson_number')->toArray();
-        if ($peNumbers->count() < 2) return;
+        if ($peNumbers->count() < 2) {
+            return;
+        }
 
         $min = $peNumbers->min();
         $max = $peNumbers->max();
@@ -393,9 +416,10 @@ class ConflictCheckerService
                     'version_id' => $versionId, 'conflict_type' => 'pe_grouping', 'severity' => 'warning',
                     'date' => $date, 'group_id' => $group->id,
                     'description' => "Физкультура не сдвоена у группы {$group->name}: разбита другими занятиями",
-                    'suggestion' => "Сдвоить физкультуру в начале или конце дня",
+                    'suggestion' => 'Сдвоить физкультуру в начале или конце дня',
                     'is_resolved' => false,
                 ];
+
                 return;
             }
         }
@@ -412,14 +436,16 @@ class ConflictCheckerService
                     'version_id' => $versionId, 'conflict_type' => 'group_building_conflict', 'severity' => 'error',
                     'date' => $date, 'group_id' => (int) $groupId,
                     'description' => "Группа {$group?->name} в течение дня находится в нескольких корпусах",
-                    'suggestion' => "Перенести все пары группы в один корпус",
+                    'suggestion' => 'Перенести все пары группы в один корпус',
                     'is_resolved' => false,
                 ];
             }
         }
         // Преподаватели
         foreach ($dayLessons->groupBy('teacher_id') as $teacherId => $teacherLessons) {
-            if (! $teacherId) continue;
+            if (! $teacherId) {
+                continue;
+            }
             $buildings = $teacherLessons->filter(fn ($l) => ! $this->isSportRoom($l))->pluck('building_id')->filter()->unique();
             if ($buildings->count() > 1) {
                 $teacher = $teacherLessons->first()->teacher;
@@ -427,7 +453,7 @@ class ConflictCheckerService
                     'version_id' => $versionId, 'conflict_type' => 'teacher_building_conflict', 'severity' => 'error',
                     'date' => $date, 'teacher_id' => (int) $teacherId,
                     'description' => "Преподаватель {$teacher?->short_name} в течение дня ведет пары в разных корпусах",
-                    'suggestion' => "Перенести все пары преподавателя в один корпус",
+                    'suggestion' => 'Перенести все пары преподавателя в один корпус',
                     'is_resolved' => false,
                 ];
             }
@@ -445,13 +471,15 @@ class ConflictCheckerService
                     'version_id' => $versionId, 'conflict_type' => 'group_overload', 'severity' => 'warning',
                     'date' => $weekStartDate, 'group_id' => (int) $groupId,
                     'description' => "Группа {$group?->name}: превышена недельная нагрузка — ".($count * 2).' ч (макс 36)',
-                    'suggestion' => "Убрать лишние пары",
+                    'suggestion' => 'Убрать лишние пары',
                     'is_resolved' => false,
                 ];
             }
         }
         foreach ($weekLessons->groupBy('teacher_id') as $teacherId => $teacherLessons) {
-            if (! $teacherId) continue;
+            if (! $teacherId) {
+                continue;
+            }
             $teacher = $teacherLessons->first()->teacher;
             $maxWeekHours = $teacher?->max_hours_per_week ?? 36;
             $maxLessons = (int) ($maxWeekHours / 2);
@@ -461,7 +489,7 @@ class ConflictCheckerService
                     'version_id' => $versionId, 'conflict_type' => 'teacher_overload', 'severity' => 'warning',
                     'date' => $weekStartDate, 'teacher_id' => (int) $teacherId,
                     'description' => "Преподаватель {$teacher?->short_name}: превышена нагрузка — ".($count * 2)." ч/нед (макс {$maxWeekHours})",
-                    'suggestion' => "Убрать лишние пары",
+                    'suggestion' => 'Убрать лишние пары',
                     'is_resolved' => false,
                 ];
             }
@@ -473,15 +501,19 @@ class ConflictCheckerService
     private function isSportRoom($lesson): bool
     {
         $typeName = $lesson->room?->roomType?->name ?? '';
+
         return mb_stripos($typeName, 'спорт') !== false;
     }
 
     private function isPracticeLesson($lesson): bool
     {
         $code = $lesson->lessonType?->code ?? '';
-        if ($code === 'practice') return true;
-        
+        if ($code === 'practice') {
+            return true;
+        }
+
         $name = $lesson->discipline?->name ?? '';
+
         return (bool) preg_match('/практика/ui', $name);
     }
 
@@ -501,25 +533,331 @@ class ConflictCheckerService
 
     public function autoFix(int $versionId): array
     {
+        ScheduleVersion::findOrFail($versionId);
+
+        $conflicts = collect($this->checkVersion($versionId));
+        $fixed = 0;
+        $skipped = 0;
+        $details = [];
+
+        // Сначала ошибки, потом предупреждения
+        foreach ($conflicts->sortBy(fn ($c) => $c['severity'] === 'error' ? 0 : 1) as $conflict) {
+            $result = match ($conflict['conflict_type']) {
+                'room_multi_group' => $this->fixRoomMultiGroup($conflict, $versionId),
+                'room_capacity' => $this->fixRoomCapacity($conflict, $versionId),
+                'group_building_conflict' => $this->fixGroupBuildingConflict($conflict, $versionId),
+                'teacher_building_conflict' => $this->fixTeacherBuildingConflict($conflict, $versionId),
+                'teacher_window', 'group_window' => $this->fixWindow($conflict, $versionId),
+                default => false,
+            };
+
+            if ($result) {
+                $fixed++;
+                $details[] = "Исправлено: {$conflict['conflict_type']} ({$conflict['date']})";
+            } else {
+                $skipped++;
+            }
+        }
+
+        $remaining = count($this->checkVersion($versionId));
+
         return [
-            'fixed' => 0,
-            'skipped' => 0,
-            'message' => 'Автоисправление временно отключено после рефакторинга алгоритма',
-            'details' => [],
+            'fixed' => $fixed,
+            'skipped' => $skipped,
+            'message' => "Исправлено: {$fixed}, пропущено: {$skipped}, осталось конфликтов: {$remaining}",
+            'details' => $details,
         ];
+    }
+
+    // ── AutoFix: конкретные исправления ───────────────────────────────────
+
+    /**
+     * Находит свободную аудиторию для второго занятия в той же паре.
+     */
+    private function fixRoomMultiGroup(array $conflict, int $versionId): bool
+    {
+        $date = $this->conflictDate($conflict);
+        $roomId = $conflict['room_id'] ?? null;
+        $lessonNumber = $conflict['lesson_number'] ?? null;
+
+        if (! $roomId || ! $lessonNumber) {
+            return false;
+        }
+
+        $lessons = ScheduleLesson::where('version_id', $versionId)
+            ->where('date', $date)
+            ->where('room_id', $roomId)
+            ->where('lesson_number', $lessonNumber)
+            ->where('status', '!=', 'cancelled')
+            ->get();
+
+        if ($lessons->count() <= 1) {
+            return false;
+        }
+
+        foreach ($lessons->skip(1) as $lesson) {
+            $studentsCount = $lesson->group?->students_count ?? 0;
+            $buildingId = $lesson->building_id;
+
+            $newRoom = $this->findFreeRoom($studentsCount, $lesson->discipline, $date, $lessonNumber, $lesson->id, $buildingId);
+
+            if ($newRoom) {
+                $lesson->update(['room_id' => $newRoom->id, 'building_id' => $newRoom->building_id]);
+
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * Заменяет аудиторию на более вместительную.
+     */
+    private function fixRoomCapacity(array $conflict, int $versionId): bool
+    {
+        $date = $this->conflictDate($conflict);
+        $roomId = $conflict['room_id'] ?? null;
+        $lessonNumber = $conflict['lesson_number'] ?? null;
+
+        if (! $roomId || ! $lessonNumber) {
+            return false;
+        }
+
+        $lesson = ScheduleLesson::where('version_id', $versionId)
+            ->where('date', $date)
+            ->where('room_id', $roomId)
+            ->where('lesson_number', $lessonNumber)
+            ->first();
+
+        if (! $lesson) {
+            return false;
+        }
+
+        $studentsCount = $lesson->group?->students_count ?? 0;
+        $newRoom = $this->findFreeRoom($studentsCount, $lesson->discipline, $date, $lessonNumber, $lesson->id);
+
+        if ($newRoom) {
+            $lesson->update(['room_id' => $newRoom->id, 'building_id' => $newRoom->building_id]);
+
+            return true;
+        }
+
+        return false;
+    }
+
+    /**
+     * Переносит все пары группы в её основной корпус.
+     */
+    private function fixGroupBuildingConflict(array $conflict, int $versionId): bool
+    {
+        $date = $this->conflictDate($conflict);
+        $groupId = $conflict['group_id'] ?? null;
+
+        if (! $groupId) {
+            return false;
+        }
+
+        $group = Group::find($groupId);
+        if (! $group) {
+            return false;
+        }
+
+        $primaryBuildingId = $group->groupBuildings()->where('is_primary', true)->first()?->building_id
+            ?? $group->groupBuildings()->first()?->building_id;
+
+        if (! $primaryBuildingId) {
+            return false;
+        }
+
+        $lessons = ScheduleLesson::where('version_id', $versionId)
+            ->where('date', $date)
+            ->where('group_id', $groupId)
+            ->where('building_id', '!=', $primaryBuildingId)
+            ->where('status', '!=', 'cancelled')
+            ->whereHas('room', fn ($q) => $q->whereDoesntHave('roomType', fn ($rt) => $rt->where('name', 'like', '%спорт%')))
+            ->get();
+
+        $anyFixed = false;
+        foreach ($lessons as $lesson) {
+            $newRoom = $this->findFreeRoom(
+                $group->students_count,
+                $lesson->discipline,
+                $date,
+                $lesson->lesson_number,
+                $lesson->id,
+                $primaryBuildingId
+            );
+
+            if ($newRoom) {
+                $lesson->update(['room_id' => $newRoom->id, 'building_id' => $newRoom->building_id]);
+                $anyFixed = true;
+            }
+        }
+
+        return $anyFixed;
+    }
+
+    /**
+     * Переносит пары преподавателя в один корпус (в тот, где их больше).
+     */
+    private function fixTeacherBuildingConflict(array $conflict, int $versionId): bool
+    {
+        $date = $this->conflictDate($conflict);
+        $teacherId = $conflict['teacher_id'] ?? null;
+
+        if (! $teacherId) {
+            return false;
+        }
+
+        $lessons = ScheduleLesson::where('version_id', $versionId)
+            ->where('date', $date)
+            ->where('teacher_id', $teacherId)
+            ->where('status', '!=', 'cancelled')
+            ->get();
+
+        // Определяем «победный» корпус (наибольшее количество пар)
+        $buildingCounts = $lessons->filter(fn ($l) => ! $this->isSportRoom($l))
+            ->groupBy('building_id')
+            ->map->count();
+
+        if ($buildingCounts->isEmpty()) {
+            return false;
+        }
+
+        $targetBuildingId = $buildingCounts->sortDesc()->keys()->first();
+        $anyFixed = false;
+
+        foreach ($lessons->filter(fn ($l) => ! $this->isSportRoom($l) && $l->building_id !== $targetBuildingId) as $lesson) {
+            $studentsCount = $lesson->group?->students_count ?? 0;
+            $newRoom = $this->findFreeRoom($studentsCount, $lesson->discipline, $date, $lesson->lesson_number, $lesson->id, $targetBuildingId);
+
+            if ($newRoom) {
+                $lesson->update(['room_id' => $newRoom->id, 'building_id' => $newRoom->building_id]);
+                $anyFixed = true;
+            }
+        }
+
+        return $anyFixed;
+    }
+
+    /**
+     * Устраняет окно: пытается сдвинуть «изолированную» пару ближе к основному блоку.
+     */
+    private function fixWindow(array $conflict, int $versionId): bool
+    {
+        $date = $this->conflictDate($conflict);
+        $lessonNumber = $conflict['lesson_number'] ?? null;
+
+        if (! $lessonNumber) {
+            return false;
+        }
+
+        // Работаем с полем group_id или teacher_id в зависимости от типа конфликта
+        $isGroup = $conflict['conflict_type'] === 'group_window';
+        $entityId = $isGroup ? ($conflict['group_id'] ?? null) : ($conflict['teacher_id'] ?? null);
+
+        if (! $entityId) {
+            return false;
+        }
+
+        $query = ScheduleLesson::where('version_id', $versionId)
+            ->where('date', $date)
+            ->where('status', '!=', 'cancelled');
+
+        if ($isGroup) {
+            $query->where('group_id', $entityId);
+        } else {
+            $query->where('teacher_id', $entityId);
+        }
+
+        $lessons = $query->orderBy('lesson_number')->get();
+        $numbers = $lessons->pluck('lesson_number')->sort()->values()->toArray();
+
+        if (count($numbers) < 2) {
+            return false;
+        }
+
+        // Ищем первое окно и пытаемся сдвинуть пару после него на слот до окна
+        for ($i = 1; $i < count($numbers); $i++) {
+            if ($numbers[$i] - $numbers[$i - 1] <= 1) {
+                continue;
+            }
+
+            $targetSlot = $numbers[$i - 1] + 1; // Слот, закрывающий окно
+            $lessonToMove = $lessons->firstWhere('lesson_number', $numbers[$i]);
+
+            if (! $lessonToMove) {
+                continue;
+            }
+
+            // Проверяем, что целевой слот свободен для преподавателя, группы и аудитории
+            $teacherBusy = $this->checkTeacherConflict($lessonToMove->teacher_id, $date, $targetSlot, $lessonToMove->id);
+            $groupBusy = $this->checkGroupConflict($lessonToMove->group_id, $date, $targetSlot, $lessonToMove->id);
+            $roomBusy = $lessonToMove->room_id
+                ? $this->checkRoomConflict($lessonToMove->room_id, $date, $targetSlot, $lessonToMove->id)
+                : false;
+
+            if (! $teacherBusy && ! $groupBusy && ! $roomBusy) {
+                $lessonToMove->update(['lesson_number' => $targetSlot]);
+
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    // ── Вспомогательные для autoFix ───────────────────────────────────────
+
+    private function findFreeRoom(int $studentsCount, ?object $discipline, string $date, int $lessonNumber, int $excludeLessonId, ?int $preferBuildingId = null): ?Room
+    {
+        $query = Room::where('is_active', true)
+            ->where('is_available_for_booking', true)
+            ->where('capacity', '>=', $studentsCount);
+
+        if ($discipline?->requires_lab) {
+            $query->whereHas('roomType', fn ($q) => $q->where('requires_lab', true));
+        }
+
+        if ($preferBuildingId) {
+            $query->where('building_id', $preferBuildingId);
+        }
+
+        foreach ($query->get() as $room) {
+            if (! $this->checkRoomConflict($room->id, $date, $lessonNumber, $excludeLessonId)) {
+                return $room;
+            }
+        }
+
+        // Если не нашли в предпочтительном корпусе — ищем в любом
+        if ($preferBuildingId) {
+            return $this->findFreeRoom($studentsCount, $discipline, $date, $lessonNumber, $excludeLessonId);
+        }
+
+        return null;
+    }
+
+    private function conflictDate(array $conflict): string
+    {
+        $date = $conflict['date'];
+
+        return $date instanceof \DateTimeInterface ? $date->format('Y-m-d') : (string) $date;
     }
 
     // Публичные методы для генератора
     public function checkTeacherConflict(int $teacherId, string $date, int $lessonNumber, ?int $excludeLessonId = null): bool
     {
         $teacher = Teacher::find($teacherId);
-        if ($teacher && ! $teacher->isAvailableOn($date, $lessonNumber)) return true;
+        if ($teacher && ! $teacher->isAvailableOn($date, $lessonNumber)) {
+            return true;
+        }
 
         return ScheduleLesson::where('teacher_id', $teacherId)
             ->where('date', $date)
             ->where('lesson_number', $lessonNumber)
             ->where('status', '!=', 'cancelled')
-            ->when($excludeLessonId, fn($q) => $q->where('id', '!=', $excludeLessonId))
+            ->when($excludeLessonId, fn ($q) => $q->where('id', '!=', $excludeLessonId))
             ->exists();
     }
 
@@ -527,13 +865,15 @@ class ConflictCheckerService
     {
         $group = Group::find($groupId);
         // Тут проверяем ТОЛЬКО смену/график, не практику
-        if ($group && ! $group->isAvailableOn($date, $lessonNumber)) return true;
+        if ($group && ! $group->isAvailableOn($date, $lessonNumber)) {
+            return true;
+        }
 
         return ScheduleLesson::where('group_id', $groupId)
             ->where('date', $date)
             ->where('lesson_number', $lessonNumber)
             ->where('status', '!=', 'cancelled')
-            ->when($excludeLessonId, fn($q) => $q->where('id', '!=', $excludeLessonId))
+            ->when($excludeLessonId, fn ($q) => $q->where('id', '!=', $excludeLessonId))
             ->exists();
     }
 
@@ -543,7 +883,7 @@ class ConflictCheckerService
             ->where('date', $date)
             ->where('lesson_number', $lessonNumber)
             ->where('status', '!=', 'cancelled')
-            ->when($excludeLessonId, fn($q) => $q->where('id', '!=', $excludeLessonId))
+            ->when($excludeLessonId, fn ($q) => $q->where('id', '!=', $excludeLessonId))
             ->exists();
     }
 }

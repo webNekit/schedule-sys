@@ -142,6 +142,27 @@
         </div>
     </div>
 
+    {{-- Sport Complex Working Days --}}
+    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
+        <h3 class="font-semibold text-lg mb-1">Спортивный комплекс</h3>
+        <p class="text-sm text-gray-500 mb-4">Дни недели, когда работает спорткомплекс. Физкультура будет ставиться только в эти дни.</p>
+        @php $sportDays = $settings['sport_complex_working_days']['value'] ?? []; @endphp
+        <div class="flex flex-wrap gap-2">
+            @foreach ($dayLabels as $dayNum => $dayLabel)
+                @if ($dayNum !== 7)
+                    <label class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-sm cursor-pointer transition
+                        {{ in_array($dayNum, (array) $sportDays) ? 'bg-blue-50 border-blue-300 dark:bg-blue-900/30 dark:border-blue-700' : 'bg-gray-50 border-gray-200 dark:bg-gray-900 dark:border-gray-700' }}">
+                        <input type="checkbox" value="{{ $dayNum }}"
+                            {{ in_array($dayNum, (array) $sportDays) ? 'checked' : '' }}
+                            wire:change="toggleWorkingDay('sport_complex_working_days', {{ $dayNum }}, $event.target.checked)"
+                            class="rounded border-gray-300 text-blue-600">
+                        {{ $dayLabel }}
+                    </label>
+                @endif
+            @endforeach
+        </div>
+    </div>
+
     {{-- Lesson Numbers per Course / per Day --}}
     @php
         $courseKeys = ['lesson_numbers_course_1' => '1 курс', 'lesson_numbers_course_2' => '2 курс', 'lesson_numbers_course_3' => '3 курс', 'lesson_numbers_course_4' => '4 курс'];
