@@ -21,11 +21,32 @@
                     <option value="day">День</option>
                     <option value="week">Неделя</option>
                     <option value="month">Месяц</option>
+                    <option value="semester">Семестр (весь)</option>
                 </select>
                 <p class="text-xs text-gray-400 mt-1">Выберите из списка</p>
             </div>
 
-            @if ($periodType === 'day')
+            @if ($periodType === 'semester')
+                <div>
+                    <label class="block text-sm font-medium mb-1">Номер семестра <span class="text-red-500">*</span></label>
+                    <div class="flex gap-3 mt-1">
+                        <label class="flex items-center gap-2 cursor-pointer px-4 py-2 rounded-lg border transition
+                            {{ $semester == 1 ? 'border-emerald-500 bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-300' : 'border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:border-gray-400' }}">
+                            <input type="radio" wire:model.live="semester" value="1" class="accent-emerald-600">
+                            <span class="text-sm font-medium">1 семестр</span>
+                            <span class="text-xs opacity-60">(осень)</span>
+                        </label>
+                        <label class="flex items-center gap-2 cursor-pointer px-4 py-2 rounded-lg border transition
+                            {{ $semester == 2 ? 'border-emerald-500 bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-300' : 'border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:border-gray-400' }}">
+                            <input type="radio" wire:model.live="semester" value="2" class="accent-emerald-600">
+                            <span class="text-sm font-medium">2 семестр</span>
+                            <span class="text-xs opacity-60">(весна)</span>
+                        </label>
+                    </div>
+                    <p class="text-xs text-gray-400 mt-1">Даты берутся из текущего учебного года</p>
+                    @error('semester') <p class="mt-1 text-sm text-red-600">{{ $message }}</p> @enderror
+                </div>
+            @elseif ($periodType === 'day')
                 <div>
                     <label class="block text-sm font-medium mb-1">Дата <span class="text-red-500">*</span></label>
                     <input type="date" wire:model="date" class="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-2">
@@ -131,6 +152,16 @@
                             <span class="font-bold ml-2 {{ $result['conflicts'] > 0 ? 'text-red-600' : 'text-emerald-600' }}">{{ $result['conflicts'] }}</span>
                         </div>
                     </div>
+                    @if (! empty($result['warnings']))
+                        <div class="p-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg text-sm text-amber-700 dark:text-amber-300 space-y-1">
+                            <p class="font-semibold">Предупреждения ({{ count($result['warnings']) }}):</p>
+                            <ul class="list-disc list-inside space-y-0.5 max-h-40 overflow-y-auto">
+                                @foreach ($result['warnings'] as $warning)
+                                    <li>{{ $warning }}</li>
+                                @endforeach
+                            </ul>
+                        </div>
+                    @endif
                     <div class="flex gap-3">
                         <button wire:click="publish" class="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-medium rounded-lg transition">
                             Опубликовать

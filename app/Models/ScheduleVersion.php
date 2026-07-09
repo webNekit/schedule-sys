@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace App\Models;
 
-use Carbon\Carbon;
+use App\Services\Schedule\HoursTrackingService;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -99,67 +99,22 @@ class ScheduleVersion extends Model
 
     public function trackHours(): void
     {
+        $academicYearId = $this->academic_year_id ?? AcademicYear::where('is_current', true)->value('id');
+
         $lessons = $this->lessons()
             ->with(['version', 'group'])
             ->where('status', '!=', 'cancelled')
             ->get();
 
+        $hoursTracking = app(HoursTrackingService::class);
+
         foreach ($lessons as $lesson) {
-            $academicYearId = $this->academic_year_id ?? AcademicYear::where('is_current', true)->first()?->id;
-            if (! $academicYearId || ! $lesson->discipline_id || ! $lesson->teacher_id || ! $lesson->group_id || ! $lesson->lesson_type_id || ! $lesson->date) {
-                continue;
-            }
-
-            $semesterId = $this->resolveSemesterId(
-                $lesson->group_id,
-                $lesson->discipline_id,
-                $lesson->date
-            );
-
-            if (! $semesterId) {
-                continue;
-            }
-
-            $exists = HoursTracking::where('schedule_lesson_id', $lesson->id)->exists();
-            if ($exists) {
-                continue;
-            }
-
-            HoursTracking::create([
-                'group_id' => $lesson->group_id,
-                'discipline_id' => $lesson->discipline_id,
-                'teacher_id' => $lesson->teacher_id,
-                'semester_id' => $semesterId,
-                'academic_year_id' => $academicYearId,
-                'lesson_type_id' => $lesson->lesson_type_id,
-                'date' => $lesson->date,
-                'hours_conducted' => 2, // 1 пара = 2 часа
-                'schedule_lesson_id' => $lesson->id,
-                'is_cancelled' => false,
-            ]);
+            $hoursTracking->trackLesson($lesson, $academicYearId);
         }
     }
 
     public function untrackLesson(ScheduleLesson $lesson): void
     {
         HoursTracking::where('schedule_lesson_id', $lesson->id)->delete();
-    }
-
-    private function resolveSemesterId(?int $groupId, ?int $disciplineId, mixed $date): ?int
-    {
-        if (! $groupId || ! $disciplineId) {
-            return null;
-        }
-
-        $group = Group::find($groupId);
-        if (! $group) {
-            return null;
-        }
-
-        $semesterNum = $group->getCurrentSemester($date instanceof Carbon ? $date : Carbon::parse($date));
-
-        return CurriculumSemester::where('discipline_id', $disciplineId)
-            ->where('semester_number', $semesterNum)
-            ->first()?->id;
     }
 }

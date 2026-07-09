@@ -15,12 +15,14 @@ class RoomType extends Model
         'color',
         'icon',
         'can_be_shared',
+        'is_sport_complex',
     ];
 
     protected function casts(): array
     {
         return [
             'can_be_shared' => 'boolean',
+            'is_sport_complex' => 'boolean',
         ];
     }
 

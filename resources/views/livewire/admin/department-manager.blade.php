@@ -83,14 +83,15 @@
                             <p class="text-xs text-gray-400 mt-1">Необязательное поле</p>
                         </div>
                         <div>
-                            <label class="block text-sm font-medium mb-1">Заведующий</label>
-                            <select wire:model="headTeacherId" class="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-2">
-                                <option value="">Не выбран</option>
-                                @foreach($teachers as $teacher)
-                                    <option value="{{ $teacher->id }}">{{ $teacher->last_name }} {{ $teacher->first_name }} {{ $teacher->middle_name }}</option>
-                                @endforeach
-                            </select>
-                            <p class="text-xs text-gray-400 mt-1">Выберите из списка</p>
+                            <x-searchable-select
+                                label="Заведующий"
+                                model="headTeacherId"
+                                :options="$teachers"
+                                none-label="Не выбран"
+                                none-value=""
+                                placeholder="Поиск преподавателя..."
+                                hint="Выберите из списка"
+                            />
                         </div>
                     </div>
                     <div class="flex items-center gap-2">

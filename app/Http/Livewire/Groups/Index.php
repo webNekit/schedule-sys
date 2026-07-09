@@ -196,7 +196,11 @@ class Index extends Component
         return view('livewire.groups.index', [
             'groups' => $query->latest()->paginate(15),
             'departments' => Department::where('is_active', true)->get(),
-            'specialties' => Specialty::where('is_active', true)->orderBy('name')->get(),
+            'specialties' => Specialty::where('is_active', true)->orderBy('code')->orderBy('name')->get()
+                ->map(fn ($s) => [
+                    'id' => $s->id,
+                    'label' => trim(($s->code ? $s->code.' — ' : '').$s->name),
+                ])->toArray(),
             'academicYears' => AcademicYear::orderBy('year_start', 'desc')->get(),
             'courses' => range(1, 4),
             'statuses' => ['active' => 'Активна', 'graduated' => 'Выпущена', 'academic_leave' => 'Академ. отпуск'],

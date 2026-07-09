@@ -6,15 +6,17 @@ namespace App\Models;
 
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
 class Group extends Model
 {
-    use SoftDeletes;
+    use HasFactory, SoftDeletes;
 
     protected $fillable = [
         'specialty_id',
@@ -80,6 +82,11 @@ class Group extends Model
     public function scheduleLessons(): HasMany
     {
         return $this->hasMany(ScheduleLesson::class);
+    }
+
+    public function sportComplexSlot(): HasOne
+    {
+        return $this->hasOne(SportComplexSlot::class);
     }
 
     public function curriculumAssignments(): HasMany
@@ -261,13 +268,19 @@ class Group extends Model
     protected static function booted(): void
     {
         static::saving(function (Group $group) {
-            // Если курс установлен и он больше максимального для специальности - выпускаем
             $maxCourses = $group->specialty?->max_courses ?? 4;
 
             if ($group->current_course > $maxCourses) {
+                // Курс превысил максимум для специальности — группа выпущена.
                 $group->status = 'graduated';
-            } elseif ($group->status === 'graduated' && $group->current_course > 0 && $group->current_course <= $maxCourses) {
-                // Если мы вручную вернули курс назад (в диапазон обучения), сбрасываем статус на активный
+            } elseif (
+                $group->status === 'graduated'
+                && $group->isDirty('current_course')
+                && (int) $group->getOriginal('current_course') > $maxCourses
+            ) {
+                // Курс выпущенной (по «переполнению») группы вручную понизили обратно
+                // в диапазон обучения — реактивируем. Группу, выпущенную явно на
+                // последнем курсе, это не трогает.
                 $group->status = 'active';
             }
         });
@@ -281,6 +294,12 @@ class Group extends Model
 
     public function graduate(): void
     {
+        // Выпуск означает завершение последнего курса: уводим курс за максимум,
+        // чтобы статус «graduated» был согласован и не сбрасывался хуком saving.
+        $maxCourses = $this->specialty?->max_courses ?? 4;
+        if ($this->current_course <= $maxCourses) {
+            $this->current_course = $maxCourses + 1;
+        }
         $this->status = 'graduated';
         $this->save();
     }
@@ -309,7 +328,11 @@ class Group extends Model
 
     public function isOnPractice(Carbon $date): bool
     {
-        return $this->getCalendarBlock($date) !== null;
+        $block = $this->getCalendarBlock($date);
+
+        // Экзаменационная сессия — не практика: внутри неё экзамены ставятся
+        // по точным датам, а не блоком-маркером на всю неделю.
+        return $block !== null && $block->type !== 'exam_session';
     }
 
     public function getCalendarBlock(Carbon $date): ?CurriculumPractice

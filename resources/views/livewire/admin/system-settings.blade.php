@@ -142,24 +142,75 @@
         </div>
     </div>
 
-    {{-- Sport Complex Working Days --}}
+    {{-- Sport Complex Weekly Schedule --}}
     <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
-        <h3 class="font-semibold text-lg mb-1">Спортивный комплекс</h3>
-        <p class="text-sm text-gray-500 mb-4">Дни недели, когда работает спорткомплекс. Физкультура будет ставиться только в эти дни.</p>
-        @php $sportDays = $settings['sport_complex_working_days']['value'] ?? []; @endphp
-        <div class="flex flex-wrap gap-2">
-            @foreach ($dayLabels as $dayNum => $dayLabel)
-                @if ($dayNum !== 7)
-                    <label class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-sm cursor-pointer transition
-                        {{ in_array($dayNum, (array) $sportDays) ? 'bg-blue-50 border-blue-300 dark:bg-blue-900/30 dark:border-blue-700' : 'bg-gray-50 border-gray-200 dark:bg-gray-900 dark:border-gray-700' }}">
-                        <input type="checkbox" value="{{ $dayNum }}"
-                            {{ in_array($dayNum, (array) $sportDays) ? 'checked' : '' }}
-                            wire:change="toggleWorkingDay('sport_complex_working_days', {{ $dayNum }}, $event.target.checked)"
-                            class="rounded border-gray-300 text-blue-600">
-                        {{ $dayLabel }}
-                    </label>
-                @endif
-            @endforeach
+        <h3 class="font-semibold text-lg mb-1">Расписание спорткомплекса</h3>
+        <p class="text-sm text-gray-500 mb-4">
+            Отметьте, какие группы и на какие пары приезжают в спорткомплекс на физкультуру. Одна группа может стоять на нескольких парах.
+            Дни без групп спорткомплексом не используются.
+        </p>
+        <div>
+            <table class="w-full border-collapse text-sm">
+                <thead>
+                    <tr>
+                        <th class="w-16 p-2 text-left text-xs font-medium text-gray-500 uppercase">Пара</th>
+                        @foreach ([1, 2, 3, 4, 5] as $wd)
+                            <th class="p-2 text-center text-xs font-medium text-gray-500 uppercase">{{ $dayLabels[$wd] }}</th>
+                        @endforeach
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach ($sportComplexPairs as $pair)
+                        <tr class="border-t border-gray-100 dark:border-gray-700">
+                            <td class="p-2 align-top font-medium text-gray-500">{{ $pair }}</td>
+                            @foreach ([1, 2, 3, 4, 5] as $wd)
+                                @php $cellSlots = $sportSlotsByCell[$wd.'-'.$pair] ?? collect(); @endphp
+                                <td class="p-2 align-top border-l border-gray-100 dark:border-gray-700 min-w-[160px]">
+                                    <div class="space-y-1.5">
+                                        @foreach ($cellSlots as $slot)
+                                            <div class="flex items-center justify-between gap-1 px-2 py-1 rounded-md bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300 text-xs">
+                                                <span class="truncate">{{ $slot->group?->name ?? '—' }}</span>
+                                                <button type="button" wire:click="removeSportGroup({{ $slot->id }})"
+                                                    class="shrink-0 text-emerald-500 hover:text-red-500" title="Убрать">&times;</button>
+                                            </div>
+                                        @endforeach
+                                        @php $assignedIds = $cellSlots->pluck('group_id')->all(); @endphp
+                                        <div x-data="{ open: false, search: '' }" @click.outside="open = false; search = ''" class="relative">
+                                            <button type="button" @click="open = !open"
+                                                class="w-full flex items-center justify-between gap-1 px-2 py-1 text-xs rounded-md border border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-900 text-gray-600 dark:text-gray-300 hover:border-gray-400 dark:hover:border-gray-500 transition-colors">
+                                                <span>+ группа</span>
+                                                <svg class="w-3.5 h-3.5 opacity-50 transition-transform" :class="{ 'rotate-180': open }" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                                            </button>
+                                            <div x-show="open" x-cloak x-transition.opacity
+                                                class="absolute z-50 mt-1 w-full min-w-[160px] rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-xl">
+                                                <div class="p-2 border-b border-gray-100 dark:border-gray-700">
+                                                    <input type="text" x-model="search" placeholder="Поиск группы..."
+                                                        class="w-full px-2 py-1 text-xs rounded border border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-gray-100 outline-none">
+                                                </div>
+                                                <ul class="max-h-48 overflow-y-auto py-1">
+                                                    @foreach ($sportGroupOptions as $opt)
+                                                        @continue(in_array($opt['id'], $assignedIds, true))
+                                                        <li x-show="!search || @js(mb_strtolower($opt['label'])).includes(search.toLowerCase())"
+                                                            @click="$wire.addSportGroup({{ $wd }}, {{ $pair }}, {{ $opt['id'] }}); open = false; search = ''"
+                                                            class="px-3 py-1.5 text-xs cursor-pointer text-gray-700 dark:text-gray-200 hover:bg-emerald-50 dark:hover:bg-gray-700">{{ $opt['label'] }}</li>
+                                                    @endforeach
+                                                </ul>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </td>
+                            @endforeach
+                        </tr>
+                    @endforeach
+                </tbody>
+            </table>
+        </div>
+        <div class="mt-4 flex items-center justify-end gap-3">
+            <span class="text-xs text-gray-400">Изменения сохраняются автоматически</span>
+            <button type="button" wire:click="saveSportSchedule"
+                class="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-medium transition-colors">
+                Сохранить
+            </button>
         </div>
     </div>
 

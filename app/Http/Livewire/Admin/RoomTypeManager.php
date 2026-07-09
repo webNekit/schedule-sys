@@ -23,6 +23,8 @@ class RoomTypeManager extends Component
 
     public bool $canBeShared = true;
 
+    public bool $isSportComplex = false;
+
     public function create(): void
     {
         $this->resetForm();
@@ -37,6 +39,7 @@ class RoomTypeManager extends Component
         $this->name = $type->name;
         $this->shortName = $type->short_name ?? '';
         $this->canBeShared = $type->can_be_shared;
+        $this->isSportComplex = $type->is_sport_complex;
 
         $this->showForm = true;
     }
@@ -47,12 +50,14 @@ class RoomTypeManager extends Component
             'name' => 'required|string|max:255',
             'shortName' => 'nullable|string|max:50',
             'canBeShared' => 'boolean',
+            'isSportComplex' => 'boolean',
         ]);
 
         $data = [
             'name' => $this->name,
             'short_name' => $this->shortName ?: null,
             'can_be_shared' => $this->canBeShared,
+            'is_sport_complex' => $this->isSportComplex,
         ];
 
         if ($this->editingId) {
@@ -82,6 +87,7 @@ class RoomTypeManager extends Component
         $this->name = '';
         $this->shortName = '';
         $this->canBeShared = true;
+        $this->isSportComplex = false;
     }
 
     #[Layout('components.layouts.app')]

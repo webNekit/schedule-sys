@@ -181,9 +181,29 @@ class Show extends Component
 
     public function removeBuilding(int $buildingId): void
     {
+        $wasPrimary = GroupBuilding::where('group_id', $this->group->id)
+            ->where('building_id', $buildingId)
+            ->value('is_primary');
+
         GroupBuilding::where('group_id', $this->group->id)
             ->where('building_id', $buildingId)
             ->delete();
+
+        // Если удалили основной — назначаем основным первый из оставшихся
+        if ($wasPrimary) {
+            $next = GroupBuilding::where('group_id', $this->group->id)->first();
+            $next?->update(['is_primary' => true]);
+        }
+
+        $this->group->load('buildings');
+    }
+
+    public function setPrimaryBuilding(int $buildingId): void
+    {
+        GroupBuilding::where('group_id', $this->group->id)->update(['is_primary' => false]);
+        GroupBuilding::where('group_id', $this->group->id)
+            ->where('building_id', $buildingId)
+            ->update(['is_primary' => true]);
 
         $this->group->load('buildings');
     }

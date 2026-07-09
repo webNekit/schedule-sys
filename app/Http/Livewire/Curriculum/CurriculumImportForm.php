@@ -38,6 +38,19 @@ class CurriculumImportForm extends Component
 
     public int $progress = 0;
 
+    public function mount(): void
+    {
+        $specialtyId = request()->integer('specialty');
+
+        if ($specialtyId > 0 && Specialty::whereKey($specialtyId)->exists()) {
+            $this->specialtyId = $specialtyId;
+        }
+
+        $this->academicYearId = AcademicYear::where('is_current', true)->value('id')
+            ?? AcademicYear::orderByDesc('year_start')->value('id')
+            ?? 0;
+    }
+
     public function render(): mixed
     {
         return view('livewire.curriculum.curriculum-import-form', [

@@ -180,14 +180,16 @@
                     </div>
                     <div class="grid grid-cols-2 gap-4">
                         <div>
-                            <label class="block text-sm font-medium mb-1">Срок обучения для 9 кл (лет)</label>
-                            <input type="number" wire:model="studyYears9" min="1" max="6"
+                            <label class="block text-sm font-medium mb-1">Срок обучения для 9 кл (годы,месяцы)</label>
+                            <input type="text" wire:model="studyYears9" inputmode="decimal" placeholder="2,9"
                                 class="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-2">
+                            @error('studyYears9') <span class="text-xs text-red-500">{{ $message }}</span> @enderror
                         </div>
                         <div>
-                            <label class="block text-sm font-medium mb-1">Срок обучения для 11 кл (лет)</label>
-                            <input type="number" wire:model="studyYears11" min="1" max="6"
+                            <label class="block text-sm font-medium mb-1">Срок обучения для 11 кл (годы,месяцы)</label>
+                            <input type="text" wire:model="studyYears11" inputmode="decimal" placeholder="3,10"
                                 class="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-2">
+                            @error('studyYears11') <span class="text-xs text-red-500">{{ $message }}</span> @enderror
                         </div>
                     </div>
                     <div class="grid grid-cols-2 gap-4">

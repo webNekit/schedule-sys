@@ -2,10 +2,12 @@
 
 declare(strict_types=1);
 
+use App\Http\Livewire\Admin\CustomRules;
 use App\Http\Livewire\Admin\DeleteDataChecklist;
 use App\Http\Livewire\Admin\DepartmentManager;
 use App\Http\Livewire\Admin\RoleManager;
 use App\Http\Livewire\Admin\RoomTypeManager;
+use App\Http\Livewire\Admin\SchedulingRules;
 use App\Http\Livewire\Admin\SpecialtyManager;
 use App\Http\Livewire\Admin\SystemSettings;
 use App\Http\Livewire\Admin\TeacherPositionManager;
@@ -82,6 +84,8 @@ Route::middleware('auth')->group(function () {
         Route::get('/admin/users', UserManager::class)->name('admin.users');
         Route::get('/admin/delete-data', DeleteDataChecklist::class)->name('admin.delete-data');
         Route::get('/admin/settings', SystemSettings::class)->name('admin.settings');
+        Route::get('/admin/scheduling-rules', SchedulingRules::class)->name('admin.scheduling-rules');
+        Route::get('/admin/custom-rules', CustomRules::class)->name('admin.custom-rules');
         Route::get('/admin/departments', DepartmentManager::class)->name('admin.departments');
         Route::get('/admin/specialties', SpecialtyManager::class)->name('admin.specialties');
         Route::get('/admin/positions', TeacherPositionManager::class)->name('admin.positions');

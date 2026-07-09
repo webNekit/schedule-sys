@@ -97,20 +97,27 @@
                 </select>
             @elseif ($viewMode === 'teacher')
                 <p class="text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-2">Выберите преподавателя</p>
-                <select wire:model.live="viewId"
-                    class="w-full rounded-lg border border-zinc-700 bg-zinc-900 px-4 py-2.5 text-sm text-zinc-100 focus:border-zinc-500 outline-none transition-colors">
-                    <option value="0">Все преподаватели</option>
-                    @foreach ($this->teachers as $teacher)
-                        <option value="{{ $teacher->id }}">{{ $teacher->last_name }} {{ $teacher->first_name }}</option>
-                    @endforeach
-                </select>
+                @php
+                    $teacherOptions = $this->teachers->map(fn ($t) => [
+                        'id' => (string) $t->id,
+                        'label' => "{$t->last_name} {$t->first_name}",
+                    ])->toArray();
+                @endphp
+                <x-searchable-select
+                    model="viewId"
+                    :options="$teacherOptions"
+                    :dark="true"
+                    none-label="Все преподаватели"
+                    none-value="0"
+                    placeholder="Поиск преподавателя..."
+                />
             @elseif ($viewMode === 'room')
                 <p class="text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-2">Выберите аудиторию</p>
                 <select wire:model.live="viewId"
                     class="w-full rounded-lg border border-zinc-700 bg-zinc-900 px-4 py-2.5 text-sm text-zinc-100 focus:border-zinc-500 outline-none transition-colors">
                     <option value="0">Все аудитории</option>
                     @foreach ($this->rooms as $room)
-                        <option value="{{ $room->id }}">{{ $room->name }}</option>
+                        <option value="{{ $room->id }}">{{ $room->number ?? $room->name }}{{ $room->building ? ' — '.($room->building->short_name ?? $room->building->name) : '' }}</option>
                     @endforeach
                 </select>
             @elseif ($viewMode === 'department')
@@ -226,7 +233,7 @@
                     @elseif ($viewMode === 'teacher')
                         <span class="font-bold text-white text-sm">{{ $entity?->last_name }} {{ $entity?->first_name }}</span>
                     @else
-                        <span class="font-bold text-white text-sm">{{ $entity?->name ?? 'Аудитория #' . $entityId }}</span>
+                        <span class="font-bold text-white text-sm">{{ $entity ? (($entity->number ?? $entity->name).($entity->building ? ' — '.($entity->building->short_name ?? $entity->building->name) : '')) : 'Аудитория #' . $entityId }}</span>
                     @endif
                 </div>
                 @if (!empty($highlightedLessonIds))
@@ -271,10 +278,18 @@
                                             $l['date'] === $date && $l['lesson_number'] === $lessonNum
                                         );
 
+                                        // Каникулы — информационная пометка из таблицы. Они НЕ отменяют учёбу:
+                                        // если группе выданы пары или стоит практика, группа учится и пометка уступает.
+                                        $vacationInfo = $vacationData[$date] ?? null;
+
                                         $practiceInfo = null;
                                         if (($viewMode === 'group' || $viewMode === 'department') && isset($practiceData[$entityId])) {
                                             $practiceInfo = collect($practiceData[$entityId])->first(fn($p) => $p['date'] === $date);
                                         }
+
+                                        $dayHasLessons = collect($lessons->toArray())->contains(fn($l) => $l['date'] === $date);
+                                        // Показываем «каникулы» только когда группа в этот день реально не занята.
+                                        $showVacation = $vacationInfo && !$practiceInfo && !$dayHasLessons;
 
                                         // On practice days: only show manually-added lessons (not auto-generated)
                                         $cellLessons = $practiceInfo
@@ -287,6 +302,15 @@
                                     @endphp
 
                                     <td class="px-3 py-2 border-l border-zinc-800/60 align-top min-w-[180px] relative">
+
+                                        {{-- Vacation / holiday overlay (only on lesson 1, when group is not studying) --}}
+                                        @if($showVacation && $lessonNum === 1)
+                                            <div class="absolute inset-x-0 -top-px z-10">
+                                                <div class="mx-1 px-2 py-0.5 rounded-b text-[9px] font-bold uppercase tracking-wider text-center border {{ $vacationInfo['type'] === 'holiday' ? 'bg-rose-500/15 text-rose-400 border-rose-500/30' : 'bg-sky-500/15 text-sky-400 border-sky-500/30' }}">
+                                                    {{ $vacationInfo['label'] }}
+                                                </div>
+                                            </div>
+                                        @endif
 
                                         {{-- Practice day overlay (only on lesson 1) --}}
                                         @if($practiceInfo && $lessonNum === 1)
@@ -609,16 +633,28 @@
                                         default   => 'border-zinc-700 bg-zinc-900/50',
                                     };
                                     $typeLabel = match ($conflict['conflict_type']) {
-                                        'teacher_window'       => 'Окно у препода',
-                                        'teacher_min_lessons'  => 'Мало пар',
-                                        'teacher_parallel'     => 'Параллельные пары',
-                                        'saturday_lesson_limit'=> 'Суббота',
-                                        'group_min_lessons'    => 'Мало пар у группы',
-                                        'group_window'         => 'Окно у группы',
-                                        'group_shift_mismatch' => 'Смена',
-                                        'pe_grouping'          => 'Физ-ра',
-                                        'room_multi_group'     => 'Аудитория',
-                                        default                => $conflict['conflict_type'],
+                                        'teacher_window'          => 'Окно у препода',
+                                        'teacher_min_lessons'     => 'Мало пар',
+                                        'teacher_parallel'        => 'Параллельные пары',
+                                        'teacher_overload'        => 'Перегрузка препода',
+                                        'teacher_building_conflict' => 'Корпус препода',
+                                        'teacher_discipline_mismatch' => 'Чужая дисциплина',
+                                        'teacher_unavailability'  => 'Препод недоступен',
+                                        'saturday_lesson_limit'   => 'Суббота',
+                                        'group_min_lessons'       => 'Мало пар у группы',
+                                        'group_window'            => 'Окно у группы',
+                                        'group_shift_mismatch'    => 'Смена',
+                                        'group_parallel'          => 'Параллельные пары',
+                                        'group_overload'          => 'Перегрузка группы',
+                                        'group_building_conflict' => 'Корпус группы',
+                                        'group_practice_overlap'  => 'Практика',
+                                        'pe_grouping'             => 'Физ-ра',
+                                        'pe_after_fourth_pair'    => 'Физ-ра после 4-й',
+                                        'room_multi_group'        => 'Аудитория',
+                                        'room_capacity'           => 'Вместимость',
+                                        'sport_complex_reserved'  => 'Спорткомплекс',
+                                        'custom_rule'             => 'Авторское правило',
+                                        default                   => $conflict['conflict_type'],
                                     };
                                 @endphp
                                 <div class="p-3 rounded-lg border text-sm {{ $conflict['is_resolved'] ? 'border-emerald-700/50 bg-emerald-950/20' : $sevClass }}">
@@ -718,7 +754,7 @@
                                     @endforeach
                                 @elseif ($shareViewMode === 'room')
                                     @foreach ($this->rooms as $room)
-                                        <option value="{{ $room->id }}">{{ $room->name }}</option>
+                                        <option value="{{ $room->id }}">{{ $room->number ?? $room->name }}{{ $room->building ? ' — '.($room->building->short_name ?? $room->building->name) : '' }}</option>
                                     @endforeach
                                 @endif
                             </select>

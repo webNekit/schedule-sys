@@ -35,9 +35,9 @@ class SpecialtyManager extends Component
 
     public ?int $educationLevelId = null;
 
-    public ?int $studyYears9 = null;
+    public string $studyYears9 = '';
 
-    public ?int $studyYears11 = null;
+    public string $studyYears11 = '';
 
     public string $baseEducation = '';
 
@@ -111,8 +111,8 @@ class SpecialtyManager extends Component
         $this->qualification = $spec->qualification ?? '';
         $this->departmentId = $spec->department_id;
         $this->educationLevelId = $spec->education_level_id;
-        $this->studyYears9 = $spec->study_years_9 ?? $spec->study_years;
-        $this->studyYears11 = $spec->study_years_11;
+        $this->studyYears9 = (string) ($spec->study_years_9 ?? $spec->study_years ?? '');
+        $this->studyYears11 = (string) ($spec->study_years_11 ?? '');
         $this->baseEducation = $spec->base_education ?? '';
         $this->formOfStudy = $spec->form_of_study ?? '';
         $this->budgetPlaces = $spec->budget_places;
@@ -129,14 +129,20 @@ class SpecialtyManager extends Component
             'shortName' => 'nullable|string|max:100',
             'departmentId' => 'nullable|integer|exists:departments,id',
             'educationLevelId' => 'nullable|integer|exists:education_levels,id',
-            'studyYears9' => 'nullable|integer|min:1|max:6',
-            'studyYears11' => 'nullable|integer|min:1|max:6',
+            'studyYears9' => ['nullable', 'string', 'regex:/^\d{1,2}([.,]([0-9]|1[0-1]))?$/'],
+            'studyYears11' => ['nullable', 'string', 'regex:/^\d{1,2}([.,]([0-9]|1[0-1]))?$/'],
             'baseEducation' => 'nullable|string|max:50',
             'formOfStudy' => 'nullable|string|max:50',
             'budgetPlaces' => 'nullable|integer|min:0',
             'contractPlaces' => 'nullable|integer|min:0',
             'isActive' => 'boolean',
+        ], [
+            'studyYears9.regex' => 'Укажите срок в формате «годы» или «годы,месяцы», например 2 или 2,9.',
+            'studyYears11.regex' => 'Укажите срок в формате «годы» или «годы,месяцы», например 3 или 3,10.',
         ]);
+
+        $years9 = $this->normalizeStudyDuration($this->studyYears9);
+        $years11 = $this->normalizeStudyDuration($this->studyYears11);
 
         $data = [
             'code' => $this->code,
@@ -145,9 +151,9 @@ class SpecialtyManager extends Component
             'qualification' => $this->qualification ?: null,
             'department_id' => $this->departmentId,
             'education_level_id' => $this->educationLevelId,
-            'study_years' => $this->studyYears9 ?? 4,
-            'study_years_9' => $this->studyYears9,
-            'study_years_11' => $this->studyYears11,
+            'study_years' => $years9 !== null ? (int) $years9 : 4,
+            'study_years_9' => $years9,
+            'study_years_11' => $years11,
             'base_education' => $this->baseEducation ?: null,
             'form_of_study' => $this->formOfStudy ?: null,
             'budget_places' => $this->budgetPlaces,
@@ -179,6 +185,21 @@ class SpecialtyManager extends Component
         $this->resetForm();
     }
 
+    /**
+     * Приводит срок обучения к виду "годы,месяцы" (запятая как разделитель).
+     * Возвращает null для пустой строки.
+     */
+    private function normalizeStudyDuration(string $value): ?string
+    {
+        $value = trim($value);
+
+        if ($value === '') {
+            return null;
+        }
+
+        return str_replace('.', ',', $value);
+    }
+
     private function resetForm(): void
     {
         $this->code = '';
@@ -187,8 +208,8 @@ class SpecialtyManager extends Component
         $this->qualification = '';
         $this->departmentId = null;
         $this->educationLevelId = null;
-        $this->studyYears9 = null;
-        $this->studyYears11 = null;
+        $this->studyYears9 = '';
+        $this->studyYears11 = '';
         $this->baseEducation = '';
         $this->formOfStudy = '';
         $this->budgetPlaces = null;

@@ -37,7 +37,7 @@
             <select wire:model.live="viewId" class="rounded-lg border border-gray-300 px-3 py-2 text-sm">
                 <option value="0">Все аудитории</option>
                 @foreach ($rooms as $room)
-                    <option value="{{ $room->id }}">{{ $room->name }}</option>
+                    <option value="{{ $room->id }}">{{ $room->number ?? $room->name }}{{ $room->building ? ' — '.($room->building->short_name ?? $room->building->name) : '' }}</option>
                 @endforeach
             </select>
         @endif
@@ -63,7 +63,7 @@
             $entityName = match ($viewMode) {
                 'group' => $entity?->name ?? 'Группа',
                 'teacher' => $entity ? $entity->last_name . ' ' . $entity->first_name : 'Преподаватель',
-                'room' => $entity?->name ?? 'Аудитория',
+                'room' => $entity ? (($entity->number ?? $entity->name).($entity->building ? ' — '.($entity->building->short_name ?? $entity->building->name) : '')) : 'Аудитория',
                 default => '',
             };
             $lessonsArr = $lessons instanceof \Illuminate\Support\Collection ? $lessons->toArray() : $lessons;
@@ -77,10 +77,21 @@
                         <tr class="bg-gray-100">
                             <th class="px-2 py-1.5 text-left font-medium text-gray-500 text-xs w-10">Пара</th>
                             @foreach ($dayNames as $i => $day)
+                                @php
+                                    $headerDate = Carbon\Carbon::parse($weekStart)->addDays($i)->format('Y-m-d');
+                                    // Каникулы показываем только если у группы в этот день нет пар — иначе она учится.
+                                    $headerHasLessons = collect($lessonsArr)->contains(fn($l) => $l['date'] === $headerDate);
+                                    $headerVacation = (!$headerHasLessons && !empty($vacationData[$headerDate])) ? $vacationData[$headerDate] : null;
+                                @endphp
                                 <th
                                     class="px-2 py-1.5 text-left font-medium text-gray-500 text-xs border-l border-gray-200 min-w-[110px]">
                                     {{ $day }}<br><span
                                         class="font-normal">{{ Carbon\Carbon::parse($weekStart)->addDays($i)->format('d.m') }}</span>
+                                    @if ($headerVacation)
+                                        <span class="block mt-0.5 font-semibold {{ $headerVacation['type'] === 'holiday' ? 'text-rose-500' : 'text-sky-600' }}">
+                                            {{ $headerVacation['label'] }}
+                                        </span>
+                                    @endif
                                 </th>
                             @endforeach
                         </tr>
@@ -93,8 +104,14 @@
                                     @php
                                         $date = Carbon\Carbon::parse($weekStart)->addDays($dayOffset)->format('Y-m-d');
                                         $cellLessons = array_filter($lessonsArr, fn($l) => $l['date'] === $date && $l['lesson_number'] === $lessonNum);
+                                        $dayHasLessons = collect($lessonsArr)->contains(fn($l) => $l['date'] === $date);
+                                        // Каникулы — только когда группа в этот день реально не учится.
+                                        $cellVacation = (!$dayHasLessons && isset($vacationData[$date])) ? $vacationData[$date] : null;
                                     @endphp
-                                    <td class="px-2 py-1 border-l border-gray-100 align-top">
+                                    <td class="px-2 py-1 border-l border-gray-100 align-top {{ $cellVacation ? 'bg-sky-50/50' : '' }}">
+                                        @if ($cellVacation && $lessonNum === 1)
+                                            <div class="text-[11px] italic text-gray-400">{{ $cellVacation['label'] }}</div>
+                                        @endif
                                         @foreach ($cellLessons as $lesson)
                                             @php
                                                 $pubDiscCode = trim($lesson['discipline']['code'] ?? '');
@@ -147,7 +164,7 @@
         <div class="p-12 text-center text-gray-400">Нет занятий в выбранном периоде</div>
     @endforelse
 
-    <span class="hidden border-l-indigo-400 bg-indigo-50/60 border-l-pink-400 bg-pink-50/60 border-l-amber-400 bg-amber-50/60 border-l-red-400 bg-red-50/60 border-l-purple-400 bg-purple-50/60 border-l-teal-300 bg-teal-50/40 bg-gray-50 border-gray-100"></span>
+    <span class="hidden border-l-indigo-400 bg-indigo-50/60 border-l-pink-400 bg-pink-50/60 border-l-amber-400 bg-amber-50/60 border-l-red-400 bg-red-50/60 border-l-purple-400 bg-purple-50/60 border-l-teal-300 bg-teal-50/40 bg-gray-50 border-gray-100 text-sky-600 text-rose-500 bg-sky-50/50"></span>
     <p class="text-center text-xs text-gray-400 mt-6 no-print">Расписание занятий — данные актуальны на момент генерации
     </p>
 </div>

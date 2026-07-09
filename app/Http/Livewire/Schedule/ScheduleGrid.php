@@ -43,6 +43,13 @@ class ScheduleGrid extends Component
 
     public array $practiceData = [];
 
+    /**
+     * Каникулы/праздники текущей недели, keyed by date (Y-m-d).
+     *
+     * @var array<string, array{label: string, type: string}>
+     */
+    public array $vacationData = [];
+
     public bool $editing = false;
 
     public ?int $editingLessonId = null;
@@ -169,6 +176,8 @@ class ScheduleGrid extends Component
         $weekStart = Carbon::parse($this->weekStart);
         $weekEnd = $weekStart->copy()->endOfWeek(Carbon::SUNDAY);
 
+        $this->loadVacations($weekStart, $weekEnd);
+
         $lessonsQuery = ScheduleLesson::with([
             'group',
             'discipline',
@@ -284,6 +293,40 @@ class ScheduleGrid extends Component
         return Vacation::where('start_date', '<=', $date->toDateString())
             ->where('end_date', '>=', $date->toDateString())
             ->exists();
+    }
+
+    /**
+     * Собрать каникулы и праздники, пересекающие текущую неделю, по дням.
+     */
+    private function loadVacations(Carbon $weekStart, Carbon $weekEnd): void
+    {
+        $this->vacationData = [];
+
+        $vacations = Vacation::where('start_date', '<=', $weekEnd->toDateString())
+            ->where('end_date', '>=', $weekStart->toDateString())
+            ->get();
+
+        foreach ($vacations as $vacation) {
+            $cursor = Carbon::parse($vacation->start_date)->max($weekStart);
+            $last = Carbon::parse($vacation->end_date)->min($weekEnd);
+            while ($cursor->lessThanOrEqualTo($last)) {
+                $this->vacationData[$cursor->toDateString()] = [
+                    'label' => $vacation->name,
+                    'type' => 'vacation',
+                ];
+                $cursor->addDay();
+            }
+        }
+
+        $holidays = Holiday::whereBetween('date', [$weekStart->toDateString(), $weekEnd->toDateString()])->get();
+        foreach ($holidays as $holiday) {
+            $date = Carbon::parse($holiday->date)->toDateString();
+            // Праздник перекрывает каникулы только если день ещё не занят.
+            $this->vacationData[$date] ??= [
+                'label' => $holiday->name,
+                'type' => 'holiday',
+            ];
+        }
     }
 
     public function editLesson(int $lessonId): void
@@ -406,6 +449,7 @@ class ScheduleGrid extends Component
                 ->where('discipline_id', $disc->id)
                 ->where('semester_id', $semester?->id)
                 ->where('is_cancelled', false)
+                ->where('counts_for_group', true)
                 ->sum('hours_conducted');
 
             $disc->total_hours = (int) $totalHours;

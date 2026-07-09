@@ -2,17 +2,33 @@
 
 namespace App\Observers;
 
-use App\Models\CurriculumSemester;
-use App\Models\Group;
 use App\Models\HoursTracking;
 use App\Models\ScheduleLesson;
+use App\Models\ScheduleVersion;
+use App\Services\Schedule\HoursTrackingService;
 use Carbon\Carbon;
 
 class ScheduleLessonObserver
 {
+    public function __construct(private readonly HoursTrackingService $hoursTracking) {}
+
+    /**
+     * Новый урок в опубликованной версии (например, назначенная замена) —
+     * начисляем часы преподавателю. Без этого заменяющий «отводил бы пару бесплатно».
+     */
+    public function created(ScheduleLesson $lesson): void
+    {
+        $version = $this->resolveVersion($lesson);
+        if (! $version || $version->status !== 'published') {
+            return;
+        }
+
+        $this->hoursTracking->trackLesson($lesson, $version->academic_year_id);
+    }
+
     public function updated(ScheduleLesson $lesson): void
     {
-        $version = $lesson->version;
+        $version = $this->resolveVersion($lesson);
         if (! $version || $version->status !== 'published') {
             return;
         }
@@ -22,55 +38,58 @@ class ScheduleLessonObserver
 
         $tracking = HoursTracking::where('schedule_lesson_id', $lesson->id)->first();
 
-        // 9. ВОЗВРАТ ЧАСОВ ПРИ ЗАМЕНЕ ИЛИ ОТМЕНЕ
-        if ($tracking) {
-            // Если поменяли препода, обнуляем старую запись
-            if ($tracking->teacher_id !== $lesson->teacher_id || $isCancelled) {
+        // ВОЗВРАТ ЧАСОВ ПРИ ЗАМЕНЕ ИЛИ ОТМЕНЕ:
+        // если поменяли препода или урок отменён — гасим старую запись.
+        // Но только для ещё не проведённых пар (дата сегодня/в будущем):
+        // прошедшую пару преподаватель реально отвёл — его часы не отнимаем.
+        if ($tracking && ! $tracking->is_cancelled && $this->isNotYetConducted($lesson)) {
+            if ((int) $tracking->teacher_id !== (int) $lesson->teacher_id || $isCancelled) {
                 $tracking->update(['is_cancelled' => true, 'notes' => 'Замена или отмена']);
             }
         }
 
-        // Если назначили нового препода, создаем ему часы
-        if (! $isCancelled && $lesson->teacher_id && $lesson->group_id && $lesson->discipline_id && $lesson->lesson_type_id && $lesson->date && (! $tracking || $tracking->teacher_id !== $lesson->teacher_id)) {
-            $semesterId = $this->resolveSemesterId($lesson->group_id, $lesson->discipline_id, $lesson->date);
-            if ($semesterId) {
-                HoursTracking::create([
-                    'group_id' => $lesson->group_id,
-                    'discipline_id' => $lesson->discipline_id,
-                    'teacher_id' => $lesson->teacher_id,
-                    'semester_id' => $semesterId,
-                    'academic_year_id' => $version->academic_year_id,
-                    'lesson_type_id' => $lesson->lesson_type_id,
-                    'date' => $lesson->date,
-                    'hours_conducted' => 2, // 1 пара = 2 часа
-                    'schedule_lesson_id' => $lesson->id,
-                    'is_cancelled' => false,
-                ]);
-            }
+        // Если назначили нового препода — начисляем ему часы (единая точка — сервис).
+        if (! $isCancelled) {
+            $this->hoursTracking->trackLesson($lesson, $version->academic_year_id);
         }
     }
 
     public function deleted(ScheduleLesson $lesson): void
     {
-        // Возвращаем часы при удалении
-        HoursTracking::where('schedule_lesson_id', $lesson->id)->update(['is_cancelled' => true, 'notes' => 'Пара удалена']);
+        // Возвращаем часы при удалении — только для ещё не проведённых пар.
+        // Прошедшую пару преподаватель отвёл, удаление из расписания не отнимает часы.
+        if (! $this->isNotYetConducted($lesson)) {
+            return;
+        }
+
+        HoursTracking::where('schedule_lesson_id', $lesson->id)
+            ->update(['is_cancelled' => true, 'notes' => 'Пара удалена']);
     }
 
-    private function resolveSemesterId(?int $groupId, ?int $disciplineId, mixed $date): ?int
+    /**
+     * Версия урока свежим запросом: связь на модели могла закэшироваться ещё
+     * черновиком (до публикации), и тогда обсервер ошибочно считал бы версию
+     * неопубликованной и пропускал учёт часов.
+     */
+    private function resolveVersion(ScheduleLesson $lesson): ?ScheduleVersion
     {
-        if (! $groupId || ! $disciplineId) {
-            return null;
+        return $lesson->version_id
+            ? ScheduleVersion::find($lesson->version_id)
+            : null;
+    }
+
+    /**
+     * Пара ещё не проведена, если её дата сегодня или в будущем.
+     * Прошедшие пары считаются отведёнными — их часы не возвращаются.
+     */
+    private function isNotYetConducted(ScheduleLesson $lesson): bool
+    {
+        if (! $lesson->date) {
+            return true;
         }
 
-        $group = Group::find($groupId);
-        if (! $group) {
-            return null;
-        }
+        $date = $lesson->date instanceof Carbon ? $lesson->date : Carbon::parse($lesson->date);
 
-        $semesterNum = $group->getCurrentSemester($date instanceof Carbon ? $date : Carbon::parse($date));
-
-        return CurriculumSemester::where('discipline_id', $disciplineId)
-            ->where('semester_number', $semesterNum)
-            ->first()?->id;
+        return $date->startOfDay()->greaterThanOrEqualTo(Carbon::today());
     }
 }

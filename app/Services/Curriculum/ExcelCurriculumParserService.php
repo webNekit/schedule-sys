@@ -130,8 +130,14 @@ class ExcelCurriculumParserService
             return [];
         }
 
+        // Каждый курс — высокая полоса из нескольких строк. Метка курса (I–IV)
+        // стоит в объединённой ячейке слева, а символы графика (У/П/Э) разбросаны
+        // по разным подстрокам полосы. Поэтому НЕ сбрасываем курс после первой строки,
+        // а читаем все строки полосы, пока не встретим метку следующего курса.
         $currentCourse = 0;
-        for ($row = $weekRowIndex + 1; $row <= $weekRowIndex + 40; $row++) {
+        $seen = []; // дедупликация по "курс-неделя"
+
+        for ($row = $weekRowIndex + 1; $row <= $weekRowIndex + 48; $row++) {
             $courseStr = '';
             for ($c = 1; $c <= 3; $c++) {
                 $courseStr .= trim((string) $sheet->getCell([$c, $row])->getCalculatedValue());
@@ -147,43 +153,82 @@ class ExcelCurriculumParserService
                 $currentCourse = 1;
             }
 
-            if ($currentCourse > 0) {
-                $courseYear = $yearStart + $currentCourse - 1;
-                $baseDate = Carbon::create($courseYear, 9, 1)->startOfWeek(Carbon::MONDAY);
+            if ($currentCourse === 0) {
+                continue;
+            }
 
-                foreach ($weekColMap as $weekNum => $colIdx) {
-                    $cell = $sheet->getCell([$colIdx, $row]);
-                    $val = $cell->getValue();
+            $courseYear = $yearStart + $currentCourse - 1;
+            // Недели — 7-дневные отрезки от 1 сентября («1-7», «8-14», «29-5»)
+            $baseDate = Carbon::create($courseYear, 9, 1);
 
-                    if ($cell->isInMergeRange()) {
-                        $range = $cell->getMergeRange();
-                        $firstCell = explode(':', $range)[0];
-                        $val = $sheet->getCell($firstCell)->getValue();
-                    }
+            foreach ($weekColMap as $weekNum => $colIdx) {
+                $cell = $sheet->getCell([$colIdx, $row]);
+                $val = $cell->getValue();
 
-                    $val = mb_strtoupper(trim((string) $val));
-
-                    if (str_contains($val, 'У') || str_contains($val, 'П')) {
-                        $type = str_contains($val, 'У') ? 'edu_practice' : 'prod_practice';
-
-                        $startDate = $baseDate->copy()->addWeeks($weekNum - 1);
-                        $endDate = $startDate->copy()->addDays(6);
-
-                        $practices[] = [
-                            'course_number' => $currentCourse,
-                            'type' => $type,
-                            'symbol' => str_replace([' ', "\n", "\r"], '', $val),
-                            'week_number' => $weekNum,
-                            'start_date' => $startDate->format('Y-m-d'),
-                            'end_date' => $endDate->format('Y-m-d'),
-                        ];
-                    }
+                if ($cell->isInMergeRange()) {
+                    $range = $cell->getMergeRange();
+                    $firstCell = explode(':', $range)[0];
+                    $val = $sheet->getCell($firstCell)->getValue();
                 }
-                $currentCourse = 0;
+
+                $val = mb_strtoupper(trim((string) $val));
+                if ($val === '') {
+                    continue;
+                }
+
+                $type = $this->classifyGraphSymbol($val);
+                if ($type === null) {
+                    continue;
+                }
+
+                $key = $currentCourse.'-'.$weekNum;
+                if (isset($seen[$key])) {
+                    continue;
+                }
+                $seen[$key] = true;
+
+                $startDate = $baseDate->copy()->addWeeks($weekNum - 1);
+                $endDate = $startDate->copy()->addDays(6);
+
+                $practices[] = [
+                    'course_number' => $currentCourse,
+                    'type' => $type,
+                    'symbol' => str_replace([' ', "\n", "\r"], '', $val),
+                    'week_number' => $weekNum,
+                    'start_date' => $startDate->format('Y-m-d'),
+                    'end_date' => $endDate->format('Y-m-d'),
+                ];
             }
         }
 
+        // Сортируем по курсу и неделе, чтобы группировка соседних недель работала корректно
+        usort($practices, fn ($a, $b) => [$a['course_number'], $a['week_number']] <=> [$b['course_number'], $b['week_number']]);
+
         return $this->groupConsecutivePractices($practices);
+    }
+
+    /**
+     * Классифицирует символ календарного графика в тип блока.
+     * Э — экзаменационная сессия, У — учебная практика, П/Пд/Гп/Дп/Г/Д — производственная
+     * (включая преддипломную, госэкзамен, дипломное проектирование). К (каникулы) не
+     * импортируем — они берутся из настроек учебного года.
+     */
+    private function classifyGraphSymbol(string $val): ?string
+    {
+        if (str_contains($val, 'Э')) {
+            return 'exam_session';
+        }
+        if (str_contains($val, 'К')) {
+            return null; // каникулы — из системы учебного года
+        }
+        if (str_contains($val, 'У')) {
+            return 'edu_practice';
+        }
+        if (str_contains($val, 'П') || str_contains($val, 'Д') || str_contains($val, 'Г')) {
+            return 'prod_practice';
+        }
+
+        return null;
     }
 
     private function groupConsecutivePractices(array $practices): array
@@ -537,6 +582,7 @@ class ExcelCurriculumParserService
                             'short_name' => mb_substr($disciplineData['name'], 0, 50),
                             'cycle' => $disciplineData['cycle'],
                             'discipline_type' => $this->mapDisciplineType($disciplineData['code']),
+                            'category' => $this->categorizeDiscipline($disciplineData['code'], $disciplineData['name']),
                             'requires_lab' => $disciplineData['requires_lab'],
                             'is_schedulable' => $isSchedulable,
                             'sort_order' => $imported + 1,
@@ -584,6 +630,26 @@ class ExcelCurriculumParserService
         }
 
         return 'theoretical';
+    }
+
+    /**
+     * Категория дисциплины для генератора: pe | exam | practice | general.
+     * Используется эвристика по коду/названию (фоллбэк, если в источнике нет явной категории).
+     */
+    private function categorizeDiscipline(string $code, string $name): string
+    {
+        $code = mb_strtoupper($code);
+        if (preg_match('/физическая\s+культура|физкультур/iu', $name) || str_starts_with($code, 'ФК')) {
+            return 'pe';
+        }
+        if (preg_match('/экзамен|зач[её]т|аттестац|сессия/iu', $name)) {
+            return 'exam';
+        }
+        if (preg_match('/практика/iu', $name)) {
+            return 'practice';
+        }
+
+        return 'general';
     }
 
     private function isSchedulable(string $code, string $name, array $semesters): bool

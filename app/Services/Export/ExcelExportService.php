@@ -126,45 +126,38 @@ class ExcelExportService
             $sheet->setCellValue("{$roomColLetter}3", 'Кабинет');
 
             $sheet->getColumnDimension($nameColLetter)->setWidth(10);
-            $sheet->getColumnDimension($discColLetter)->setWidth(18);
-            $sheet->getColumnDimension($teacherColLetter)->setWidth(18);
-            $sheet->getColumnDimension($roomColLetter)->setWidth(10);
+            $sheet->getColumnDimension($discColLetter)->setWidth(22);
+            $sheet->getColumnDimension($teacherColLetter)->setWidth(16);
+            $sheet->getColumnDimension($roomColLetter)->setWidth(13);
         }
 
         $sheet->getStyle("A3:{$lastColLetter}3")->applyFromArray($colHeaderStyle);
         $sheet->getRowDimension(3)->setRowHeight(18);
 
         // ── Данные групп, по 3 в строке ───────────────────────────────────
+        // Блок всегда 7 строк — по одной на каждую возможную пару (1–7).
+        // Пара ставится в строку (currentRow + lessonNumber - 1), не последовательно.
+        $blockHeight = self::MIN_ROWS_PER_BLOCK; // всегда 7
         $currentRow = 4;
         $groupChunks = $groups->chunk(self::GROUPS_PER_ROW);
 
         foreach ($groupChunks as $chunk) {
             $chunkGroups = $chunk->values();
 
-            // Предзагружаем занятия для всех групп в блоке
+            // Загружаем занятия для всех групп блока
             $lessonsByGroup = [];
-            $blockHeight = self::MIN_ROWS_PER_BLOCK;
-
             foreach ($chunkGroups as $group) {
-                if ($group->isOnPractice($date)) {
-                    $lessonsByGroup[$group->id] = collect();
-                    // 1 row for practice label
-                    $blockHeight = max($blockHeight, self::MIN_ROWS_PER_BLOCK);
-                } else {
-                    $lessons = ScheduleLesson::with(['discipline', 'teacher', 'room'])
+                $lessonsByGroup[$group->id] = $group->isOnPractice($date)
+                    ? collect()
+                    : ScheduleLesson::with(['discipline', 'teacher', 'room.building'])
                         ->where('version_id', $versionId)
                         ->where('group_id', $group->id)
-                        ->where('date', $date->format('Y-m-d'))
+                        ->whereDate('date', $date->format('Y-m-d'))
                         ->where('status', '!=', 'cancelled')
                         ->orderBy('lesson_number')
                         ->get();
-
-                    $lessonsByGroup[$group->id] = $lessons;
-                    $blockHeight = max($blockHeight, $lessons->count());
-                }
             }
 
-            $blockHeight = max($blockHeight, self::MIN_ROWS_PER_BLOCK);
             $blockEndRow = $currentRow + $blockHeight - 1;
 
             // Рендерим каждую группу в своей колонке
@@ -179,7 +172,7 @@ class ExcelExportService
                 $blockRange = "{$nameColLetter}{$currentRow}:{$roomColLetter}{$blockEndRow}";
 
                 if ($group) {
-                    // Название группы (объединено вертикально)
+                    // Название группы — объединено по всем 7 строкам
                     $sheet->mergeCells("{$nameColLetter}{$currentRow}:{$nameColLetter}{$blockEndRow}");
                     $sheet->setCellValue("{$nameColLetter}{$currentRow}", "ГРУППА\n{$group->name}");
                     $sheet->getStyle("{$nameColLetter}{$currentRow}")->applyFromArray([
@@ -193,7 +186,6 @@ class ExcelExportService
                     ]);
 
                     if ($group->isOnPractice($date)) {
-                        // Практика
                         $sheet->mergeCells("{$discColLetter}{$currentRow}:{$roomColLetter}{$blockEndRow}");
                         $sheet->setCellValue("{$discColLetter}{$currentRow}", 'Практика');
                         $sheet->getStyle("{$discColLetter}{$currentRow}")->getAlignment()
@@ -202,17 +194,36 @@ class ExcelExportService
                     } else {
                         $lessons = $lessonsByGroup[$group->id] ?? collect();
 
-                        foreach ($lessons as $i => $lesson) {
-                            $lessonRow = $currentRow + $i;
-                            $disc = $lesson->discipline?->short_name ?? $lesson->discipline?->name ?? '';
+                        foreach ($lessons as $lesson) {
+                            // Строка = currentRow + (номер пары - 1), т.е. пара 1 → строка 0, пара 3 → строка 2
+                            $offset = max(0, ($lesson->lesson_number ?? 1) - 1);
+                            $lessonRow = $currentRow + $offset;
+
+                            // Дисциплина: short_name или обрезанное name
+                            $discName = $lesson->discipline?->short_name
+                                ?? $lesson->discipline?->name ?? '';
+                            if (mb_strlen($discName) > 25) {
+                                $discName = mb_substr($discName, 0, 23).'…';
+                            }
+
+                            // Преподаватель
                             $teacher = $lesson->teacher?->short_name ?? '';
-                            $room = $lesson->room?->number ?? '';
 
-                            $sheet->setCellValue("{$discColLetter}{$lessonRow}", $disc);
+                            // Кабинет + корпус
+                            $roomNum = $lesson->room?->number ?? '';
+                            $buildingName = $lesson->room?->building?->short_name
+                                ?? $lesson->room?->building?->name ?? '';
+                            $roomCell = $buildingName
+                                ? "{$roomNum}\n({$buildingName})"
+                                : $roomNum;
+
+                            $sheet->setCellValue("{$discColLetter}{$lessonRow}", $discName);
                             $sheet->setCellValue("{$teacherColLetter}{$lessonRow}", $teacher);
-                            $sheet->setCellValue("{$roomColLetter}{$lessonRow}", $room);
+                            $sheet->setCellValue("{$roomColLetter}{$lessonRow}", $roomCell);
 
-                            $sheet->getStyle("{$discColLetter}{$lessonRow}:{$roomColLetter}{$lessonRow}")
+                            $sheet->getStyle("{$roomColLetter}{$lessonRow}")
+                                ->getAlignment()->setWrapText(true)->setVertical(Alignment::VERTICAL_CENTER);
+                            $sheet->getStyle("{$discColLetter}{$lessonRow}:{$teacherColLetter}{$lessonRow}")
                                 ->getAlignment()->setVertical(Alignment::VERTICAL_CENTER);
                         }
                     }
@@ -228,9 +239,9 @@ class ExcelExportService
                 ]);
             }
 
-            // Высота строк блока
+            // Высота строк блока — чуть выше для комфортного чтения
             for ($r = $currentRow; $r <= $blockEndRow; $r++) {
-                $sheet->getRowDimension($r)->setRowHeight(16);
+                $sheet->getRowDimension($r)->setRowHeight(18);
             }
 
             $currentRow = $blockEndRow + 1;
@@ -323,7 +334,7 @@ class ExcelExportService
                     $lessons = ScheduleLesson::with(['discipline', 'teacher', 'room'])
                         ->where('version_id', $versionId)
                         ->where('group_id', $group->id)
-                        ->where('date', $date->format('Y-m-d'))
+                        ->whereDate('date', $date->format('Y-m-d'))
                         ->where('status', '!=', 'cancelled')
                         ->get()
                         ->keyBy('lesson_number');

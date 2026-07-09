@@ -196,6 +196,12 @@
               <x-nav-link href="{{ route('admin.settings') }}" :active="request()->routeIs('admin.settings')" emoji="⚙️">
                 Настройки
               </x-nav-link>
+              <x-nav-link href="{{ route('admin.scheduling-rules') }}" :active="request()->routeIs('admin.scheduling-rules')" emoji="📐">
+                Правила генерации
+              </x-nav-link>
+              <x-nav-link href="{{ route('admin.custom-rules') }}" :active="request()->routeIs('admin.custom-rules')" emoji="🧩">
+                Авторские правила
+              </x-nav-link>
             </div>
           </div>
 

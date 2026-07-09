@@ -46,6 +46,12 @@
         </div>
     @endif
 
+    @if (session('error'))
+        <div class="mb-4 px-4 py-2.5 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-700/40 rounded-lg text-sm text-red-700 dark:text-red-400">
+            {{ session('error') }}
+        </div>
+    @endif
+
     {{-- 3-Tab Navigation --}}
     <div class="flex gap-6 border-b border-gray-200 dark:border-gray-700 mb-6">
         <button wire:click="$set('activeTab', 'plan')"
@@ -57,6 +63,11 @@
             class="pb-3 text-sm font-semibold border-b-2 transition-colors -mb-px whitespace-nowrap
             {{ $activeTab === 'calendar' ? 'border-gray-900 dark:border-white text-gray-900 dark:text-white' : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300' }}">
             Календарь
+        </button>
+        <button wire:click="$set('activeTab', 'exams')"
+            class="pb-3 text-sm font-semibold border-b-2 transition-colors -mb-px whitespace-nowrap
+            {{ $activeTab === 'exams' ? 'border-gray-900 dark:border-white text-gray-900 dark:text-white' : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300' }}">
+            Экзамены
         </button>
         <button wire:click="$set('activeTab', 'workload')"
             class="pb-3 text-sm font-semibold border-b-2 transition-colors -mb-px whitespace-nowrap
@@ -141,7 +152,10 @@
                                 ->with('teacherDiscipline.teacher')
                                 ->orderBy('sort_order')
                                 ->get();
-                            $totalAssigned = $semesterAssignments->sum('planned_hours');
+                            // Параллельные занятия: преподаватели не делят часы — берём максимум, а не сумму.
+                            $totalAssigned = $d->is_parallel
+                                ? (int) ($semesterAssignments->max('planned_hours') ?? 0)
+                                : $semesterAssignments->sum('planned_hours');
                             $remaining = $semester->hours_total - $totalAssigned;
                         @endphp
                         <tr class="hover:bg-gray-50/50 dark:hover:bg-gray-700/20 transition-colors">
@@ -450,6 +464,147 @@
     </div>
     @endif {{-- end calendar tab --}}
 
+    {{-- ===== EXAMS TAB ===== --}}
+    @if($activeTab === 'exams')
+    @php
+        $examRows = collect($this->examScheduleRows);
+        $roomOptions = $this->examRoomOptions;
+        // Абсолютный номер семестра для выбранного курса и семестра-в-курсе
+        $absSemester = ($activeCourse - 1) * 2 + $activeSemesterInCourse;
+        $currentRows = $examRows->where('course', $activeCourse)->where('semester', $absSemester)->values();
+    @endphp
+
+    {{-- Course tabs (как в плане дисциплин) --}}
+    <div class="flex items-center gap-5 mb-4">
+        @foreach($this->availableCourses as $course)
+            <button wire:click="setActiveCourse({{ $course }})"
+                class="pb-2 text-sm font-semibold border-b-2 transition-colors
+                {{ $activeCourse === $course
+                    ? 'border-gray-900 dark:border-white text-gray-900 dark:text-white'
+                    : 'border-transparent text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300' }}">
+                {{ $course }} курс
+            </button>
+        @endforeach
+    </div>
+
+    {{-- Semester selector --}}
+    @php
+        $semsInCourse = collect($this->semestersByCourse[$activeCourse] ?? []);
+        $sem1 = $semsInCourse->where('semester_in_course', 1)->first();
+        $sem2 = $semsInCourse->where('semester_in_course', 2)->first();
+    @endphp
+    <div class="flex items-center gap-3 mb-5">
+        <button wire:click="setActiveSemester(1)"
+            class="px-4 py-2 rounded-full text-sm font-semibold transition-all border
+            {{ $activeSemesterInCourse === 1
+                ? 'bg-gray-900 dark:bg-white text-white dark:text-gray-900 border-gray-900 dark:border-white shadow-sm'
+                : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-400 border-gray-200 dark:border-gray-700 hover:border-gray-400 dark:hover:border-gray-500' }}">
+            1 семестр
+        </button>
+        @if($sem2)
+            <button wire:click="setActiveSemester(2)"
+                class="px-4 py-2 rounded-full text-sm font-semibold transition-all border
+                {{ $activeSemesterInCourse === 2
+                    ? 'bg-gray-900 dark:bg-white text-white dark:text-gray-900 border-gray-900 dark:border-white shadow-sm'
+                    : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-400 border-gray-200 dark:border-gray-700 hover:border-gray-400 dark:hover:border-gray-500' }}">
+                2 семестр
+            </button>
+        @endif
+    </div>
+
+    <div class="rounded-xl bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 overflow-hidden shadow-sm">
+        <div class="px-5 py-3.5 border-b border-gray-100 dark:border-gray-700">
+            <h3 class="font-bold text-gray-900 dark:text-white text-sm">Расписание экзаменов — {{ $activeCourse }} курс, {{ $absSemester }} семестр</h3>
+            <p class="text-xs text-gray-500 dark:text-gray-400 mt-0.5">Назначьте точную дату каждому экзамену — генератор поставит его строго в этот день</p>
+        </div>
+
+        @if($currentRows->isEmpty())
+            <div class="px-5 py-12 text-center text-gray-400 dark:text-gray-500 text-sm">
+                Нет дисциплин с экзаменами в этом семестре.
+            </div>
+        @else
+            <div class="overflow-x-auto">
+                <table class="w-full text-sm">
+                    <thead>
+                        <tr class="bg-gray-50 dark:bg-gray-900/40 text-left text-xs text-gray-500 dark:text-gray-400">
+                            <th class="px-4 py-2.5 font-medium">Дисциплина</th>
+                            <th class="px-4 py-2.5 font-medium w-44">Дата экзамена</th>
+                            <th class="px-4 py-2.5 font-medium w-56">Аудитория</th>
+                            <th class="px-4 py-2.5 font-medium w-40">Статус</th>
+                            <th class="px-4 py-2.5 font-medium w-28"></th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-gray-100 dark:divide-gray-700">
+                        @foreach($currentRows as $row)
+                            <tr class="hover:bg-gray-50/50 dark:hover:bg-gray-700/20">
+                                <td class="px-4 py-2.5 text-gray-900 dark:text-gray-100">{{ $row['discipline_name'] }}</td>
+                                <td class="px-4 py-2.5">
+                                    @if($row['has_session'])
+                                        @if($row['is_module'])
+                                            {{-- Модульный экзамен: дату выбирает пользователь, индикатор показывает завершение МДК/УП/ПП --}}
+                                            <div x-data="{ d: @js($row['exam_date']), prereq: @js($row['prereq_date']) }">
+                                                <input type="date"
+                                                    wire:model="examDates.{{ $row['semester_id'] }}"
+                                                    x-on:input="d = $event.target.value"
+                                                    value="{{ $row['exam_date'] }}"
+                                                    min="{{ $row['min_date'] }}"
+                                                    max="{{ $row['max_date'] }}"
+                                                    class="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-2 py-1.5 text-sm">
+                                                @if($row['prereq_date'])
+                                                    <p x-show="d && d >= prereq" x-cloak class="text-[10px] text-emerald-500 mt-0.5">✓ МДК, УП и ПП завершены</p>
+                                                    <p x-show="!d || d < prereq" class="text-[10px] text-amber-500 mt-0.5">⚠ МДК, УП и ПП ещё не завершены (до {{ \Carbon\Carbon::parse($row['prereq_date'])->format('d.m.Y') }})</p>
+                                                @else
+                                                    <p class="text-[10px] text-gray-400 mt-0.5">практики в графике не заданы</p>
+                                                @endif
+                                            </div>
+                                        @else
+                                            <input type="date"
+                                                wire:model="examDates.{{ $row['semester_id'] }}"
+                                                value="{{ $row['exam_date'] }}"
+                                                min="{{ $row['min_date'] }}"
+                                                max="{{ $row['max_date'] }}"
+                                                class="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-2 py-1.5 text-sm">
+                                            <p class="text-[10px] text-gray-400 mt-0.5">сессия: {{ \Carbon\Carbon::parse($row['min_date'])->format('d.m') }}–{{ \Carbon\Carbon::parse($row['max_date'])->format('d.m.Y') }}</p>
+                                        @endif
+                                    @else
+                                        <span class="text-[11px] text-amber-500">Сессия не задана в графике</span>
+                                    @endif
+                                </td>
+                                <td class="px-4 py-2.5">
+                                    <select wire:model="examRooms.{{ $row['semester_id'] }}"
+                                        class="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-2 py-1.5 text-sm">
+                                        <option value="">— не задана —</option>
+                                        @foreach($roomOptions as $opt)
+                                            <option value="{{ $opt['id'] }}" @selected((string)$row['room_id'] === (string)$opt['id'])>{{ $opt['label'] }}</option>
+                                        @endforeach
+                                    </select>
+                                </td>
+                                <td class="px-4 py-2.5">
+                                    @if($row['saved'])
+                                        <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs bg-emerald-50 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400">
+                                            ✓ {{ $row['saved_date'] }}
+                                        </span>
+                                    @else
+                                        <span class="text-xs text-gray-400">не назначен</span>
+                                    @endif
+                                </td>
+                                <td class="px-4 py-2.5 text-right whitespace-nowrap">
+                                    <button wire:click="saveExamSchedule({{ $row['semester_id'] }})"
+                                        class="px-2.5 py-1 text-xs rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white transition">Сохранить</button>
+                                    @if($row['saved'])
+                                        <button wire:click="clearExamSchedule({{ $row['semester_id'] }})"
+                                            class="px-2 py-1 text-xs rounded-lg text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition">✕</button>
+                                    @endif
+                                </td>
+                            </tr>
+                        @endforeach
+                    </tbody>
+                </table>
+            </div>
+        @endif
+    </div>
+    @endif {{-- end exams tab --}}
+
     {{-- ===== WORKLOAD TAB ===== --}}
     @if($activeTab === 'workload')
     <div class="rounded-xl bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 overflow-hidden shadow-sm">
@@ -614,6 +769,23 @@
                     <div>
                         <h3 class="text-base font-semibold text-gray-900 dark:text-white">{{ $assignDisciplineName }}</h3>
                         <p class="text-xs text-gray-500 dark:text-gray-400 mt-0.5">Управление нагрузкой по семестрам</p>
+                        <label class="mt-2 inline-flex items-center gap-2 cursor-pointer select-none">
+                            <input type="checkbox" wire:model.live="disciplineParallel"
+                                class="rounded border-gray-300 dark:border-gray-600 text-emerald-600 focus:ring-emerald-500">
+                            <span class="text-xs text-gray-600 dark:text-gray-300">Параллельные занятия</span>
+                            <span class="text-[10px] text-gray-400">— преподаватели ведут одновременно, не деля часы</span>
+                        </label>
+                        <div class="mt-2 inline-flex items-center gap-2">
+                            <span class="text-xs text-gray-600 dark:text-gray-300">Категория:</span>
+                            <select wire:model.live="disciplineCategory"
+                                class="rounded border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-xs px-2 py-1">
+                                <option value="general">Обычная</option>
+                                <option value="pe">Физкультура</option>
+                                <option value="practice">Практика</option>
+                                <option value="exam">Экзамен/зачёт</option>
+                            </select>
+                            <span class="text-[10px] text-gray-400">— как генератор трактует дисциплину</span>
+                        </div>
                     </div>
                     <button wire:click="closeAssignModal" class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">
                         <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
@@ -640,8 +812,10 @@
                             @php
                                 $curSem = \App\Models\CurriculumSemester::find($activeSemesterId);
                                 $assignments = $this->workloadState[$activeSemesterId] ?? [];
-                                $totalAssignedModal = 0;
-                                foreach($assignments as $a) { $totalAssignedModal += (int)($a['hours'] ?? 0); }
+                                // Параллельные занятия: преподаватели не делят часы — берём максимум, а не сумму.
+                                $totalAssignedModal = $disciplineParallel
+                                    ? (int) (collect($assignments)->max(fn($a) => (int)($a['hours'] ?? 0)) ?? 0)
+                                    : array_sum(array_map(fn($a) => (int)($a['hours'] ?? 0), $assignments));
                                 $remainingModal = $curSem->hours_total - $totalAssignedModal;
                             @endphp
                             <div class="space-y-6">

@@ -5,9 +5,12 @@ declare(strict_types=1);
 namespace App\Http\Livewire\Curriculum;
 
 use App\Models\AcademicYear;
+use App\Models\CurriculumDiscipline;
 use App\Models\CurriculumPlan;
 use App\Models\CurriculumPractice;
 use App\Models\CurriculumSemester;
+use App\Models\ExamSchedule;
+use App\Models\Room;
 use App\Models\Teacher;
 use App\Models\TeacherDiscipline;
 use App\Models\TeacherDisciplineSemester;
@@ -45,6 +48,10 @@ class ShowPlan extends Component
 
     public array $workloadState = [];
 
+    public bool $disciplineParallel = false;
+
+    public string $disciplineCategory = 'general';
+
     public ?int $activeSemesterId = null;
 
     public string $teacherSearch = '';
@@ -68,6 +75,15 @@ class ShowPlan extends Component
     public ?int $selectedPracticeId = null;
 
     public ?int $practiceTeacherId = null;
+
+    // ── Вкладка «Экзамены»: назначение точных дат ──────────────────────────
+    public int $examTabCourse = 1;
+
+    /** Черновик дат экзаменов по curriculum_semester_id: [semId => 'Y-m-d'] */
+    public array $examDates = [];
+
+    /** Черновик аудиторий: [semId => roomId] */
+    public array $examRooms = [];
 
     public function mount(CurriculumPlan $plan): void
     {
@@ -128,6 +144,8 @@ class ShowPlan extends Component
         $this->showWorkloadModal = true;
 
         $disciplines = $this->plan->disciplines()->find($disciplineId);
+        $this->disciplineParallel = (bool) $disciplines?->is_parallel;
+        $this->disciplineCategory = $disciplines?->category ?? 'general';
         $this->workloadState = [];
 
         foreach ($disciplines->semesters as $sem) {
@@ -153,6 +171,27 @@ class ShowPlan extends Component
     public function selectSemester(int $semesterId): void
     {
         $this->activeSemesterId = $semesterId;
+    }
+
+    /**
+     * Параллельные занятия: преподаватели ведут дисциплину одновременно,
+     * не деля часы (ин.язык по подгруппам, УП и т.п.).
+     */
+    public function updatedDisciplineParallel(bool $value): void
+    {
+        if ($this->assignDisciplineId) {
+            CurriculumDiscipline::whereKey($this->assignDisciplineId)->update(['is_parallel' => $value]);
+        }
+    }
+
+    /**
+     * Категория дисциплины для генератора (физкультура / практика / экзамен / обычная).
+     */
+    public function updatedDisciplineCategory(string $value): void
+    {
+        if ($this->assignDisciplineId && in_array($value, ['general', 'pe', 'practice', 'exam'], true)) {
+            CurriculumDiscipline::whereKey($this->assignDisciplineId)->update(['category' => $value]);
+        }
     }
 
     public function openAssignModal(): void
@@ -414,6 +453,244 @@ class ShowPlan extends Component
         return ! $isSchedulable;
     }
 
+    // ── Вкладка «Экзамены» ─────────────────────────────────────────────────
+
+    /**
+     * Список экзаменов плана: дисциплины с exam_hours > 0, сгруппированные по семестрам.
+     * Для каждой подтягивается уже назначенная дата/аудитория из exam_schedules.
+     *
+     * @return array<int, array{semester:int, course:int, items:array}>
+     */
+    #[Computed]
+    public function examScheduleRows(): array
+    {
+        $semesterIds = $this->plan->disciplines->flatMap->semesters
+            ->where('exam_hours', '>', 0)
+            ->pluck('id');
+
+        $scheduled = ExamSchedule::whereIn('curriculum_semester_id', $semesterIds)
+            ->whereNull('group_id')
+            ->get()
+            ->keyBy('curriculum_semester_id');
+
+        // Импортированные блоки экзаменационных сессий — задают допустимый диапазон дат
+        $examSessions = $this->plan->practices->where('type', 'exam_session');
+
+        $rows = [];
+        foreach ($this->plan->disciplines as $discipline) {
+            // Экзамен модуля (ПМ): квалификационный/демонстрационный/«по модулю».
+            // Ставится ПОСЛЕ всех МДК, УП и ПП модуля.
+            $isModuleExam = $discipline->isModuleExam();
+
+            // Пропускаем разделы-заголовки и контейнеры (циклы, модули ПМ.xx, ГИА).
+            if ($discipline->isSectionHeader()) {
+                continue;
+            }
+
+            foreach ($discipline->semesters as $sem) {
+                if ($sem->exam_hours <= 0) {
+                    continue;
+                }
+
+                $sched = $scheduled->get($sem->id);
+
+                $prereqDate = null;
+                if ($isModuleExam) {
+                    $window = $this->moduleExamWindow($sem->course_number, $sem->semester_number);
+                    $minDate = $window['min'];
+                    $maxDate = $window['max'];
+                    $hasWindow = $window['has'];
+                    $prereqDate = $window['prereq'];
+                } else {
+                    $session = $this->examSessionFor($examSessions, $sem->course_number, $sem->semester_number);
+                    $minDate = $session?->start_date?->format('Y-m-d');
+                    $maxDate = $session?->end_date?->format('Y-m-d');
+                    $hasWindow = $session !== null;
+                }
+
+                $rows[] = [
+                    'semester_id' => $sem->id,
+                    'course' => $sem->course_number,
+                    'semester' => $sem->semester_number,
+                    'discipline_name' => ($discipline->code ? $discipline->code.' ' : '').$discipline->name,
+                    'is_module' => $isModuleExam,
+                    'exam_date' => $this->examDates[$sem->id] ?? $sched?->exam_date?->format('Y-m-d') ?? '',
+                    'room_id' => $this->examRooms[$sem->id] ?? $sched?->room_id ?? '',
+                    'saved' => $sched !== null && $sched->exam_date !== null,
+                    'saved_date' => $sched?->exam_date?->format('d.m.Y'),
+                    'min_date' => $minDate,
+                    'max_date' => $maxDate,
+                    'has_session' => $hasWindow,
+                    'prereq_date' => $prereqDate,
+                ];
+            }
+        }
+
+        // Сортировка по курсу, семестру, названию
+        usort($rows, function ($a, $b) {
+            return [$a['course'], $a['semester'], $a['discipline_name']]
+                <=> [$b['course'], $b['semester'], $b['discipline_name']];
+        });
+
+        return $rows;
+    }
+
+    /**
+     * Подбирает блок экзаменационной сессии для курса/семестра.
+     * Нечётный семестр → зимняя сессия (ноя–фев), чётный → летняя (май–июль).
+     */
+    private function examSessionFor(Collection $examSessions, int $course, int $semester): ?CurriculumPractice
+    {
+        $courseSessions = $examSessions->where('course_number', $course);
+        if ($courseSessions->isEmpty()) {
+            return null;
+        }
+
+        $isOdd = $semester % 2 === 1;
+        foreach ($courseSessions as $s) {
+            $month = (int) Carbon::parse($s->start_date)->format('n');
+            $isWinter = in_array($month, [11, 12, 1, 2], true);
+            if ($isOdd === $isWinter) {
+                return $s;
+            }
+        }
+
+        return $courseSessions->first();
+    }
+
+    /**
+     * Окно дат для экзамена модуля (ПМ): пользователь выбирает дату в пределах
+     * полугодия. Дополнительно возвращается дата завершения практик (УП/ПП) —
+     * по ней в интерфейсе показывается индикатор, пройдены ли МДК, УП и ПП.
+     *
+     * @return array{min: ?string, max: ?string, has: bool, prereq: ?string}
+     */
+    private function moduleExamWindow(int $course, int $semester): array
+    {
+        $entryYear = $this->deriveEntryYear();
+        $courseStartYear = $entryYear + $course - 1;
+        $isOdd = $semester % 2 === 1;
+
+        // Границы полугодия
+        if ($isOdd) {
+            $halfStart = Carbon::create($courseStartYear, 9, 1);
+            $halfEnd = Carbon::create($courseStartYear + 1, 1, 31)->endOfDay();
+        } else {
+            $halfStart = Carbon::create($courseStartYear + 1, 2, 1);
+            $halfEnd = Carbon::create($courseStartYear + 1, 8, 31)->endOfDay();
+        }
+
+        // Практики (учебная/производственная, включая ПД/ГП/ДП) этого курса в полугодии
+        $practices = $this->plan->practices
+            ->where('course_number', $course)
+            ->whereIn('type', ['edu_practice', 'prod_practice'])
+            ->filter(function ($p) use ($halfStart, $halfEnd) {
+                $end = Carbon::parse($p->end_date);
+
+                return $end->betweenIncluded($halfStart, $halfEnd);
+            });
+
+        $prereq = $practices->isEmpty()
+            ? null
+            : $practices->map(fn ($p) => Carbon::parse($p->end_date))->max()->format('Y-m-d');
+
+        // Окно — всё полугодие: дату выбирает пользователь сам
+        return [
+            'min' => $halfStart->format('Y-m-d'),
+            'max' => $halfEnd->format('Y-m-d'),
+            'has' => true,
+            'prereq' => $prereq,
+        ];
+    }
+
+    /**
+     * Курсы, по которым есть экзамены (для фильтра вкладки).
+     *
+     * @return array<int>
+     */
+    #[Computed]
+    public function examCourses(): array
+    {
+        return $this->plan->disciplines->flatMap->semesters
+            ->where('exam_hours', '>', 0)
+            ->pluck('course_number')
+            ->unique()->sort()->values()->toArray();
+    }
+
+    public function saveExamSchedule(int $semesterId): void
+    {
+        $date = $this->examDates[$semesterId] ?? null;
+        $roomId = $this->examRooms[$semesterId] ?? null;
+
+        if (! $date) {
+            session()->flash('error', 'Укажите дату экзамена.');
+
+            return;
+        }
+
+        // Запрет двух экзаменов в один день у одного курса/семестра этого плана.
+        $sem = CurriculumSemester::find($semesterId);
+        if ($sem) {
+            $siblingIds = CurriculumSemester::where('course_number', $sem->course_number)
+                ->where('semester_number', $sem->semester_number)
+                ->whereHas('discipline', fn ($q) => $q->where('curriculum_plan_id', $this->plan->id))
+                ->where('id', '!=', $semesterId)
+                ->pluck('id');
+
+            $clash = ExamSchedule::whereIn('curriculum_semester_id', $siblingIds)
+                ->whereNull('group_id')
+                ->whereDate('exam_date', $date)
+                ->with('curriculumSemester.discipline')
+                ->first();
+
+            if ($clash) {
+                $name = $clash->curriculumSemester?->discipline?->name ?? 'другая дисциплина';
+                session()->flash('error', "На {$date} уже назначен экзамен: «{$name}». Выберите другой день.");
+
+                return;
+            }
+        }
+
+        ExamSchedule::updateOrCreate(
+            ['curriculum_semester_id' => $semesterId, 'group_id' => null],
+            ['exam_date' => $date, 'room_id' => $roomId ?: null],
+        );
+
+        unset($this->examScheduleRows);
+        session()->flash('message', 'Дата экзамена сохранена.');
+    }
+
+    public function clearExamSchedule(int $semesterId): void
+    {
+        ExamSchedule::where('curriculum_semester_id', $semesterId)
+            ->whereNull('group_id')
+            ->delete();
+
+        unset($this->examDates[$semesterId], $this->examRooms[$semesterId]);
+        unset($this->examScheduleRows);
+        session()->flash('message', 'Дата экзамена удалена.');
+    }
+
+    #[Computed]
+    public function examRoomOptions(): array
+    {
+        return Room::with('building')
+            ->where('is_active', true)
+            ->orderBy('number')
+            ->get()
+            ->sortBy(fn ($r) => ($r->building?->short_name ?? $r->building?->name ?? 'я').' '.$r->number)
+            ->map(function ($r) {
+                $building = $r->building?->short_name ?? $r->building?->name;
+
+                return [
+                    'id' => $r->id,
+                    'label' => $r->number.($building ? ' — '.$building : ''),
+                ];
+            })
+            ->values()
+            ->toArray();
+    }
+
     private function deriveEntryYear(): int
     {
         $practices = $this->plan->practices->filter(fn ($p) => $p->type !== 'exam_session');
@@ -456,8 +733,8 @@ class ShowPlan extends Component
         $courses = $this->availableCourses;
         $totalWeeks = 52;
 
-        // Build 52-week reference structure (week grouping by end-date month)
-        $baseDate = Carbon::create($entryYear, 9, 1)->startOfWeek(Carbon::MONDAY);
+        // Недели — 7-дневные отрезки от 1 сентября, как в Excel-графике (1-7, 8-14, 29-5)
+        $baseDate = Carbon::create($entryYear, 9, 1);
         $weeks = [];
         $months = [];
 
@@ -488,7 +765,7 @@ class ShowPlan extends Component
         $grid = [];
         foreach ($courses as $course) {
             $courseYear = $entryYear + $course - 1;
-            $courseStart = Carbon::create($courseYear, 9, 1)->startOfWeek(Carbon::MONDAY);
+            $courseStart = Carbon::create($courseYear, 9, 1);
 
             $coursePractices = $practices->where('course_number', $course)
                 ->filter(fn ($p) => $p->type !== 'exam_session');

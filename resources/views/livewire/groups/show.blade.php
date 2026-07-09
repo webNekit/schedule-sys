@@ -32,23 +32,68 @@
         </div>
     </div>
 
-    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-4">
-        <div class="flex items-center justify-between mb-3">
-            <h3 class="font-semibold">Корпуса</h3>
-            <button wire:click="openBuildingForm" class="text-sm text-emerald-600 hover:text-emerald-800">+ Привязать корпус</button>
-        </div>
-        @if($group->buildings->isNotEmpty())
-            <div class="flex flex-wrap gap-2">
-                @foreach($group->buildings as $building)
-                    <span class="inline-flex items-center gap-2 px-3 py-1 bg-gray-100 dark:bg-gray-700 rounded-full text-sm">
-                        {{ $building->short_name ?? $building->name }}
-                        <button wire:click="removeBuilding({{ $building->id }})" wire:confirm="Отвязать корпус?" class="text-red-500 hover:text-red-700">&times;</button>
-                    </span>
-                @endforeach
+    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
+        <div class="px-5 py-3.5 border-b border-gray-100 dark:border-gray-700 flex items-center justify-between">
+            <div>
+                <h3 class="font-bold text-gray-900 dark:text-white text-sm flex items-center gap-2">
+                    <svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/></svg>
+                    Корпуса обучения
+                </h3>
+                <p class="text-xs text-gray-500 dark:text-gray-400 mt-0.5">В каких корпусах группа учится. Выезд в спорткомплекс на физкультуру настраивается в системных настройках.</p>
             </div>
-        @else
-            <p class="text-sm text-gray-500">Не назначены</p>
-        @endif
+            <button wire:click="openBuildingForm" class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-medium transition">
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+                Привязать корпус
+            </button>
+        </div>
+
+        <div class="p-4">
+            @if($group->buildings->isNotEmpty())
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                    @foreach($group->buildings as $building)
+                        @php $isPrimary = (bool) ($building->pivot->is_primary ?? false); @endphp
+                        <div class="flex items-center justify-between gap-3 px-3.5 py-2.5 rounded-xl border transition
+                            {{ $isPrimary
+                                ? 'border-emerald-300 bg-emerald-50/60 dark:border-emerald-700/50 dark:bg-emerald-900/20'
+                                : 'border-gray-200 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-900/30' }}">
+                            <div class="min-w-0">
+                                <div class="flex items-center gap-2">
+                                    <span class="font-medium text-sm text-gray-900 dark:text-gray-100 truncate">{{ $building->name }}</span>
+                                    @if($isPrimary)
+                                        <span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-emerald-600 text-white">основной</span>
+                                    @endif
+                                </div>
+                                @if($building->short_name)
+                                    <p class="text-[11px] text-gray-400 font-mono mt-0.5">{{ $building->short_name }}</p>
+                                @endif
+                            </div>
+                            <div class="flex items-center gap-1 shrink-0">
+                                @if(! $isPrimary)
+                                    <button wire:click="setPrimaryBuilding({{ $building->id }})" title="Сделать основным"
+                                        class="p-1.5 rounded-lg text-gray-400 hover:text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 transition">
+                                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.196-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z"/></svg>
+                                    </button>
+                                @endif
+                                <button wire:click="removeBuilding({{ $building->id }})" wire:confirm="Отвязать корпус «{{ $building->name }}»?" title="Отвязать"
+                                    class="p-1.5 rounded-lg text-gray-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 transition">
+                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                                </button>
+                            </div>
+                        </div>
+                    @endforeach
+                </div>
+                @if($group->buildings->count() > 1)
+                    <p class="text-[11px] text-gray-400 dark:text-gray-500 mt-3">
+                        Несколько корпусов — генератор чередует их по дням недели (один корпус на день).
+                    </p>
+                @endif
+            @else
+                <div class="text-center py-6 text-gray-400 dark:text-gray-500">
+                    <p class="text-sm">Корпуса не назначены</p>
+                    <p class="text-xs mt-0.5">Привяжите хотя бы один — иначе генератор поставит занятия в любой доступный корпус</p>
+                </div>
+            @endif
+        </div>
     </div>
 
     {{-- Учебные планы в стиле Аккордеона (Always Open) --}}
@@ -371,20 +416,27 @@
 
     @if ($showBuildingForm)
         <div class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40" wire:click.self="$set('showBuildingForm', false)">
-            <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
+            <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl w-full max-w-lg overflow-visible">
                 <div class="p-6 border-b border-gray-200 dark:border-gray-700">
                     <h3 class="text-lg font-semibold">Привязать корпус</h3>
                 </div>
                 <form wire:submit="assignBuilding" class="p-6 space-y-4">
                     <div>
-                        <label class="block text-sm font-medium mb-1">Корпус</label>
-                        <select wire:model="selectedBuildingId" class="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-2">
-                            <option value="">Выберите корпус</option>
-                            @foreach($buildings as $building)
-                                <option value="{{ $building->id }}">{{ $building->name }} ({{ $building->short_name ?? '—' }})</option>
-                            @endforeach
-                        </select>
-                        @error('selectedBuildingId') <p class="text-xs text-red-600 mt-1">{{ $message }}</p> @enderror
+                        @php
+                            $buildingOptions = $buildings->map(fn ($b) => [
+                                'id' => $b->id,
+                                'label' => $b->name.($b->short_name ? ' — '.$b->short_name : ''),
+                            ])->toArray();
+                        @endphp
+                        <x-searchable-select
+                            label="Корпус"
+                            model="selectedBuildingId"
+                            :options="$buildingOptions"
+                            none-label="Выберите корпус"
+                            none-value=""
+                            placeholder="Поиск корпуса..."
+                            :error="$errors->first('selectedBuildingId')"
+                        />
                     </div>
                     <div class="flex justify-end gap-3 pt-4 border-t border-gray-200 dark:border-gray-700">
                         <button type="button" wire:click="$set('showBuildingForm', false)" class="px-4 py-2 text-sm text-gray-600 dark:text-gray-400 hover:text-gray-800 transition">Отмена</button>

@@ -5,10 +5,12 @@ declare(strict_types=1);
 namespace App\Http\Livewire\Schedule;
 
 use App\Models\Group;
+use App\Models\Holiday;
 use App\Models\Room;
 use App\Models\ScheduleLesson;
 use App\Models\ScheduleVersion;
 use App\Models\Teacher;
+use App\Models\Vacation;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Livewire\Component;
@@ -22,6 +24,13 @@ class PublicView extends Component
     public string $weekStart = '';
 
     public array $scheduleData = [];
+
+    /**
+     * Каникулы/праздники текущей недели, keyed by date (Y-m-d).
+     *
+     * @var array<string, array{label: string, type: string}>
+     */
+    public array $vacationData = [];
 
     public ?int $versionId = null;
 
@@ -60,6 +69,8 @@ class PublicView extends Component
         $weekStart = Carbon::parse($this->weekStart);
         $weekEnd = $weekStart->copy()->endOfWeek(Carbon::SUNDAY);
 
+        $this->loadVacations($weekStart, $weekEnd);
+
         $lessons = ScheduleLesson::with(['group', 'discipline', 'teacher', 'room.building', 'lessonType'])
             ->where('date', '>=', $weekStart->format('Y-m-d'))
             ->where('date', '<=', $weekEnd->format('Y-m-d'))
@@ -91,6 +102,39 @@ class PublicView extends Component
         })->values()->toArray();
     }
 
+    /**
+     * Собрать каникулы и праздники, пересекающие текущую неделю, по дням.
+     */
+    private function loadVacations(Carbon $weekStart, Carbon $weekEnd): void
+    {
+        $this->vacationData = [];
+
+        $vacations = Vacation::where('start_date', '<=', $weekEnd->toDateString())
+            ->where('end_date', '>=', $weekStart->toDateString())
+            ->get();
+
+        foreach ($vacations as $vacation) {
+            $cursor = Carbon::parse($vacation->start_date)->max($weekStart);
+            $last = Carbon::parse($vacation->end_date)->min($weekEnd);
+            while ($cursor->lessThanOrEqualTo($last)) {
+                $this->vacationData[$cursor->toDateString()] = [
+                    'label' => $vacation->name,
+                    'type' => 'vacation',
+                ];
+                $cursor->addDay();
+            }
+        }
+
+        $holidays = Holiday::whereBetween('date', [$weekStart->toDateString(), $weekEnd->toDateString()])->get();
+        foreach ($holidays as $holiday) {
+            $date = Carbon::parse($holiday->date)->toDateString();
+            $this->vacationData[$date] ??= [
+                'label' => $holiday->name,
+                'type' => 'holiday',
+            ];
+        }
+    }
+
     public function render()
     {
         $gk = $this->viewMode === 'group' ? 'group_id' : ($this->viewMode === 'teacher' ? 'teacher_id' : 'room_id');
@@ -100,7 +144,7 @@ class PublicView extends Component
             'grouped' => $grouped,
             'groups' => Group::active()->orderBy('name')->get(),
             'teachers' => Teacher::active()->orderBy('last_name')->get(),
-            'rooms' => Room::active()->orderBy('name')->get(),
+            'rooms' => Room::with('building')->active()->orderBy('number')->get(),
             'version' => $this->versionId ? ScheduleVersion::find($this->versionId) : ScheduleVersion::where('status', 'published')->latest()->first(),
         ])->layout('components.layouts.public');
     }

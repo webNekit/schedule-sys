@@ -146,6 +146,41 @@ RolesAndPermissions, AdminUser, EducationLevels, QualificationTypes, TeacherPosi
 
 ---
 
+---
+
+## Обновления 2026-06-05 / 2026-06-06
+
+### Автоматизация генерации расписания
+
+| # | Дата | Описание | Статус |
+|---|------|----------|--------|
+| 93 | 2026-06-05 | **Migration:** добавлена настройка `sport_complex_working_days` (JSON) в `system_settings` | ✅ |
+| 94 | 2026-06-05 | **Admin/Settings:** блок «Спортивный комплекс» — чекбоксы дней недели (Пн–Сб) для разрешения физкультуры | ✅ |
+| 95 | 2026-06-05 | **HoursTrackingService:** добавлен метод `getRemainingHoursByIds(groupId, disciplineId, semesterNum)` | ✅ |
+| 96 | 2026-06-05 | **ScheduleGeneratorService:** исправлен `groupDayBuildings` — теперь сбрасывается через `resetSession()` вместе с остальными кешами | ✅ |
+| 97 | 2026-06-05 | **ScheduleGeneratorService:** `generateForMonth` исправлен — итерирует ВСЕ недели месяца в одну версию (раньше генерировал только первую неделю) | ✅ |
+| 98 | 2026-06-05 | **ScheduleGeneratorService:** добавлен `generateForSemester(int $semester)` — генерация на весь семестр по датам из текущего учебного года | ✅ |
+| 99 | 2026-06-05 | **ScheduleGeneratorService:** добавлены in-memory счётчики `sessionDisciplineHours` и `weekDisciplineCount` — часы трекаются во время генерации без записи в БД | ✅ |
+| 100 | 2026-06-05 | **ScheduleGeneratorService:** `shouldGeneratePE` переработан — физкультура ставится по остатку часов (≥4ч) и только в дни работы спорткомплекса, без `rand()` | ✅ |
+| 101 | 2026-06-05 | **ScheduleGeneratorService:** `pickDisciplineForGroup` переработан — дисциплины сортируются по убыванию остатка часов (с учётом сессионных), случайный выбор из топ-3 | ✅ |
+| 102 | 2026-06-05 | **ScheduleGeneratorService:** ограничение повторений — одна дисциплина не ставится более 2 раз в неделю для группы | ✅ |
+| 103 | 2026-06-05 | **ConflictCheckerService:** реализован `autoFix` — исправляет `room_multi_group`, `room_capacity`, `group_building_conflict`, `teacher_building_conflict`, `teacher_window`, `group_window` | ✅ |
+
+### Экспорт расписания по кафедрам (Excel)
+
+| # | Дата | Описание | Статус |
+|---|------|----------|--------|
+| 104 | 2026-06-05 | **ExcelExportService:** новый метод `exportDepartmentGridByDate` — 1 лист = 1 кафедра, 3 группы в строке, формат как бумажное расписание | ✅ |
+| 105 | 2026-06-05 | **ExcelExportService:** шапка (жёлтый фон), заголовки колонок (зелёный), данные с тонкими границами; минимум 7 строк на блок группы; практика растягивается на всю ширину | ✅ |
+| 106 | 2026-06-05 | **Route:** `GET /schedule/export/{version}/{date}` — скачивание файла, авто-удаление после отдачи | ✅ |
+| 107 | 2026-06-05 | **Schedule/Index:** кнопка «Экспорт» открывает модальное окно выбора даты вместо флеш-сообщения | ✅ |
+| 108 | 2026-06-05 | **Модал выбора даты:** сетка дат версии, дни с занятиями выделены синим, праздники/каникулы исключены; клик → скачивание | ✅ |
+| 109 | 2026-06-06 | **Fix:** русские названия дней (`Пн`/`Вт`/…) вместо английских `MON`/`TUE` — через PHP-массив по `dayOfWeekIso` | ✅ |
+| 110 | 2026-06-06 | **ScheduleGrid:** кнопка «Excel» переименована в «Экспорт расписания», открывает тот же модал выбора даты (тёмная тема) | ✅ |
+| 111 | 2026-06-06 | **ScheduleGrid:** добавлены `showExportModal`, `openExportModal`, `closeExportModal`, `availableExportDates` | ✅ |
+
+---
+
 ## Заметки
 
 - Laravel 13.8.0, PHP 8.4

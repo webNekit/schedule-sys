@@ -132,6 +132,7 @@ class ReplacementFinder extends Component
                         ->where('discipline_id', $disc->id)
                         ->where('semester_id', $semester->id)
                         ->where('is_cancelled', false)
+                        ->where('counts_for_group', true)
                         ->sum('hours_conducted');
                 }
 
@@ -232,10 +233,13 @@ class ReplacementFinder extends Component
                 if ($assignment) {
                     $total = (int) ($assignment->planned_hours ?? 0);
 
-                    // СЧИТАЕМ РЕАЛЬНУЮ ВЫЧИТКУ ИЗ ТАБЛИЦЫ ТРЕКИНГА
+                    // Реальная вычитка из таблицы трекинга, в рамках текущего
+                    // учебного года — иначе план одного семестра сравнивался бы
+                    // с фактом за все годы и остаток был бы заниженным.
                     $actual = (int) HoursTracking::where('teacher_id', $teacher->id)
                         ->where('discipline_id', $assignment->discipline_id)
                         ->where('is_cancelled', false)
+                        ->when($currentYear, fn ($q) => $q->where('academic_year_id', $currentYear->id))
                         ->sum('hours_conducted');
 
                     $workloadInfo = [
@@ -312,13 +316,26 @@ class ReplacementFinder extends Component
             ]);
         }
 
-        // Удаляем старую пару в ЭТОЙ версии
-        ScheduleLesson::where('version_id', $version->id)
+        // Оригинальную пару в ЭТОЙ версии НЕ удаляем, а помечаем отменённой —
+        // так сохраняется история замены, а обсервер вернёт часы прежнего
+        // преподавателя (он пару не отвёл). Берём первый оригинал для связи.
+        $original = ScheduleLesson::where('version_id', $version->id)
             ->whereDate('date', $this->date)
             ->where('lesson_number', $this->lessonNumber)
             ->where('group_id', $this->groupId)
-            ->delete();
+            ->where('status', '!=', 'cancelled')
+            ->orderBy('id')
+            ->get();
 
+        $originalLessonId = $original->first()?->id;
+        $lessonTypeId = $original->first()?->lesson_type_id ?? 1;
+
+        foreach ($original as $lesson) {
+            $lesson->update(['status' => 'cancelled']);
+        }
+
+        // Создание нового урока вызовет created()-обсервер, который начислит
+        // часы заменяющему преподавателю в опубликованной версии.
         ScheduleLesson::create([
             'version_id' => $version->id,
             'date' => $this->date,
@@ -330,7 +347,8 @@ class ReplacementFinder extends Component
             'building_id' => $this->buildingId ?: ($roomId ? Room::find($roomId)?->building_id : null),
             'shift' => $group->shift,
             'is_replacement' => true,
-            'lesson_type_id' => 1,
+            'original_lesson_id' => $originalLessonId,
+            'lesson_type_id' => $lessonTypeId,
             'status' => $version->status === 'published' ? 'published' : 'draft',
             'created_by' => auth()->id(),
         ]);

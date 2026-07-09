@@ -6,6 +6,7 @@ namespace App\Http\Livewire\Admin;
 
 use App\Models\AcademicYear;
 use App\Models\Group;
+use App\Models\SportComplexSlot;
 use App\Models\SystemSetting;
 use App\Services\GroupPromotionService;
 use Illuminate\Support\Collection;
@@ -250,6 +251,33 @@ class SystemSettings extends Component
         return AcademicYear::orderBy('year_start', 'desc')->get();
     }
 
+    /**
+     * Добавить группу в ячейку. Группа может занимать несколько пар,
+     * но не дважды одну и ту же ячейку.
+     */
+    public function addSportGroup(int $weekday, int $lessonNumber, int $groupId): void
+    {
+        if ($groupId <= 0 || ! Group::whereKey($groupId)->exists()) {
+            return;
+        }
+
+        SportComplexSlot::firstOrCreate([
+            'group_id' => $groupId,
+            'weekday' => $weekday,
+            'lesson_number' => $lessonNumber,
+        ]);
+    }
+
+    public function removeSportGroup(int $slotId): void
+    {
+        SportComplexSlot::whereKey($slotId)->delete();
+    }
+
+    public function saveSportSchedule(): void
+    {
+        session()->flash('message', 'Расписание спорткомплекса сохранено');
+    }
+
     public function render(): mixed
     {
         $groups = collect($this->settings)
@@ -257,10 +285,22 @@ class SystemSettings extends Component
             ->forget(['generation', 'schedule', null, ''])
             ->filter(fn ($items, $group) => $group !== null && $group !== '');
 
+        $sportSlots = SportComplexSlot::with('group:id,name')->get();
+
         return view('livewire.admin.system-settings', [
             'groups' => $groups,
             'academicYears' => $this->academicYears,
             'groupsCount' => Group::where('is_active', true)->count(),
+            // Слоты спорткомплекса, сгруппированные по "день-пара" для сетки.
+            'sportSlotsByCell' => $sportSlots->groupBy(fn ($s) => $s->weekday.'-'.$s->lesson_number),
+            // Все активные группы для выбора в ячейках (формат searchable-select).
+            'sportGroupOptions' => Group::where('is_active', true)
+                ->orderBy('name')
+                ->get(['id', 'name'])
+                ->map(fn ($g) => ['id' => $g->id, 'label' => $g->name])
+                ->all(),
+            // Физкультурный блок сдвоенный, ставится с 1-й по 4-ю пару.
+            'sportComplexPairs' => range(1, 4),
         ]);
     }
 }

@@ -20,6 +20,7 @@ class HoursTracking extends Model
         'lesson_type_id',
         'date',
         'hours_conducted',
+        'counts_for_group',
         'schedule_lesson_id',
         'is_cancelled',
         'notes',
@@ -30,6 +31,7 @@ class HoursTracking extends Model
         return [
             'date' => 'date',
             'hours_conducted' => 'decimal:2',
+            'counts_for_group' => 'boolean',
             'is_cancelled' => 'boolean',
         ];
     }

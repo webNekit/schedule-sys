@@ -28,7 +28,8 @@ class GroupPromotionService
         }
 
         // 2. Получаем все активные группы, которые еще не выпустились
-        $groups = Group::where('is_active', true)
+        $groups = Group::with('specialty')
+            ->where('is_active', true)
             ->where('status', '!=', 'graduated')
             ->get();
 
@@ -40,8 +41,7 @@ class GroupPromotionService
                 $group->promote();
                 $promoted++;
             } else {
-                // Выпускаем (устанавливаем курс больше максимального)
-                $group->current_course = $maxCourses + 1;
+                // Выпускаем — graduate() сам уводит курс за максимум.
                 $group->graduate();
                 $graduated++;
             }
@@ -76,7 +76,8 @@ class GroupPromotionService
 
     public function getGroupsForPromotion(): Collection
     {
-        return Group::where('is_active', true)
+        return Group::with('specialty')
+            ->where('is_active', true)
             ->where('status', '!=', 'graduated')
             ->get()
             ->filter(function (Group $group): bool {
@@ -88,7 +89,8 @@ class GroupPromotionService
 
     public function getGroupsForGraduation(): Collection
     {
-        return Group::where('is_active', true)
+        return Group::with('specialty')
+            ->where('is_active', true)
             ->where('status', '!=', 'graduated')
             ->get()
             ->filter(function (Group $group): bool {

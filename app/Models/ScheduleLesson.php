@@ -20,6 +20,7 @@ class ScheduleLesson extends Model
         'shift',
         'group_id',
         'subgroup_id',
+        'is_parallel_secondary',
         'discipline_id',
         'lesson_type_id',
         'teacher_id',
@@ -39,6 +40,7 @@ class ScheduleLesson extends Model
         return [
             'is_auto_generated' => 'boolean',
             'is_replacement' => 'boolean',
+            'is_parallel_secondary' => 'boolean',
             'date' => 'date',
             'lesson_number' => 'integer',
             'shift' => 'integer',

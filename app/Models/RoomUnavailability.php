@@ -9,6 +9,9 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class RoomUnavailability extends Model
 {
+    // Миграция создаёт таблицу в единственном числе
+    protected $table = 'room_unavailability';
+
     protected $fillable = [
         'room_id',
         'type',

@@ -6,9 +6,11 @@ namespace App\Services\Schedule;
 
 use App\Models\Group;
 use App\Models\LessonType;
+use App\Models\RoomUnavailability;
 use App\Models\ScheduleConflict;
 use App\Models\ScheduleLesson;
 use App\Models\ScheduleVersion;
+use App\Models\SportComplexSlot;
 use App\Models\Teacher;
 use App\Models\TeacherDiscipline;
 use Carbon\Carbon;
@@ -16,6 +18,19 @@ use Illuminate\Support\Collection;
 
 class ConflictCheckerService
 {
+    public function __construct(
+        private readonly SchedulingRuleResolver $rules,
+        private readonly CustomRuleEvaluator $customRules,
+    ) {}
+
+    /**
+     * Уровень конфликта из жёсткости правила: hard → error, иначе warning.
+     */
+    private function severityLevel(string $key, ?Group $group = null): string
+    {
+        return $this->rules->severity($key, $group) === 'hard' ? 'error' : 'warning';
+    }
+
     public function checkVersion(int $versionId): array
     {
         return $this->checkVersionForRange($versionId);
@@ -27,6 +42,7 @@ class ConflictCheckerService
         ?string $dateTo = null
     ): array {
         ScheduleVersion::findOrFail($versionId);
+        $this->rules->load();
         $query = ScheduleLesson::with([
             'group',
             'teacher',
@@ -93,6 +109,12 @@ class ConflictCheckerService
         foreach ($groupedByWeek as $weekStart => $weekLessons) {
             $this->checkWeeklyHoursLimit(collect($weekLessons), $weekStart, $versionId, $conflicts);
         }
+
+        // 7. Авторские (пользовательские) правила
+        $this->customRules->evaluate($lessons, $versionId, $conflicts);
+
+        // 8. Резерв пар под выезд в спорткомплекс
+        $this->checkSportComplexReservation($lessons, $versionId, $conflicts);
 
         $this->saveConflicts($versionId, $conflicts, $dateFrom, $dateTo);
 
@@ -242,10 +264,14 @@ class ConflictCheckerService
         }
 
         foreach ($lessons as $lesson) {
-            $studentsCount = $lesson->group?->students_count ?? 0;
+            $group = $lesson->group;
+            if (! $this->rules->isEnabled('room_capacity', $group)) {
+                continue;
+            }
+            $studentsCount = $group?->students_count ?? 0;
             if ($room->capacity > 0 && $studentsCount > $room->capacity) {
                 $conflicts[] = [
-                    'version_id' => $versionId, 'conflict_type' => 'room_capacity', 'severity' => 'warning',
+                    'version_id' => $versionId, 'conflict_type' => 'room_capacity', 'severity' => $this->severityLevel('room_capacity', $group),
                     'date' => $date, 'lesson_number' => $lesson->lesson_number, 'room_id' => $room->id,
                     'description' => "Аудитория {$room->number} (вмест. {$room->capacity}) мала для группы {$lesson->group?->name} ({$studentsCount} чел.)",
                     'suggestion' => 'Подобрать более просторную аудиторию',
@@ -259,11 +285,14 @@ class ConflictCheckerService
 
     private function checkTeacherDisciplineMatch(Collection $lessons, string $date, Teacher $teacher, int $versionId, array &$conflicts): void
     {
+        if (! $this->rules->isEnabled('teacher_discipline_match')) {
+            return;
+        }
         $teacherDisciplineIds = TeacherDiscipline::where('teacher_id', $teacher->id)->pluck('discipline_id')->unique()->toArray();
         foreach ($lessons as $lesson) {
             if ($lesson->discipline_id && ! in_array($lesson->discipline_id, $teacherDisciplineIds, true)) {
                 $conflicts[] = [
-                    'version_id' => $versionId, 'conflict_type' => 'teacher_discipline_mismatch', 'severity' => 'error',
+                    'version_id' => $versionId, 'conflict_type' => 'teacher_discipline_mismatch', 'severity' => $this->severityLevel('teacher_discipline_match'),
                     'date' => $date, 'lesson_number' => $lesson->lesson_number, 'teacher_id' => $teacher->id,
                     'description' => "Преподаватель {$teacher->short_name} не привязан к дисциплине «{$lesson->discipline?->name}»",
                     'suggestion' => "Назначить другого преподавателя или добавить дисциплину {$teacher->last_name}",
@@ -275,6 +304,9 @@ class ConflictCheckerService
 
     private function checkTeacherWindows(Collection $lessons, string $date, Teacher $teacher, int $versionId, array &$conflicts): void
     {
+        if (! $this->rules->isEnabled('teacher_no_windows')) {
+            return;
+        }
         $numbers = $lessons->pluck('lesson_number')->unique()->sort()->values()->toArray();
         if (count($numbers) < 2) {
             return;
@@ -283,7 +315,7 @@ class ConflictCheckerService
         for ($i = 1; $i < count($numbers); $i++) {
             if ($numbers[$i] - $numbers[$i - 1] > 1) {
                 $conflicts[] = [
-                    'version_id' => $versionId, 'conflict_type' => 'teacher_window', 'severity' => 'warning',
+                    'version_id' => $versionId, 'conflict_type' => 'teacher_window', 'severity' => $this->severityLevel('teacher_no_windows'),
                     'date' => $date, 'lesson_number' => $numbers[$i], 'teacher_id' => $teacher->id,
                     'description' => "Окно у преподавателя {$teacher->short_name}: между {$numbers[$i - 1]}-й и {$numbers[$i]}-й парой",
                     'suggestion' => 'Уплотнить расписание преподавателя',
@@ -295,8 +327,12 @@ class ConflictCheckerService
 
     private function checkTeacherMinPairs(Collection $lessons, string $date, Teacher $teacher, int $versionId, array &$conflicts): void
     {
-        // В субботу не проверяем минимум пар
-        if (date('N', strtotime($date)) == 6) {
+        if (! $this->rules->isEnabled('teacher_min_lessons')) {
+            return;
+        }
+
+        // Минимум проверяем только в выбранные дни недели
+        if (! in_array((int) date('N', strtotime($date)), $this->rules->arrayParam('min_lessons_check_weekdays', 'days', [1, 2, 3, 4, 5]), true)) {
             return;
         }
 
@@ -305,12 +341,13 @@ class ConflictCheckerService
             return;
         }
 
+        $min = $this->rules->intParam('teacher_min_lessons', 'min', 2);
         $count = $lessons->pluck('lesson_number')->unique()->count();
-        if ($count === 1) {
+        if ($count > 0 && $count < $min) {
             $conflicts[] = [
-                'version_id' => $versionId, 'conflict_type' => 'teacher_min_lessons', 'severity' => 'warning',
+                'version_id' => $versionId, 'conflict_type' => 'teacher_min_lessons', 'severity' => $this->severityLevel('teacher_min_lessons'),
                 'date' => $date, 'lesson_number' => $lessons->first()->lesson_number, 'teacher_id' => $teacher->id,
-                'description' => "Мало пар у преподавателя {$teacher->short_name}: всего 1 пара в день",
+                'description' => "Мало пар у преподавателя {$teacher->short_name}: всего {$count} (минимум {$min})",
                 'suggestion' => 'Добавить еще пары или перенести на другой день',
                 'is_resolved' => false,
             ];
@@ -355,6 +392,9 @@ class ConflictCheckerService
 
     private function checkGroupWindows(Collection $lessons, string $date, Group $group, int $versionId, array &$conflicts): void
     {
+        if (! $this->rules->isEnabled('group_no_windows', $group)) {
+            return;
+        }
         $numbers = $lessons->pluck('lesson_number')->unique()->sort()->values()->toArray();
         if (count($numbers) < 2) {
             return;
@@ -363,7 +403,7 @@ class ConflictCheckerService
         for ($i = 1; $i < count($numbers); $i++) {
             if ($numbers[$i] - $numbers[$i - 1] > 1) {
                 $conflicts[] = [
-                    'version_id' => $versionId, 'conflict_type' => 'group_window', 'severity' => 'error',
+                    'version_id' => $versionId, 'conflict_type' => 'group_window', 'severity' => $this->severityLevel('group_no_windows', $group),
                     'date' => $date, 'lesson_number' => $numbers[$i], 'group_id' => $group->id,
                     'description' => "Окно у группы {$group->name}: между {$numbers[$i - 1]}-й и {$numbers[$i]}-й парой",
                     'suggestion' => 'Перенести одну из пар для устранения окна',
@@ -375,8 +415,12 @@ class ConflictCheckerService
 
     private function checkGroupMinPairs(Collection $lessons, string $date, Group $group, int $versionId, array &$conflicts): void
     {
-        // Если суббота — не проверяем минимум
-        if (date('N', strtotime($date)) == 6) {
+        if (! $this->rules->isEnabled('group_min_lessons', $group)) {
+            return;
+        }
+
+        // Минимум проверяем только в выбранные дни недели
+        if (! in_array((int) date('N', strtotime($date)), $this->rules->arrayParam('min_lessons_check_weekdays', 'days', [1, 2, 3, 4, 5], $group), true)) {
             return;
         }
 
@@ -385,12 +429,13 @@ class ConflictCheckerService
             return;
         }
 
+        $min = $this->rules->intParam('group_min_lessons', 'min', 3, $group);
         $count = $lessons->pluck('lesson_number')->unique()->count();
-        if ($count > 0 && $count < 3) {
+        if ($count > 0 && $count < $min) {
             $conflicts[] = [
-                'version_id' => $versionId, 'conflict_type' => 'group_min_lessons', 'severity' => 'warning',
+                'version_id' => $versionId, 'conflict_type' => 'group_min_lessons', 'severity' => $this->severityLevel('group_min_lessons', $group),
                 'date' => $date, 'group_id' => $group->id,
-                'description' => "Мало пар у группы {$group->name}: всего {$count} в день (минимум 3)",
+                'description' => "Мало пар у группы {$group->name}: всего {$count} в день (минимум {$min})",
                 'suggestion' => 'Добавить еще пары',
                 'is_resolved' => false,
             ];
@@ -399,9 +444,12 @@ class ConflictCheckerService
 
     private function checkPhysicalEducation(Collection $lessons, string $date, Group $group, int $versionId, array &$conflicts): void
     {
+        if (! $this->rules->isEnabled('pe_grouping', $group)) {
+            return;
+        }
         $peLessonTypeIds = LessonType::whereIn('code', ['physical_education', 'swimming'])->pluck('id');
         $isPe = fn ($l) => ($peLessonTypeIds->isNotEmpty() && in_array($l->lesson_type_id ?? 0, $peLessonTypeIds->toArray(), true))
-            || preg_match('/физ|спорт|бассейн/ui', $l->discipline?->name ?? '');
+            || (bool) $l->discipline?->isPhysicalEducation();
         $peNumbers = $lessons->filter($isPe)->pluck('lesson_number')->sort()->values();
         $nonPeNumbers = $lessons->reject($isPe)->pluck('lesson_number')->toArray();
         if ($peNumbers->count() < 2) {
@@ -413,7 +461,7 @@ class ConflictCheckerService
         foreach ($nonPeNumbers as $nonPe) {
             if ($nonPe > $min && $nonPe < $max) {
                 $conflicts[] = [
-                    'version_id' => $versionId, 'conflict_type' => 'pe_grouping', 'severity' => 'warning',
+                    'version_id' => $versionId, 'conflict_type' => 'pe_grouping', 'severity' => $this->severityLevel('pe_grouping', $group),
                     'date' => $date, 'group_id' => $group->id,
                     'description' => "Физкультура не сдвоена у группы {$group->name}: разбита другими занятиями",
                     'suggestion' => 'Сдвоить физкультуру в начале или конце дня',
@@ -429,11 +477,14 @@ class ConflictCheckerService
     {
         // Группы
         foreach ($dayLessons->groupBy('group_id') as $groupId => $groupLessons) {
+            $group = $groupLessons->first()->group;
+            if (! $this->rules->isEnabled('one_building_per_day_group', $group)) {
+                continue;
+            }
             $buildings = $groupLessons->filter(fn ($l) => ! $this->isSportRoom($l))->pluck('building_id')->filter()->unique();
             if ($buildings->count() > 1) {
-                $group = $groupLessons->first()->group;
                 $conflicts[] = [
-                    'version_id' => $versionId, 'conflict_type' => 'group_building_conflict', 'severity' => 'error',
+                    'version_id' => $versionId, 'conflict_type' => 'group_building_conflict', 'severity' => $this->severityLevel('one_building_per_day_group', $group),
                     'date' => $date, 'group_id' => (int) $groupId,
                     'description' => "Группа {$group?->name} в течение дня находится в нескольких корпусах",
                     'suggestion' => 'Перенести все пары группы в один корпус',
@@ -442,6 +493,9 @@ class ConflictCheckerService
             }
         }
         // Преподаватели
+        if (! $this->rules->isEnabled('one_building_per_day_teacher')) {
+            return;
+        }
         foreach ($dayLessons->groupBy('teacher_id') as $teacherId => $teacherLessons) {
             if (! $teacherId) {
                 continue;
@@ -450,7 +504,7 @@ class ConflictCheckerService
             if ($buildings->count() > 1) {
                 $teacher = $teacherLessons->first()->teacher;
                 $conflicts[] = [
-                    'version_id' => $versionId, 'conflict_type' => 'teacher_building_conflict', 'severity' => 'error',
+                    'version_id' => $versionId, 'conflict_type' => 'teacher_building_conflict', 'severity' => $this->severityLevel('one_building_per_day_teacher'),
                     'date' => $date, 'teacher_id' => (int) $teacherId,
                     'description' => "Преподаватель {$teacher?->short_name} в течение дня ведет пары в разных корпусах",
                     'suggestion' => 'Перенести все пары преподавателя в один корпус',
@@ -460,33 +514,110 @@ class ConflictCheckerService
         }
     }
 
+    /**
+     * Пары, отмеченные в «Расписании спорткомплекса», зарезервированы под выезд:
+     * на них не должно стоять обычное (не спортивное) занятие.
+     *
+     * @param  Collection<int, ScheduleLesson>  $lessons
+     * @param  array<int, array<string, mixed>>  $conflicts
+     */
+    private function checkSportComplexReservation(Collection $lessons, int $versionId, array &$conflicts): void
+    {
+        // Физкультура допускается только на парах 1–4 — спортивное занятие
+        // (выезд или зал) после 4-й пары запрещено.
+        foreach ($lessons as $lesson) {
+            if ($this->isSportRoom($lesson) && (int) $lesson->lesson_number > 4) {
+                $dateStr = $lesson->date instanceof Carbon ? $lesson->date->format('Y-m-d') : (string) $lesson->date;
+                $conflicts[] = [
+                    'version_id' => $versionId,
+                    'conflict_type' => 'pe_after_fourth_pair',
+                    'severity' => 'error',
+                    'date' => $dateStr,
+                    'lesson_number' => $lesson->lesson_number,
+                    'group_id' => $lesson->group_id,
+                    'discipline_id' => $lesson->discipline_id,
+                    'description' => "Физкультура стоит на {$lesson->lesson_number}-й паре — допускаются только пары 1–4 (группа {$lesson->group?->name})",
+                    'suggestion' => 'Перенесите физкультуру на пары 1–4.',
+                    'is_resolved' => false,
+                ];
+            }
+        }
+
+        $sportSchedule = SportComplexSlot::get()->groupBy('group_id');
+        if ($sportSchedule->isEmpty()) {
+            return;
+        }
+
+        foreach ($lessons->groupBy('group_id') as $groupId => $groupLessons) {
+            $slots = $sportSchedule->get($groupId);
+            if (! $slots) {
+                continue;
+            }
+            $group = $groupLessons->first()->group;
+
+            foreach ($groupLessons->groupBy('date') as $date => $dayLessons) {
+                $dateStr = is_string($date) ? $date : Carbon::parse($date)->format('Y-m-d');
+                $weekday = (int) Carbon::parse($dateStr)->format('N');
+                $reservedPairs = $slots->where('weekday', $weekday)->pluck('lesson_number')->all();
+                if ($reservedPairs === []) {
+                    continue;
+                }
+
+                foreach ($dayLessons as $lesson) {
+                    if (in_array($lesson->lesson_number, $reservedPairs, true) && ! $this->isSportRoom($lesson)) {
+                        $conflicts[] = [
+                            'version_id' => $versionId,
+                            'conflict_type' => 'sport_complex_reserved',
+                            'severity' => 'error',
+                            'date' => $dateStr,
+                            'lesson_number' => $lesson->lesson_number,
+                            'group_id' => (int) $groupId,
+                            'discipline_id' => $lesson->discipline_id,
+                            'description' => "Пара {$lesson->lesson_number} зарезервирована под выезд в спорткомплекс, но занята обычным занятием (группа {$group?->name})",
+                            'suggestion' => 'Освободите пару под физкультуру в спорткомплексе или снимите отметку в расписании спорткомплекса.',
+                            'is_resolved' => false,
+                        ];
+                    }
+                }
+            }
+        }
+    }
+
     private function checkWeeklyHoursLimit(Collection $weekLessons, string $weekStartDate, int $versionId, array &$conflicts): void
     {
-        $maxLessonsGroup = 18; // 36 ч
         foreach ($weekLessons->groupBy('group_id') as $groupId => $groupLessons) {
+            $group = $groupLessons->first()->group;
+            if (! $this->rules->isEnabled('group_weekly_overload', $group)) {
+                continue;
+            }
+            $maxHoursGroup = $this->rules->intParam('group_weekly_overload', 'max_hours', 36, $group);
+            $maxLessonsGroup = (int) ($maxHoursGroup / 2);
             $count = $groupLessons->count();
             if ($count > $maxLessonsGroup) {
-                $group = $groupLessons->first()->group;
                 $conflicts[] = [
-                    'version_id' => $versionId, 'conflict_type' => 'group_overload', 'severity' => 'warning',
+                    'version_id' => $versionId, 'conflict_type' => 'group_overload', 'severity' => $this->severityLevel('group_weekly_overload', $group),
                     'date' => $weekStartDate, 'group_id' => (int) $groupId,
-                    'description' => "Группа {$group?->name}: превышена недельная нагрузка — ".($count * 2).' ч (макс 36)',
+                    'description' => "Группа {$group?->name}: превышена недельная нагрузка — ".($count * 2)." ч (макс {$maxHoursGroup})",
                     'suggestion' => 'Убрать лишние пары',
                     'is_resolved' => false,
                 ];
             }
+        }
+        if (! $this->rules->isEnabled('teacher_weekly_overload')) {
+            return;
         }
         foreach ($weekLessons->groupBy('teacher_id') as $teacherId => $teacherLessons) {
             if (! $teacherId) {
                 continue;
             }
             $teacher = $teacherLessons->first()->teacher;
-            $maxWeekHours = $teacher?->max_hours_per_week ?? 36;
+            // Лимит преподавателя: личное поле, иначе значение из правила.
+            $maxWeekHours = $teacher?->max_hours_per_week ?? $this->rules->intParam('teacher_weekly_overload', 'max_hours', 36);
             $maxLessons = (int) ($maxWeekHours / 2);
             $count = $teacherLessons->count();
             if ($count > $maxLessons) {
                 $conflicts[] = [
-                    'version_id' => $versionId, 'conflict_type' => 'teacher_overload', 'severity' => 'warning',
+                    'version_id' => $versionId, 'conflict_type' => 'teacher_overload', 'severity' => $this->severityLevel('teacher_weekly_overload'),
                     'date' => $weekStartDate, 'teacher_id' => (int) $teacherId,
                     'description' => "Преподаватель {$teacher?->short_name}: превышена нагрузка — ".($count * 2)." ч/нед (макс {$maxWeekHours})",
                     'suggestion' => 'Убрать лишние пары',
@@ -512,9 +643,7 @@ class ConflictCheckerService
             return true;
         }
 
-        $name = $lesson->discipline?->name ?? '';
-
-        return (bool) preg_match('/практика/ui', $name);
+        return (bool) $lesson->discipline?->isPracticeCategory();
     }
 
     private function saveConflicts(int $versionId, array $conflicts, ?string $dateFrom = null, ?string $dateTo = null): void
@@ -879,11 +1008,24 @@ class ConflictCheckerService
 
     public function checkRoomConflict(int $roomId, string $date, int $lessonNumber, ?int $excludeLessonId = null): bool
     {
+        // Проверяем плановую недоступность аудитории
+        if ($this->isRoomUnavailable($roomId, $date)) {
+            return true;
+        }
+
         return ScheduleLesson::where('room_id', $roomId)
             ->where('date', $date)
             ->where('lesson_number', $lessonNumber)
             ->where('status', '!=', 'cancelled')
             ->when($excludeLessonId, fn ($q) => $q->where('id', '!=', $excludeLessonId))
+            ->exists();
+    }
+
+    private function isRoomUnavailable(int $roomId, string $date): bool
+    {
+        return RoomUnavailability::where('room_id', $roomId)
+            ->whereDate('date_from', '<=', $date)
+            ->whereDate('date_to', '>=', $date)
             ->exists();
     }
 }

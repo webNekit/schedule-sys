@@ -16,8 +16,10 @@ use Livewire\Component;
 #[Layout('components.layouts.app')]
 class ScheduleGeneratorForm extends Component
 {
-    #[Rule('required|in:day,week,month')]
+    #[Rule('required|in:day,week,month,semester')]
     public string $periodType = 'week';
+
+    public int $semester = 1;
 
     public string $date = '';
 
@@ -88,6 +90,10 @@ class ScheduleGeneratorForm extends Component
                 month: $this->month,
                 groupIds: $groupIds,
             ),
+            'semester' => $generator->generateForSemester(
+                semester: $this->semester,
+                groupIds: $groupIds,
+            ),
             default => throw new \InvalidArgumentException('Invalid period type.'),
         };
 
@@ -100,6 +106,7 @@ class ScheduleGeneratorForm extends Component
                 'totalLessons' => $generationResult->totalLessons,
                 'conflicts' => $generationResult->conflicts,
                 'conflictDetails' => $generationResult->conflictDetails,
+                'warnings' => $generationResult->warnings,
                 'versionId' => $generationResult->version?->id,
             ];
         } else {
@@ -142,6 +149,7 @@ class ScheduleGeneratorForm extends Component
             'weekStart',
             'month',
             'year',
+            'semester',
             'selectedGroups',
             'allGroups',
             'departmentId',
@@ -163,7 +171,7 @@ class ScheduleGeneratorForm extends Component
     public function rules(): array
     {
         $base = [
-            'periodType' => 'required|in:day,week,month',
+            'periodType' => 'required|in:day,week,month,semester',
             'selectedGroups' => 'required_if:allGroups,false|array',
             'selectedGroups.*' => 'integer|exists:groups,id',
         ];
@@ -175,6 +183,7 @@ class ScheduleGeneratorForm extends Component
                 'month' => 'required|integer|between:1,12',
                 'year' => 'required|integer|min:2000|max:2100',
             ] + $base,
+            'semester' => ['semester' => 'required|integer|in:1,2'] + $base,
             default => $base,
         };
     }

@@ -14,7 +14,9 @@ class DatabaseSeeder extends Seeder
         $this->call([
             RolesAndPermissionsSeeder::class,
             AdminUserSeeder::class,
+            SchedulingRulesSeeder::class,
             TestEnvironmentSeeder::class,
+            CustomSchedulingRulesSeeder::class,
         ]);
     }
 }

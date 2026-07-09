@@ -235,7 +235,7 @@
                                             $remaining = $totalPlanned - $totalConducted;
                                         @endphp
                                         <tr class="hover:bg-gray-50/50 dark:hover:bg-gray-700/30 transition-colors">
-                                            <td class="px-4 py-2.5 font-medium text-gray-900 dark:text-white border-r border-gray-50 dark:border-gray-700">{{ $td->resolvedGroup?->name ?? '—' }}</td>
+                                            <td class="px-4 py-2.5 font-medium text-gray-900 dark:text-white border-r border-gray-50 dark:border-gray-700 whitespace-nowrap">{{ $td->resolvedGroup?->name ?? '—' }}</td>
                                             <td class="px-4 py-2.5 text-gray-700 dark:text-gray-300 border-r border-gray-50 dark:border-gray-700">{{ $td->discipline->name }}</td>
                                             
                                             <td class="px-2 py-2.5 text-center font-bold text-gray-900 dark:text-white border-r border-gray-50 dark:border-gray-700 bg-gray-50/30 dark:bg-gray-900/10">{{ $h1_total ?: '—' }}</td>

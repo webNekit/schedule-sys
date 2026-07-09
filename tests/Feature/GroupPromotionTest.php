@@ -100,3 +100,47 @@ test('groups are promoted correctly to the next year', function () {
     expect($group4->status)->toBe('active');
     expect($group4->full_name)->toBe('сп-1-22 (3 курс)');
 });
+
+test('single graduate() on a final-course group sticks', function () {
+    $department = Department::create(['name' => 'Dept', 'short_name' => 'D']);
+    $specialty = Specialty::create([
+        'name' => 'Spec', 'short_name' => 'S', 'code' => '1',
+        'department_id' => $department->id, 'max_courses' => 4, 'is_active' => true,
+    ]);
+    $year = AcademicYear::create([
+        'name' => '2023/2024', 'year_start' => 2023, 'year_end' => 2024,
+        'date_start' => '2023-09-01', 'date_end' => '2024-08-31', 'is_current' => true,
+    ]);
+
+    $group = Group::create([
+        'name' => 'гр-4', 'specialty_id' => $specialty->id, 'department_id' => $department->id,
+        'academic_year_id' => $year->id, 'current_course' => 4, 'status' => 'active', 'is_active' => true,
+    ]);
+
+    $group->graduate();
+    $group->refresh();
+
+    // Раньше хук saving сбрасывал статус обратно на active — теперь выпуск держится.
+    expect($group->status)->toBe('graduated')
+        ->and($group->current_course)->toBe(5)
+        ->and($group->full_name)->toBe('гр-4 (выпущена)');
+});
+
+test('manually creating a graduated final-course group is not reactivated', function () {
+    $department = Department::create(['name' => 'Dept', 'short_name' => 'D']);
+    $specialty = Specialty::create([
+        'name' => 'Spec', 'short_name' => 'S', 'code' => '1',
+        'department_id' => $department->id, 'max_courses' => 4, 'is_active' => true,
+    ]);
+    $year = AcademicYear::create([
+        'name' => '2023/2024', 'year_start' => 2023, 'year_end' => 2024,
+        'date_start' => '2023-09-01', 'date_end' => '2024-08-31', 'is_current' => true,
+    ]);
+
+    $group = Group::create([
+        'name' => 'гр-old', 'specialty_id' => $specialty->id, 'department_id' => $department->id,
+        'academic_year_id' => $year->id, 'current_course' => 4, 'status' => 'graduated', 'is_active' => true,
+    ]);
+
+    expect($group->fresh()->status)->toBe('graduated');
+});

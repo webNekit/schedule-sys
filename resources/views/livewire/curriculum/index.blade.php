@@ -68,16 +68,26 @@
                                 @foreach($deptSpecialties as $specialty)
                                     @php $specialtyPlans = $plans->where('specialty_id', $specialty->id); @endphp
                                     <div class="border-b border-gray-100 dark:border-gray-700 last:border-b-0">
-                                        <button wire:click="toggleSpecialty({{ $specialty->id }})"
-                                            class="w-full flex items-center gap-3 px-4 py-2.5 pl-12 hover:bg-gray-50 dark:hover:bg-gray-700/30 transition-colors text-left">
-                                            <svg class="w-3.5 h-3.5 text-gray-400 transition-transform {{ ($expandedSpecialties[$specialty->id] ?? false) ? 'rotate-90' : '' }}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
-                                            </svg>
-                                            <div class="flex-1">
-                                                <p class="text-sm font-medium text-gray-900 dark:text-white">{{ $specialty->name }}</p>
-                                                <p class="text-xs text-gray-400 dark:text-gray-500">{{ $specialty->code ?? '' }} • {{ $specialtyPlans->count() }} планов</p>
-                                            </div>
-                                        </button>
+                                        <div class="flex items-center pr-3 hover:bg-gray-50 dark:hover:bg-gray-700/30 transition-colors group/spec">
+                                            <button wire:click="toggleSpecialty({{ $specialty->id }})"
+                                                class="flex-1 min-w-0 flex items-center gap-3 px-4 py-2.5 pl-12 text-left">
+                                                <svg class="w-3.5 h-3.5 text-gray-400 transition-transform {{ ($expandedSpecialties[$specialty->id] ?? false) ? 'rotate-90' : '' }}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
+                                                </svg>
+                                                <div class="flex-1 min-w-0">
+                                                    <p class="text-sm font-medium text-gray-900 dark:text-white">{{ $specialty->name }}</p>
+                                                    <p class="text-xs text-gray-400 dark:text-gray-500">{{ $specialty->code ?? '' }} • {{ $specialtyPlans->count() }} планов</p>
+                                                </div>
+                                            </button>
+                                            <a href="{{ route('curriculum.import', ['specialty' => $specialty->id]) }}"
+                                                class="shrink-0 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-900/30 hover:bg-emerald-100 dark:hover:bg-emerald-900/50 border border-emerald-200 dark:border-emerald-800 transition-colors"
+                                                title="Импортировать план для этой специальности">
+                                                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
+                                                </svg>
+                                                Импортировать планы
+                                            </a>
+                                        </div>
 
                                         @if($expandedSpecialties[$specialty->id] ?? false)
                                             <div class="border-t border-gray-100 dark:border-gray-700">

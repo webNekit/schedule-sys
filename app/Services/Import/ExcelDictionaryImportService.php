@@ -187,8 +187,8 @@ class ExcelDictionaryImportService
                 $qual = trim((string) ($row[3] ?? ''));
                 $deptStr = trim((string) ($row[4] ?? ''));
                 $levelStr = trim((string) ($row[5] ?? ''));
-                $years9 = (int) trim((string) ($row[6] ?? '4'));
-                $years11 = (int) trim((string) ($row[7] ?? '3'));
+                $years9 = str_replace('.', ',', trim((string) ($row[6] ?? '4')));
+                $years11 = str_replace('.', ',', trim((string) ($row[7] ?? '3')));
 
                 $dept = $departments->get($deptStr);
                 $level = $levels->get($levelStr) ?? $levels->first();
@@ -207,7 +207,7 @@ class ExcelDictionaryImportService
                         'qualification' => $qual ?: null,
                         'department_id' => $dept->id,
                         'education_level_id' => $level?->id,
-                        'study_years' => $years9,
+                        'study_years' => (int) $years9,
                         'study_years_9' => $years9,
                         'study_years_11' => $years11,
                         'is_active' => true,

@@ -111,7 +111,11 @@ class DepartmentManager extends Component
             'departments' => Department::withCount('teachers', 'groups', 'specialties')
                 ->orderBy('name')
                 ->paginate(20),
-            'teachers' => Teacher::active()->orderBy('last_name')->get(),
+            'teachers' => Teacher::active()->orderBy('last_name')->get()
+                ->map(fn ($t) => [
+                    'id' => $t->id,
+                    'label' => trim("{$t->last_name} {$t->first_name}".($t->middle_name ? " {$t->middle_name}" : '')),
+                ])->toArray(),
         ]);
     }
 }

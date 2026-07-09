@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use App\Http\Livewire\Schedule\ReplacementFinder;
 use App\Models\AcademicYear;
 use App\Models\Building;
 use App\Models\CurriculumDiscipline;
@@ -20,8 +21,14 @@ use App\Models\Specialty;
 use App\Models\Teacher;
 use App\Models\TeacherPosition;
 use App\Models\User;
+use Carbon\Carbon;
+use Livewire\Livewire;
 
 beforeEach(function () {
+    // Фиксируем «сегодня», чтобы даты уроков были детерминированно в будущем
+    // (иначе при наступлении даты урока поведение возврата часов менялось бы).
+    Carbon::setTestNow('2026-09-01');
+
     // 1. Учебный год
     $this->academicYear = AcademicYear::create([
         'name' => '2026-2027',
@@ -142,6 +149,10 @@ beforeEach(function () {
 
     // Пользователь для publish
     $this->publishUser = $user1;
+});
+
+afterEach(function () {
+    Carbon::setTestNow();
 });
 
 // ============================================================
@@ -265,4 +276,89 @@ it('marks hours as cancelled when lesson is cancelled or deleted', function () {
 
     expect((bool) HoursTracking::first()->is_cancelled)->toBeTrue()
         ->and(HoursTracking::first()->notes)->toBe('Пара удалена');
+});
+
+it('returns original hours and credits the replacement teacher via ReplacementFinder', function () {
+    [$version, $lesson] = createVersionWithLesson();
+    $version->publish($this->publishUser->id);
+
+    // Исходно: 2 часа отведены teacher1
+    expect(HoursTracking::where('is_cancelled', false)->count())->toBe(1)
+        ->and((int) HoursTracking::where('is_cancelled', false)->first()->teacher_id)->toBe($this->teacher1->id);
+
+    // Диспетчер назначает замену teacher2 через страницу «Поиск замены»
+    Livewire::test(ReplacementFinder::class)
+        ->set('date', '2026-09-10')
+        ->set('groupId', $this->group->id)
+        ->set('disciplineId', $this->discipline->id)
+        ->set('lessonNumber', 1)
+        ->call('assignReplacement', $this->teacher2->id, $this->room->id);
+
+    // Часы teacher1 возвращены (он пару не отвёл)
+    $old = HoursTracking::where('teacher_id', $this->teacher1->id)->first();
+    expect((bool) $old->is_cancelled)->toBeTrue();
+
+    // Заменяющему teacher2 начислены часы
+    $new = HoursTracking::where('teacher_id', $this->teacher2->id)
+        ->where('is_cancelled', false)
+        ->first();
+    expect($new)->not->toBeNull()
+        ->and((float) $new->hours_conducted)->toBe(2.0);
+
+    // Активная запись ровно одна — двойного учёта нет
+    expect(HoursTracking::where('is_cancelled', false)->count())->toBe(1);
+
+    // Оригинал помечен отменённым (не удалён) и связан с заменой
+    $original = ScheduleLesson::where('id', $lesson->id)->first();
+    expect($original->status)->toBe('cancelled');
+
+    $replacement = ScheduleLesson::where('teacher_id', $this->teacher2->id)
+        ->where('is_replacement', true)
+        ->first();
+    expect($replacement)->not->toBeNull()
+        ->and((int) $replacement->original_lesson_id)->toBe($lesson->id);
+});
+
+it('returns hours for a future (not yet conducted) lesson when teacher is removed', function () {
+    // «Сегодня» = 2026-09-01, пара 2026-09-10 — в будущем (преподаватель её ещё не отвёл)
+    [$version, $lesson] = createVersionWithLesson(['status' => 'active']);
+    $version->publish($this->publishUser->id);
+
+    expect(HoursTracking::where('is_cancelled', false)->count())->toBe(1);
+
+    // Меняем расписание — снимаем преподавателя с будущей пары
+    $lesson->update(['teacher_id' => null]);
+
+    // Часы возвращены — пара не проведена
+    expect(HoursTracking::where('is_cancelled', false)->count())->toBe(0)
+        ->and((bool) HoursTracking::first()->is_cancelled)->toBeTrue();
+});
+
+it('keeps hours for a past (already conducted) lesson when it is changed', function () {
+    // «Сегодня» = 2026-09-01, ставим пару в прошлом — 2026-08-25 (уже отведена)
+    [$version, $lesson] = createVersionWithLesson(['status' => 'active']);
+    $lesson->update(['date' => '2026-08-25']);
+    $version->publish($this->publishUser->id);
+
+    expect(HoursTracking::where('is_cancelled', false)->count())->toBe(1);
+
+    // Диспетчер задним числом меняет преподавателя на прошедшей паре
+    $lesson->update(['teacher_id' => $this->teacher2->id]);
+
+    // Часы прежнего преподавателя НЕ возвращаются — пара уже была проведена
+    $old = HoursTracking::where('teacher_id', $this->teacher1->id)->first();
+    expect((bool) $old->is_cancelled)->toBeFalse();
+});
+
+it('keeps hours for a past lesson on deletion', function () {
+    [$version, $lesson] = createVersionWithLesson(['status' => 'active']);
+    $lesson->update(['date' => '2026-08-25']);
+    $version->publish($this->publishUser->id);
+
+    expect(HoursTracking::where('is_cancelled', false)->count())->toBe(1);
+
+    $lesson->delete();
+
+    // Прошедшая пара удалена из расписания, но часы остаются отведёнными
+    expect((bool) HoursTracking::first()->is_cancelled)->toBeFalse();
 });

@@ -216,15 +216,15 @@
                         </div>
                     </div>
                     <div>
-                        <label class="block text-sm font-medium mb-1">Специальность</label>
-                        <select wire:model="newSpecialtyId"
-                            class="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-2 text-sm">
-                            <option value="">Не выбрана</option>
-                            @foreach($specialties as $spec)
-                                <option value="{{ $spec->id }}">{{ $spec->name }}</option>
-                            @endforeach
-                        </select>
-                        <p class="text-xs text-gray-400 mt-1">Выберите из списка</p>
+                        <x-searchable-select
+                            label="Специальность"
+                            model="newSpecialtyId"
+                            :options="$specialties"
+                            none-label="Не выбрана"
+                            none-value=""
+                            placeholder="Поиск по коду или названию..."
+                            hint="Отображается: КОД — Название"
+                        />
                     </div>
                     <div class="grid grid-cols-2 gap-4">
                         <div>
